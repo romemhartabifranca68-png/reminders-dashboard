@@ -1,197 +1,472 @@
 <!DOCTYPE html>
 <html lang="tl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Brilliant People Dashboard ✨</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brilliant People Dashboard</title>
     <style>
-        
+        :root {
+            --bg-1: #1e1b4b;
+            --bg-2: #4c1d95;
+            --bg-3: #0f172a;
+            --bg-4: #04354b;
+
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.18);
+            --text-color: #f8fafc;
+            --muted-text: rgba(255, 255, 255, 0.78);
+            --card-bg: rgba(0, 0, 0, 0.2);
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            --accent: #38bdf8;
+            --danger: #ff6b6b;
+        }
+
+        body.dark-theme {
+            --bg-1: #020617;
+            --bg-2: #0f172a;
+            --bg-3: #111827;
+            --bg-4: #1e293b;
+
+            --glass-bg: rgba(15, 23, 42, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-color: #e2e8f0;
+            --muted-text: rgba(226, 232, 240, 0.75);
+            --card-bg: rgba(255, 255, 255, 0.04);
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+            --accent: #60a5fa;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
-            color: #ffffff;
-            min-height: 100vh;
             margin: 0;
-            padding: 20px;
+            min-height: 100vh;
+            padding: 24px 16px 40px;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-color);
+            background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-3), var(--bg-4));
+            background-size: 400% 400%;
+            animation: gradientBG 20s ease infinite;
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-x: hidden;
+            position: relative;
+            transition: background 0.4s ease, color 0.4s ease;
         }
 
         @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
-        
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+            background-size: 28px 28px;
+            opacity: 0.35;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 760px;
+            position: relative;
+            z-index: 1;
+        }
+
         .glass-panel {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 16px;
-            padding: 25px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
-            margin-bottom: 20px;
+            width: 100%;
+            background: var(--glass-bg);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            margin-bottom: 18px;
+        }
+
+        .hero {
             text-align: center;
         }
 
-        
-        #clock {
-            font-size: 3rem;
-            font-weight: bold;
-            letter-spacing: 2px;
-            text-shadow: 0 0 20px rgba(255,255,255,0.6);
-            margin: 10px 0;
+        .section-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+            margin-bottom: 14px;
+        }
+
+        #greeting {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 6px;
         }
 
         #date {
-            font-size: 1.2rem;
-            opacity: 0.9;
+            font-size: 1rem;
+            color: var(--muted-text);
+            margin-bottom: 8px;
+        }
+
+        #clock {
+            font-size: clamp(2.3rem, 8vw, 4rem);
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin: 8px 0 10px;
+            text-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted-text);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+        }
+
+        .theme-btn {
+            margin-top: 16px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.14);
+            color: var(--text-color);
+            padding: 10px 16px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .theme-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.22);
         }
 
         h2 {
-            margin-top: 0;
-            font-size: 1.8rem;
-            border-bottom: 2px solid rgba(255,255,255,0.2);
-            padding-bottom: 10px;
+            margin: 0 0 16px;
+            font-size: 1.45rem;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 12px;
+            text-align: left;
         }
 
-        
         .subject-card {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 12px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: left;
-            border-left: 5px solid #ff6b81;
-            transition: transform 0.3s ease;
+            background: var(--card-bg);
+            border-radius: 18px;
+            padding: 18px;
+            margin: 14px 0;
+            border-left: 6px solid #ff6b81;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
         }
 
         .subject-card:hover {
-            transform: scale(1.02);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+        }
+
+        .card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
         }
 
         .subject-title {
-            font-weight: bold;
-            font-size: 1.1rem;
-            margin-bottom: 5px;
+            font-size: 1.08rem;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .task-text {
+            font-size: 0.97rem;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .meta {
+            font-size: 0.85rem;
+            color: var(--muted-text);
+            margin-bottom: 10px;
         }
 
         .countdown {
-            font-size: 0.9rem;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 3px 8px;
-            border-radius: 20px;
-            float: right;
-            font-weight: bold;
+            flex-shrink: 0;
+            font-size: 0.82rem;
+            font-weight: 700;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            white-space: nowrap;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 100%;
+            border-radius: inherit;
+            transition: width 1s linear, background 0.3s ease;
+        }
+
+        .quote-panel {
+            max-width: 520px;
+            text-align: center;
         }
 
         .quote {
+            margin: 0 0 8px;
+            font-size: 1rem;
+            line-height: 1.7;
             font-style: italic;
-            opacity: 0.8;
-            font-size: 0.95rem;
-            line-height: 1.4;
+            color: var(--text-color);
+        }
+
+        .quote-author {
+            font-size: 0.88rem;
+            color: var(--muted-text);
+        }
+
+        @media (max-width: 640px) {
+            .glass-panel {
+                padding: 18px;
+                border-radius: 20px;
+            }
+
+            .card-top {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .countdown {
+                align-self: flex-start;
+            }
+
+            h2 {
+                font-size: 1.25rem;
+            }
+
+            .subject-title {
+                font-size: 1rem;
+            }
         }
     </style>
 </head>
 <body>
-
-    <!-- TIME & DATE SECTION -->
-    <div class="glass-panel">
-        <div id="date">Loading Date...</div>
-        <div id="clock">00:00:00 AM</div>
-        <p style="margin: 5px 0 0 0; font-size: 0.9rem; opacity: 0.8;">✨ Day Reminder for Brilliant People ✨</p>
-    </div>
-
-    <!-- TO DO LIST SECTION -->
-    <div class="glass-panel">
-        <h2>📌 Active To-Do's</h2>
-
-        <!-- GEC 102 -->
-        <div class="subject-card" style="border-left-color: #ffd166;">
-            <span class="countdown" id="timer-gec102">Calculating...</span>
-            <div class="subject-title">🇵🇭 GEC 102 — Readings in Philippine History</div>
-            <div>📝 Performance Task 1: Identifying the Sources</div>
-            <div style="font-size: 0.85rem; opacity: 0.7; margin-top: 5px;">📍 Submit: Google Classroom</div>
+    <div class="container">
+        <div class="glass-panel hero">
+            <div class="section-badge">BSCS 1-A</div>
+            <div id="greeting">Magandang Araw!</div>
+            <div id="date">Loading Date...</div>
+            <div id="clock">00:00:00 AM</div>
+            <p class="subtitle">Day Reminder for Brilliant People</p>
+            <button class="theme-btn" onclick="toggleTheme()">Switch Theme</button>
         </div>
 
-        <!-- P.I. 101 -->
-        <div class="subject-card" style="border-left-color: #06d6a0;">
-            <span class="countdown" id="timer-pi101">Calculating...</span>
-            <div class="subject-title">📝 P.I. 101 — The Life and Works of Jose Rizal</div>
-            <div>📖 Bring Book (2nd Ed) & Prep for Mind Mapping</div>
+        <div class="glass-panel">
+            <h2>Active To-Do's</h2>
+
+            <div class="subject-card" style="border-left-color: #ffd166;">
+                <div class="card-top">
+                    <div class="subject-title">GEC 102 - Readings in Philippine History</div>
+                    <span class="countdown" id="timer-gec102">Calculating...</span>
+                </div>
+                <div class="task-text">Performance Task 1: Identifying the Sources</div>
+                <div class="meta">Submit: Google Classroom</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="bar-gec102" style="background: linear-gradient(90deg, #ffd166, #f59e0b);"></div>
+                </div>
+            </div>
+
+            <div class="subject-card" style="border-left-color: #34d399;">
+                <div class="card-top">
+                    <div class="subject-title">P.I. 101 - The Life and Works of Jose Rizal</div>
+                    <span class="countdown" id="timer-pi101">Calculating...</span>
+                </div>
+                <div class="task-text">Bring Book (2nd Ed) and prepare for Mind Mapping</div>
+                <div class="meta">Reminder: Ihanda bago pumasok</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="bar-pi101" style="background: linear-gradient(90deg, #34d399, #10b981);"></div>
+                </div>
+            </div>
+
+            <div class="subject-card" style="border-left-color: #38bdf8;">
+                <div class="card-top">
+                    <div class="subject-title">GEC 101 - Understanding the Self</div>
+                    <span class="countdown" id="timer-gec101">Calculating...</span>
+                </div>
+                <div class="task-text">Memorize University Vision, Mission, and Quality Policy</div>
+                <div class="meta">Focus: Review and recall</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="bar-gec101" style="background: linear-gradient(90deg, #38bdf8, #0284c7);"></div>
+                </div>
+            </div>
         </div>
 
-        <!-- GEC 101 -->
-        <div class="subject-card" style="border-left-color: #118ab2;">
-            <span class="countdown" id="timer-gec101">Calculating...</span>
-            <div class="subject-title">🧘‍♀️ GEC 101 — Understanding the Self</div>
-            <div>🧠 Memorize University Vision, Mission, & Quality Policy</div>
+        <div class="glass-panel quote-panel">
+            <p class="quote">"Your time is limited, so don't waste it living someone else's life."</p>
+            <div class="quote-author">- Steve Jobs</div>
         </div>
-    </div>
-
-    <!-- MOTIVATIONAL QUOTE -->
-    <div class="glass-panel" style="max-width: 450px;">
-        <p class="quote">❝ Your time is limited, so don’t waste it living someone else’s life. ❞</p>
-        <span style="font-size: 0.85rem; opacity: 0.7;">— Steve Jobs 🤍✨</span>
     </div>
 
     <script>
-        
         function updateClock() {
             const now = new Date();
-            
-            
-            let optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
-            document.getElementById('clock').innerText = now.toLocaleTimeString('en-US', optionsTime);
-            
-            
-            let optionsDate = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('date').innerText = now.toLocaleDateString('en-US', optionsDate);
+            const hour = now.getHours();
+            let greetText = "Magandang Araw!";
 
-            
-            updateTimer("August 5, 2026 17:00:00", "timer-gec102"); 
-            updateTimer("August 5, 2026 08:00:00", "timer-pi101");  
-            updateTimer("August 5, 2026 08:00:00", "timer-gec101");  
+            if (hour >= 5 && hour < 12) {
+                greetText = "Magandang Umaga, Devs!";
+            } else if (hour >= 12 && hour < 13) {
+                greetText = "Tanghalian Na!";
+            } else if (hour >= 13 && hour < 18) {
+                greetText = "Magandang Hapon!";
+            } else {
+                greetText = "Magandang Gabi, BSCS!";
+            }
+
+            const greetingEl = document.getElementById("greeting");
+            const clockEl = document.getElementById("clock");
+            const dateEl = document.getElementById("date");
+
+            if (greetingEl) {
+                greetingEl.innerText = greetText;
+            }
+
+            if (clockEl) {
+                clockEl.innerText = now.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true
+                });
+            }
+
+            if (dateEl) {
+                dateEl.innerText = now.toLocaleDateString("tl-PH", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric"
+                });
+            }
+
+            updateTimer(
+                "August 4, 2026 06:00:00 AM",
+                "August 5, 2026 08:30:00 AM",
+                "timer-gec102",
+                "bar-gec102"
+            );
+
+            updateTimer(
+                "August 4, 2026 06:00:00 AM",
+                "August 5, 2026 10:00:00 AM",
+                "timer-pi101",
+                "bar-pi101"
+            );
+
+            updateTimer(
+                "August 4, 2026 06:00:00 AM",
+                "August 5, 2026 01:00:00 PM",
+                "timer-gec101",
+                "bar-gec101"
+            );
         }
 
-        
-        function updateTimer(targetDateStr, elementId) {
+        function updateTimer(startTimeStr, targetDateStr, elementId, barId) {
             const now = new Date().getTime();
+            const start = new Date(startTimeStr).getTime();
             const deadline = new Date(targetDateStr).getTime();
-            const diff = deadline - now;
+
+            const totalDuration = deadline - start;
+            const timeRemaining = deadline - now;
 
             const element = document.getElementById(elementId);
+            const bar = document.getElementById(barId);
 
-            if (diff <= 0) {
-                element.innerText = "⏳ Tapos na!";
-                element.style.background = "#ef476f";
+            if (!element) {
                 return;
             }
 
-            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            if (timeRemaining <= 0) {
+                element.innerText = "Tapos na!";
+                element.style.background = "#ef476f";
+                element.style.color = "#ffffff";
+
+                if (bar) {
+                    bar.style.width = "0%";
+                    bar.style.background = "#ef476f";
+                }
+                return;
+            }
+
+            if (bar && totalDuration > 0) {
+                const percentage = Math.max(
+                    0,
+                    Math.min(100, (timeRemaining / totalDuration) * 100)
+                );
+                bar.style.width = percentage + "%";
+            }
+
+            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
+            const hours = Math.floor(
+                (timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+            );
+            const minutes = Math.floor(
+                (timeRemaining % (1000 * 60 * 60)) / (1000 * 60)
+            );
 
             if (days > 0) {
                 element.innerText = `${days}d ${hours}h left`;
             } else {
                 element.innerText = `${hours}h ${minutes}m left`;
-                if (hours < 3) {
-                    element.style.background = "#ff6b6b"; 
+            }
+
+            if (hours < 3 && days === 0) {
+                element.style.background = "#ff6b6b";
+                element.style.color = "#ffffff";
+
+                if (bar) {
+                    bar.style.background = "#ff6b6b";
                 }
             }
         }
 
-        
-        setInterval(updateClock, 1000);
-        updateClock(); 
+        function toggleTheme() {
+            document.body.classList.toggle("dark-theme");
+        }
+
+        window.onload = function () {
+            updateClock();
+            setInterval(updateClock, 1000);
+        };
     </script>
 </body>
 </html>
