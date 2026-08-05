@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Brilliant People Dashboard</title>
+    <title>BSCS Reminder Dashboard</title>
     <style>
         :root {
             --bg-1: #1e1b4b;
@@ -11,14 +11,18 @@
             --bg-3: #0f172a;
             --bg-4: #04354b;
 
-            --glass-bg: rgba(255, 255, 255, 0.1);
-            --glass-border: rgba(255, 255, 255, 0.18);
-            --text-color: #f8fafc;
-            --muted-text: rgba(255, 255, 255, 0.78);
-            --card-bg: rgba(0, 0, 0, 0.2);
+            --text: #f8fafc;
+            --muted: rgba(248, 250, 252, 0.75);
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --card: rgba(0, 0, 0, 0.18);
             --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+
             --accent: #38bdf8;
-            --danger: #ff6b6b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --soft-danger: rgba(239, 68, 68, 0.18);
         }
 
         body.dark-theme {
@@ -27,31 +31,31 @@
             --bg-3: #111827;
             --bg-4: #1e293b;
 
-            --glass-bg: rgba(15, 23, 42, 0.55);
+            --text: #e2e8f0;
+            --muted: rgba(226, 232, 240, 0.75);
+            --glass: rgba(15, 23, 42, 0.55);
             --glass-border: rgba(255, 255, 255, 0.08);
-            --text-color: #e2e8f0;
-            --muted-text: rgba(226, 232, 240, 0.75);
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-            --accent: #60a5fa;
+            --card: rgba(255, 255, 255, 0.04);
+            --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
-            padding: 24px 16px 40px;
+            padding: 22px 14px 40px;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            color: var(--text-color);
+            color: var(--text);
             background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-3), var(--bg-4));
             background-size: 400% 400%;
             animation: gradientBG 20s ease infinite;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
             overflow-x: hidden;
             position: relative;
             transition: background 0.4s ease, color 0.4s ease;
@@ -73,7 +77,7 @@
             content: "";
             position: fixed;
             inset: 0;
-            background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+            background-image: radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1px);
             background-size: 28px 28px;
             opacity: 0.35;
             pointer-events: none;
@@ -82,38 +86,38 @@
 
         .container {
             width: 100%;
-            max-width: 760px;
+            max-width: 980px;
+            margin: 0 auto;
             position: relative;
             z-index: 1;
         }
 
         .glass-panel {
-            width: 100%;
-            background: var(--glass-bg);
+            background: var(--glass);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
             border: 1px solid var(--glass-border);
             border-radius: 24px;
-            padding: 24px;
             box-shadow: var(--shadow);
-            margin-bottom: 18px;
         }
 
         .hero {
+            padding: 24px 20px;
             text-align: center;
+            margin-bottom: 18px;
         }
 
-        .section-badge {
+        .badge {
             display: inline-block;
             padding: 8px 16px;
             border-radius: 999px;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            color: #fff;
             font-size: 0.9rem;
             font-weight: 700;
-            letter-spacing: 0.5px;
-            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+            letter-spacing: 0.4px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: #fff;
             margin-bottom: 14px;
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
         }
 
         #greeting {
@@ -124,9 +128,9 @@
         }
 
         #date {
-            font-size: 1rem;
-            color: var(--muted-text);
+            color: var(--muted);
             margin-bottom: 8px;
+            font-size: 1rem;
         }
 
         #clock {
@@ -134,57 +138,175 @@
             font-weight: 800;
             letter-spacing: 2px;
             margin: 8px 0 10px;
-            text-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+            text-shadow: 0 0 24px rgba(56, 189, 248, 0.32);
         }
 
         .subtitle {
             margin: 0;
-            color: var(--muted-text);
+            color: var(--muted);
             font-size: 0.95rem;
-            letter-spacing: 0.3px;
         }
 
-        .theme-btn {
+        .hero-actions {
             margin-top: 16px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .theme-btn,
+        .jump-btn {
             border: 1px solid var(--glass-border);
             background: rgba(255, 255, 255, 0.14);
-            color: var(--text-color);
+            color: var(--text);
             padding: 10px 16px;
             border-radius: 999px;
             cursor: pointer;
             font-size: 0.9rem;
             font-weight: 600;
-            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+            text-decoration: none;
+            transition: transform 0.2s ease, background 0.2s ease;
         }
 
-        .theme-btn:hover {
+        .theme-btn:hover,
+        .jump-btn:hover {
             transform: translateY(-2px);
             background: rgba(255, 255, 255, 0.22);
         }
 
-        h2 {
-            margin: 0 0 16px;
-            font-size: 1.45rem;
-            border-bottom: 1px solid var(--glass-border);
-            padding-bottom: 12px;
-            text-align: left;
+        .overview {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .stat-card {
+            padding: 18px;
+            border-radius: 20px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+        }
+
+        .stat-sub {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .next-deadline {
+            margin-bottom: 18px;
+            padding: 18px;
+        }
+
+        .next-deadline h2,
+        .tasks-panel h2,
+        .quote-panel h2 {
+            margin: 0 0 14px;
+            font-size: 1.25rem;
+        }
+
+        .next-box {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            padding: 16px;
+        }
+
+        .next-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .next-meta {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .tasks-panel {
+            padding: 18px;
+            margin-bottom: 18px;
+        }
+
+        .subject-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
         }
 
         .subject-card {
-            background: var(--card-bg);
-            border-radius: 18px;
+            background: var(--card);
+            border-radius: 22px;
             padding: 18px;
-            margin: 14px 0;
-            border-left: 6px solid #ff6b81;
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            border-left: 6px solid #38bdf8;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
         .subject-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
         }
 
-        .card-top {
+        .subject-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .subject-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .subject-sub {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .subject-count {
+            font-size: 0.82rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid var(--glass-border);
+            border-radius: 999px;
+            padding: 6px 10px;
+            white-space: nowrap;
+        }
+
+        .task-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .task-item {
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .task-top {
             display: flex;
             align-items: flex-start;
             justify-content: space-between;
@@ -192,281 +314,570 @@
             margin-bottom: 8px;
         }
 
-        .subject-title {
-            font-size: 1.08rem;
+        .task-name {
             font-weight: 700;
             line-height: 1.45;
         }
 
-        .task-text {
-            font-size: 0.97rem;
-            color: var(--text-color);
-            margin-bottom: 8px;
-        }
-
-        .meta {
-            font-size: 0.85rem;
-            color: var(--muted-text);
-            margin-bottom: 10px;
-        }
-
-        .countdown {
+        .task-timer {
             flex-shrink: 0;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 6px 10px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 7px 10px;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.14);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             white-space: nowrap;
         }
 
-        .progress-bar-container {
-            width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.08);
+        .task-meta {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .task-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .mini-badge {
+            display: inline-block;
+            padding: 5px 10px;
             border-radius: 999px;
-            overflow: hidden;
+            font-size: 0.75rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .urgent {
+            background: var(--soft-danger);
+            border-color: rgba(239, 68, 68, 0.32);
+        }
+
+        .urgent .task-timer {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: rgba(239, 68, 68, 0.38);
+            color: #fecaca;
+        }
+
+        .done .task-timer {
+            background: rgba(16, 185, 129, 0.18);
+            border-color: rgba(16, 185, 129, 0.35);
+            color: #bbf7d0;
+        }
+
+        .progress-wrap {
+            margin-top: 10px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 6px;
         }
 
         .progress-bar {
             width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .progress-fill {
             height: 100%;
+            width: 100%;
             border-radius: inherit;
             transition: width 1s linear, background 0.3s ease;
         }
 
         .quote-panel {
-            max-width: 520px;
+            padding: 20px;
             text-align: center;
         }
 
-        .quote {
-            margin: 0 0 8px;
-            font-size: 1rem;
-            line-height: 1.7;
+        .quote-text {
+            font-size: 1.05rem;
             font-style: italic;
-            color: var(--text-color);
+            line-height: 1.7;
+            margin: 0 0 8px;
         }
 
         .quote-author {
-            font-size: 0.88rem;
-            color: var(--muted-text);
+            color: var(--muted);
+            font-size: 0.9rem;
         }
 
-        @media (max-width: 640px) {
-            .glass-panel {
-                padding: 18px;
-                border-radius: 20px;
+        .footer-note {
+            margin-top: 14px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 760px) {
+            .overview {
+                grid-template-columns: 1fr;
             }
 
-            .card-top {
+            .subject-header,
+            .task-top {
                 flex-direction: column;
                 align-items: flex-start;
             }
 
-            .countdown {
+            .subject-count,
+            .task-timer {
                 align-self: flex-start;
             }
 
-            h2 {
-                font-size: 1.25rem;
-            }
-
-            .subject-title {
-                font-size: 1rem;
+            .hero {
+                padding: 20px 16px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="glass-panel hero">
-            <div class="section-badge">BSCS 1-A</div>
+        <section class="glass-panel hero">
+            <div class="badge">BSCS 1-A | August 2026 Reminders</div>
             <div id="greeting">Magandang Araw!</div>
-            <div id="date">Loading Date...</div>
+            <div id="date">Loading date...</div>
             <div id="clock">00:00:00 AM</div>
-            <p class="subtitle">Day Reminder for Brilliant People</p>
-            <button class="theme-btn" onclick="toggleTheme()">Switch Theme</button>
-        </div>
+            <p class="subtitle">Updated schoolworks dashboard for brilliant people</p>
 
-        <div class="glass-panel">
+            <div class="hero-actions">
+                <button class="theme-btn" onclick="toggleTheme()">Switch Theme</button>
+                <a href="#tasks" class="jump-btn">View Tasks</a>
+            </div>
+        </section>
+
+        <section class="overview" id="overview">
+            <div class="stat-card">
+                <div class="stat-label">All Task</div>
+                <div class="stat-value" id="totalTasks">0</div>
+                <div class="stat-sub">E update ko nalang to pag may bagong task;)</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Urgent Tasks</div>
+                <div class="stat-value" id="urgentTasks">0</div>
+                <div class="stat-sub">Kung ilan yong malapit na deadline sa loob ng 3 days</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Pinaka-Malapit</div>
+                <div class="stat-value" id="nearestDate">--</div>
+                <div class="stat-sub" id="nearestLabel">Loading...</div>
+            </div>
+        </section>
+
+        <section class="glass-panel next-deadline">
+            <h2>Next Deadline</h2>
+            <div class="next-box">
+                <div class="next-title" id="nextDeadlineTitle">Loading...</div>
+                <div class="next-meta" id="nextDeadlineMeta">Please wait...</div>
+            </div>
+        </section>
+
+        <section class="glass-panel tasks-panel" id="tasks">
             <h2>Active To-Do's</h2>
+            <div class="subject-grid" id="subjectGrid"></div>
+        </section>
 
-            <div class="subject-card" style="border-left-color: #ffd166;">
-                <div class="card-top">
-                    <div class="subject-title">GEC 102 - Readings in Philippine History</div>
-                    <span class="countdown" id="timer-gec102">Calculating...</span>
-                </div>
-                <div class="task-text">Performance Task 1: Identifying the Sources</div>
-                <div class="meta">Submit: Google Classroom</div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="bar-gec102" style="background: linear-gradient(90deg, #ffd166, #f59e0b);"></div>
-                </div>
-            </div>
-
-            <div class="subject-card" style="border-left-color: #34d399;">
-                <div class="card-top">
-                    <div class="subject-title">P.I. 101 - The Life and Works of Jose Rizal</div>
-                    <span class="countdown" id="timer-pi101">Calculating...</span>
-                </div>
-                <div class="task-text">Bring Book (2nd Ed) and prepare for Mind Mapping</div>
-                <div class="meta">Reminder: Ihanda bago pumasok</div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="bar-pi101" style="background: linear-gradient(90deg, #34d399, #10b981);"></div>
-                </div>
-            </div>
-
-            <div class="subject-card" style="border-left-color: #38bdf8;">
-                <div class="card-top">
-                    <div class="subject-title">GEC 101 - Understanding the Self</div>
-                    <span class="countdown" id="timer-gec101">Calculating...</span>
-                </div>
-                <div class="task-text">Memorize University Vision, Mission, and Quality Policy</div>
-                <div class="meta">Focus: Review and recall</div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="bar-gec101" style="background: linear-gradient(90deg, #38bdf8, #0284c7);"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="glass-panel quote-panel">
-            <p class="quote">"Your time is limited, so don't waste it living someone else's life."</p>
-            <div class="quote-author">- Steve Jobs</div>
-        </div>
+        <section class="glass-panel quote-panel">
+            <h2>Motivation</h2>
+            <p class="quote-text">"Believe you can and you're halfway there."</p>
+            <div class="quote-author">- Theodore Roosevelt</div>
+            <div class="footer-note">"Stay focused, brilliant people."- Rome</div>
+        </section>
     </div>
 
     <script>
+        const subjectData = [
+            {
+                subject: "GEC 102",
+                icon: "🇵🇭",
+                fullName: "Readings in Philippine History",
+                color: "#ffd166",
+                tasks: [
+                    {
+                        title: "Quiz after discussion of Module 2",
+                        due: "2026-08-12T11:59:00",
+                        note: "Wednesday; tentative",
+                        tags: ["Quiz", "Tentative"]
+                    },
+                    {
+                        title: "Start of Reporting: The First Mass Site in the Philippines",
+                        due: "2026-08-17T07:00:00",
+                        note: "Monday; tentative",
+                        people: ["Ashley Calamba", "Matt Louis Gamayon"],
+                        tags: ["Reporting", "Tentative"]
+                    }
+                ]
+            },
+            {
+                subject: "P.I. 101",
+                icon: "📝",
+                fullName: "The Life and Works of Jose Rizal",
+                color: "#34d399",
+                tasks: [
+                    {
+                        title: "The book 'The Life and Works of Jose Rizal - Second Edition' should be on hand",
+                        due: "2026-08-12T07:00:00",
+                        note: "Wednesday",
+                        tags: ["Book Requirement"]
+                    },
+                    {
+                        title: "Mind Mapping Activity by next meeting",
+                        due: "2026-08-10T23:59:00",
+                        note: "Tentative: August 10 or August 12",
+                        tags: ["Activity", "Tentative"]
+                    },
+                    {
+                        title: "Activity (TBA)",
+                        due: "2026-08-06T13:00:00",
+                        note: "Submit via Google Drive",
+                        tags: ["Google Drive", "Urgent"]
+                    }
+                ]
+            },
+            {
+                subject: "GEC 101",
+                icon: "🧘‍♀️",
+                fullName: "Understanding the Self",
+                color: "#38bdf8",
+                tasks: [
+                    {
+                        title: "Memorize the University's Quality Policy",
+                        due: "2026-08-12T11:59:00",
+                        note: "Wednesday",
+                        people: ["Rhylie Millarez", "Chraist Oclarino"],
+                        tags: ["Memorization"]
+                    }
+                ]
+            },
+            {
+                subject: "PATHFIT",
+                icon: "⛹️‍♀️",
+                fullName: "PATHFit 1: Movement Competency Training",
+                color: "#f472b6",
+                tasks: [
+                    {
+                        title: "PAR-Q Assessment should be printed by next meeting",
+                        due: "2026-08-12T07:00:00",
+                        note: "Ma'am Jhona will send it later this week",
+                        tags: ["Print", "Assessment"]
+                    },
+                    {
+                        title: "Prepare 1/2 index card with your 1x1 picture",
+                        due: "2026-08-12T07:00:00",
+                        note: "For next class meeting",
+                        tags: ["Index Card", "1x1 Picture"]
+                    },
+                    {
+                        title: "Warm up by partner every meeting (3-5 mins)",
+                        due: "2026-08-12T07:00:00",
+                        note: "Partner warm-up reminder",
+                        people: ["Mark Angelo Astrera", "Ian Guia"],
+                        tags: ["Partner Task"]
+                    },
+                    {
+                        title: "'Strava' step-counting activity within campus only",
+                        due: "2026-08-12T07:00:00",
+                        note: "Instruction is TBA",
+                        tags: ["Strava", "TBA"]
+                    }
+                ]
+            },
+            {
+                subject: "NSTP 1",
+                icon: "🎖️",
+                fullName: "National Service Training Program 1",
+                color: "#fb7185",
+                tasks: [
+                    {
+                        title: "General Orientation",
+                        due: "2026-08-08T07:00:00",
+                        note: "Saturday at 7:00 AM",
+                        tags: ["Orientation"]
+                    }
+                ]
+            }
+        ];
+
         function updateClock() {
             const now = new Date();
             const hour = now.getHours();
-            let greetText = "Magandang Araw!";
+            let greeting = "Magandang Araw!";
 
             if (hour >= 5 && hour < 12) {
-                greetText = "Magandang Umaga, Devs!";
-            } else if (hour >= 12 && hour < 13) {
-                greetText = "Tanghalian Na!";
-            } else if (hour >= 13 && hour < 18) {
-                greetText = "Magandang Hapon!";
+                greeting = "Magandang Umaga, Brilliant People!";
+            } else if (hour >= 12 && hour < 18) {
+                greeting = "Magandang Hapon, Brilliant People!";
             } else {
-                greetText = "Magandang Gabi, BSCS!";
+                greeting = "Magandang Gabi, Brilliant People!";
             }
 
-            const greetingEl = document.getElementById("greeting");
-            const clockEl = document.getElementById("clock");
-            const dateEl = document.getElementById("date");
+            document.getElementById("greeting").innerText = greeting;
+            document.getElementById("clock").innerText = now.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true
+            });
 
-            if (greetingEl) {
-                greetingEl.innerText = greetText;
-            }
-
-            if (clockEl) {
-                clockEl.innerText = now.toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: true
-                });
-            }
-
-            if (dateEl) {
-                dateEl.innerText = now.toLocaleDateString("tl-PH", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric"
-                });
-            }
-
-            updateTimer(
-                "August 4, 2026 06:00:00 AM",
-                "August 5, 2026 08:30:00 AM",
-                "timer-gec102",
-                "bar-gec102"
-            );
-
-            updateTimer(
-                "August 4, 2026 06:00:00 AM",
-                "August 5, 2026 10:00:00 AM",
-                "timer-pi101",
-                "bar-pi101"
-            );
-
-            updateTimer(
-                "August 4, 2026 06:00:00 AM",
-                "August 5, 2026 01:00:00 PM",
-                "timer-gec101",
-                "bar-gec101"
-            );
-        }
-
-        function updateTimer(startTimeStr, targetDateStr, elementId, barId) {
-            const now = new Date().getTime();
-            const start = new Date(startTimeStr).getTime();
-            const deadline = new Date(targetDateStr).getTime();
-
-            const totalDuration = deadline - start;
-            const timeRemaining = deadline - now;
-
-            const element = document.getElementById(elementId);
-            const bar = document.getElementById(barId);
-
-            if (!element) {
-                return;
-            }
-
-            if (timeRemaining <= 0) {
-                element.innerText = "Tapos na!";
-                element.style.background = "#ef476f";
-                element.style.color = "#ffffff";
-
-                if (bar) {
-                    bar.style.width = "0%";
-                    bar.style.background = "#ef476f";
-                }
-                return;
-            }
-
-            if (bar && totalDuration > 0) {
-                const percentage = Math.max(
-                    0,
-                    Math.min(100, (timeRemaining / totalDuration) * 100)
-                );
-                bar.style.width = percentage + "%";
-            }
-
-            const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
-            const hours = Math.floor(
-                (timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-            );
-            const minutes = Math.floor(
-                (timeRemaining % (1000 * 60 * 60)) / (1000 * 60)
-            );
-
-            if (days > 0) {
-                element.innerText = `${days}d ${hours}h left`;
-            } else {
-                element.innerText = `${hours}h ${minutes}m left`;
-            }
-
-            if (hours < 3 && days === 0) {
-                element.style.background = "#ff6b6b";
-                element.style.color = "#ffffff";
-
-                if (bar) {
-                    bar.style.background = "#ff6b6b";
-                }
-            }
+            document.getElementById("date").innerText = now.toLocaleDateString("tl-PH", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+            });
         }
 
         function toggleTheme() {
             document.body.classList.toggle("dark-theme");
+            const isDark = document.body.classList.contains("dark-theme");
+            localStorage.setItem("dashboard-theme", isDark ? "dark" : "light");
         }
 
-        window.onload = function () {
+        function loadTheme() {
+            const savedTheme = localStorage.getItem("dashboard-theme");
+            if (savedTheme === "dark") {
+                document.body.classList.add("dark-theme");
+            }
+        }
+
+        function formatDue(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true
+            });
+        }
+
+        function getTimeParts(targetDate) {
+            const now = new Date().getTime();
+            const target = new Date(targetDate).getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                return {
+                    isDone: true,
+                    text: "Tapos na",
+                    diff: 0
+                };
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            let text = "";
+            if (days > 0) {
+                text = `${days}d ${hours}h left`;
+            } else if (hours > 0) {
+                text = `${hours}h ${minutes}m left`;
+            } else {
+                text = `${minutes}m left`;
+            }
+
+            return {
+                isDone: false,
+                text,
+                diff
+            };
+        }
+
+        function getProgressPercent(targetDate) {
+            const now = new Date().getTime();
+            const target = new Date(targetDate).getTime();
+            const baseStart = new Date("2026-08-05T00:00:00").getTime();
+
+            const total = target - baseStart;
+            const remaining = target - now;
+
+            if (remaining <= 0) {
+                return 0;
+            }
+
+            if (total <= 0) {
+                return 100;
+            }
+
+            return Math.max(0, Math.min(100, (remaining / total) * 100));
+        }
+
+        function getProgressColor(diff) {
+            const oneDay = 24 * 60 * 60 * 1000;
+            const threeDays = 3 * oneDay;
+
+            if (diff <= oneDay) {
+                return "linear-gradient(90deg, #fb7185, #ef4444)";
+            }
+
+            if (diff <= threeDays) {
+                return "linear-gradient(90deg, #fbbf24, #f59e0b)";
+            }
+
+            return "linear-gradient(90deg, #34d399, #10b981)";
+        }
+
+        function flattenTasks() {
+            const all = [];
+
+            subjectData.forEach(subject => {
+                subject.tasks.forEach(task => {
+                    all.push({
+                        subject: subject.subject,
+                        fullName: subject.fullName,
+                        color: subject.color,
+                        icon: subject.icon,
+                        ...task
+                    });
+                });
+            });
+
+            return all.sort((a, b) => new Date(a.due) - new Date(b.due));
+        }
+
+        function updateOverview() {
+            const allTasks = flattenTasks();
+            const now = new Date().getTime();
+            const urgentLimit = 3 * 24 * 60 * 60 * 1000;
+
+            const activeTasks = allTasks.filter(task => new Date(task.due).getTime() > now);
+            const urgentTasks = activeTasks.filter(task => new Date(task.due).getTime() - now <= urgentLimit);
+
+            document.getElementById("totalTasks").innerText = activeTasks.length;
+            document.getElementById("urgentTasks").innerText = urgentTasks.length;
+
+            if (activeTasks.length > 0) {
+                const nearest = activeTasks[0];
+                const nearestDate = new Date(nearest.due);
+
+                document.getElementById("nearestDate").innerText = nearestDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric"
+                });
+
+                document.getElementById("nearestLabel").innerText = `${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon} ${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nextDeadlineMeta").innerHTML = `
+                    Due: ${formatDue(nearest.due)}<br>
+                    Course: ${nearest.fullName}<br>
+                    Details: ${nearest.note || "No additional note"}
+                `;
+            } else {
+                document.getElementById("nearestDate").innerText = "Done";
+                document.getElementById("nearestLabel").innerText = "Wala nang pending tasks";
+                document.getElementById("nextDeadlineTitle").innerText = "Great job!";
+                document.getElementById("nextDeadlineMeta").innerText = "Wala nang active deadlines sa ngayon.";
+            }
+        }
+
+        function renderSubjects() {
+            const subjectGrid = document.getElementById("subjectGrid");
+            const now = new Date().getTime();
+
+            const sortedSubjects = [...subjectData].sort((a, b) => {
+                const aNearest = Math.min(...a.tasks.map(task => new Date(task.due).getTime()));
+                const bNearest = Math.min(...b.tasks.map(task => new Date(task.due).getTime()));
+                return aNearest - bNearest;
+            });
+
+            subjectGrid.innerHTML = sortedSubjects.map(subject => {
+                const pendingCount = subject.tasks.filter(task => new Date(task.due).getTime() > now).length;
+
+                const taskList = subject.tasks
+                    .sort((a, b) => new Date(a.due) - new Date(b.due))
+                    .map(task => {
+                        const timeInfo = getTimeParts(task.due);
+                        const progress = getProgressPercent(task.due);
+                        const isUrgent = !timeInfo.isDone && timeInfo.diff <= 3 * 24 * 60 * 60 * 1000;
+                        const taskClasses = [
+                            "task-item",
+                            isUrgent ? "urgent" : "",
+                            timeInfo.isDone ? "done" : ""
+                        ].join(" ").trim();
+
+                        const peopleLine = task.people && task.people.length
+                            ? `<div>Assigned / Mentioned: ${task.people.join(", ")}</div>`
+                            : "";
+
+                        const badges = (task.tags || [])
+                            .map(tag => `<span class="mini-badge">${tag}</span>`)
+                            .join("");
+
+                        return `
+                            <div class="${taskClasses}">
+                                <div class="task-top">
+                                    <div class="task-name">${task.title}</div>
+                                    <div class="task-timer">${timeInfo.text}</div>
+                                </div>
+
+                                <div class="task-meta">
+                                    <div>Due: ${formatDue(task.due)}</div>
+                                    <div>Note: ${task.note || "No extra note"}</div>
+                                    ${peopleLine}
+                                </div>
+
+                                <div class="task-badges">
+                                    ${badges}
+                                </div>
+
+                                <div class="progress-wrap">
+                                    <div class="progress-label">
+                                        <span>Countdown Progress</span>
+                                        <span>${Math.round(progress)}%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${progress}%; background: ${getProgressColor(timeInfo.diff)};"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                    })
+                    .join("");
+
+                return `
+                    <article class="subject-card" style="border-left-color: ${subject.color};">
+                        <div class="subject-header">
+                            <div>
+                                <div class="subject-title">${subject.icon} ${subject.subject} - ${subject.fullName}</div>
+                                <div class="subject-sub">Updated reminders and schoolworks</div>
+                            </div>
+                            <div class="subject-count">${pendingCount} active</div>
+                        </div>
+
+                        <div class="task-list">
+                            ${taskList}
+                        </div>
+                    </article>
+                `;
+            }).join("");
+        }
+
+        function refreshDashboard() {
             updateClock();
-            setInterval(updateClock, 1000);
-        };
+            updateOverview();
+            renderSubjects();
+        }
+
+        loadTheme();
+        refreshDashboard();
+        setInterval(refreshDashboard, 1000);
     </script>
 </body>
 </html>
