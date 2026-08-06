@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BSCS 1-A | Welcome Page</title>
+    <style>
+        :root {
+            --bg-1: #081224;
+            --bg-2: #101a33;
+            --bg-3: #141d3a;
+            --bg-4: #0d2b3f;
+            --text: #f8fafc;
+            --muted: rgba(248, 250, 252, 0.74);
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-strong: rgba(255, 255, 255, 0.12);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+            --blue: #38bdf8;
+            --purple: #8b5cf6;
+            --green: #22c55e;
+            --pink: #ec4899;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text);
+            background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-3), var(--bg-4));
+            background-size: 400% 400%;
+            animation: bgMove 18s ease infinite;
+            padding: 20px 14px 40px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        @keyframes bgMove {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+            background-size: 26px 26px;
+            opacity: 0.28;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body::after {
+            content: "";
+            position: fixed;
+            top: -120px;
+            right: -120px;
+            width: 260px;
+            height: 260px;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.24), transparent 70%);
+            filter: blur(12px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1140px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-radius: 26px;
+            box-shadow: var(--shadow);
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 22px;
+            padding: 26px;
+            margin-bottom: 18px;
+        }
+
+        .hero-copy {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .top-badge {
+            display: inline-block;
+            align-self: flex-start;
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            color: #ffffff;
+            font-size: 0.88rem;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            box-shadow: 0 8px 22px rgba(56, 189, 248, 0.24);
+            margin-bottom: 16px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 4rem);
+            line-height: 1.08;
+            margin: 0 0 14px;
+        }
+
+        .hero h1 span {
+            color: var(--blue);
+            text-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+        }
+
+        .lead {
+            font-size: 1rem;
+            line-height: 1.8;
+            color: var(--muted);
+            margin: 0 0 18px;
+            max-width: 650px;
+        }
+
+        .sub-lead {
+            margin: 0 0 20px;
+            color: var(--muted);
+            font-size: 0.95rem;
+            line-height: 1.75;
+        }
+
+        .cta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .main-cta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 1rem;
+            padding: 14px 22px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #22c55e, #38bdf8, #8b5cf6);
+            background-size: 200% 200%;
+            animation: glowBtn 5s ease infinite;
+            box-shadow: 0 10px 26px rgba(34, 197, 94, 0.24);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .main-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 30px rgba(56, 189, 248, 0.3);
+        }
+
+        @keyframes glowBtn {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        .logo-card {
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--glass-strong);
+        }
+
+        .logo-wrap {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            border-radius: 22px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(139, 92, 246, 0.08));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            overflow: hidden;
+        }
+
+        .logo-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 18px;
+            display: block;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .info-card {
+            padding: 22px;
+        }
+
+        .section-kicker {
+            display: inline-block;
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--blue);
+            margin-bottom: 12px;
+        }
+
+        .info-card h2 {
+            margin: 0 0 10px;
+            font-size: 1.35rem;
+        }
+
+        .info-card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.85;
+            font-size: 0.97rem;
+        }
+
+        .officers-section {
+            padding: 22px;
+            margin-bottom: 18px;
+        }
+
+        .officers-head {
+            margin-bottom: 16px;
+        }
+
+        .officers-head h2 {
+            margin: 0 0 6px;
+            font-size: 1.5rem;
+        }
+
+        .officers-head p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .officers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+
+        .officer-card {
+            padding: 16px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .officer-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(56, 189, 248, 0.24);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .role {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--blue);
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .name {
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .links-section {
+            padding: 22px;
+        }
+
+        .links-section h2 {
+            margin: 0 0 10px;
+            font-size: 1.35rem;
+        }
+
+        .links-section p {
+            margin: 0 0 14px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .quick-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: var(--text);
+            padding: 11px 16px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.2s ease, background 0.2s ease;
+            font-weight: 600;
+            font-size: 0.92rem;
+        }
+
+        .quick-link:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .footer-note {
+            margin-top: 14px;
+            color: var(--muted);
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+
+        @media (max-width: 860px) {
+            .hero {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+
+            .section-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 520px) {
+            body {
+                padding: 16px 10px 28px;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .main-cta {
+                width: 100%;
+                text-align: center;
+            }
+
+            .officers-section,
+            .info-card,
+            .links-section {
+                padding: 18px;
+            }
+
+            .officers-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="glass hero">
+            <div class="hero-copy">
+                <span class="top-badge">LSPU Siniloan Campus</span>
+                <h1>Welcome to <span>BS Computer Science - 1A</span></h1>
+                <p class="lead">
+                    Official welcome page ng section naming BS Computer Science - 1A ng Siniloan Campus.
+                    Isang lugar para sa announcements, dashboard, schedules, reminders, at important links ng klase.
+                </p>
+                <p class="sub-lead">
+                    Bilang mga future innovators at tech leaders, sama-sama tayong mag-aaral, magco-code,
+                    at mangangarap para sa mas matalinong digital na kinabukasan.
+                </p>
+                <div class="cta-row">
+                    <a class="main-cta" href="dashboard.html">Tingnan ang Class Dashboard &amp; Schedule</a>
+                </div>
+            </div>
+
+            <div class="glass logo-card">
+                <div class="logo-wrap">
+                    <img src="logo.png" alt="BSCS 1-A Logo" />
+                </div>
+            </div>
+        </section>
+
+        <section class="section-grid">
+            <article class="glass info-card">
+                <span class="section-kicker">Our Vision</span>
+                <h2>Vision of BSCS 1-A</h2>
+                <p>
+                    To be a powerhouse of innovative, technically proficient, and morally upright
+                    Computer Science freshmen of LSPU Siniloan, driven by passion and collaboration
+                    to shape a smarter digital future.
+                </p>
+            </article>
+
+            <article class="glass info-card">
+                <span class="section-kicker">Our Mission</span>
+                <h2>Mission of BSCS 1-A</h2>
+                <p>
+                    To study diligently and strive to become the intellectual leaders of tomorrow
+                    while embodying the values of kindness, intelligence, adaptability, and generosity
+                    in every given situation.
+                </p>
+            </article>
+        </section>
+
+        <section class="glass officers-section">
+            <div class="officers-head">
+                <h2>Class Officers</h2>
+                <p>Mga pinuno ng BS Computer Science - 1A, LSPU Siniloan Campus.</p>
+            </div>
+
+            <div class="officers-grid">
+                <div class="officer-card">
+                    <div class="role">President</div>
+                    <div class="name">Chraist Oclarino</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Vice President</div>
+                    <div class="name">John Ernest Baldemor</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Secretary</div>
+                    <div class="name">Ada Flores</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Treasurer</div>
+                    <div class="name">Troy Bacero</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Auditor</div>
+                    <div class="name">Loriejane Velina Lumacad</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">P.I.O.</div>
+                    <div class="name">Abby Cainto</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Technical Manager</div>
+                    <div class="name">Rome Mhar Tabifranca</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">Representative</div>
+                    <div class="name">Nash Cinena</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">P.O. Boy</div>
+                    <div class="name">John Christian Guia</div>
+                </div>
+
+                <div class="officer-card">
+                    <div class="role">P.O. Girl</div>
+                    <div class="name">Ashley Calamba</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="glass links-section">
+            <h2>Quick Links</h2>
+            <p>Mabilisang access para sa mga importanteng online resources ng section at school.</p>
+
+            <div class="quick-links">
+                <a class="quick-link" href="https://www.facebook.com/share/14XqfRX2Enz/" target="_blank" rel="noopener noreferrer">Facebook Page / Group</a>
+                <a class="quick-link" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">Shared Google Drive</a>
+                <a class="quick-link" href="https://online.lspusys.com/" target="_blank" rel="noopener noreferrer">School Portal</a>
+            </div>
+
+            <div class="footer-note">
+                :)
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
