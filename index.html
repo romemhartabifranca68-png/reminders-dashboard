@@ -1617,577 +1617,567 @@
     </div>
   </footer>
  
-  <script>
-(function () {
-  var CLOUD_SYNC = {
-    enabled: false,
-    provider: "localStorage",
-    endpoint: "",
-    apiKey: "",
-    tableName: "arena_scores"
-  };
+  <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+  import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-analytics.js";
+  import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
-  var STORAGE_KEY = "bscs1a_reviewer_arena_scores_v2";
-  var SCORE_PER_CORRECT = 5;
-  var MAX_LIVES = 3;
-
-  var rankTable = [
-    { min: 0, title: "Warrior Fresh" },
-    { min: 10, title: "Elite Reviewer" },
-    { min: 20, title: "Master Scanner" },
-    { min: 35, title: "Grandmaster Solver" },
-    { min: 50, title: "Mythic Glory" },
-    { min: 70, title: "System Overload" },
-    { min: 100, title: "Ultimate Scholar" }
-  ];
-
-  var questionBank = [
-    { s: "ITEC 101", q: "What does CPU stand for?", choices: ["Central Processing Unit", "Computer Power Utility", "Central Program Upload", "Control Processing User"], answer: "Central Processing Unit" },
-    { s: "ITEC 101", q: "Which of the following is an input device?", choices: ["Keyboard", "Monitor", "Speaker", "Projector"], answer: "Keyboard" },
-    { s: "ITEC 101", q: "Binary numbers are composed of which digits?", choices: ["0 and 1", "1 and 2", "2 and 3", "0 and 9"], answer: "0 and 1" },
-    { s: "ITEC 101", q: "RAM is best described as what type of memory?", choices: ["Temporary memory", "Permanent memory", "Optical memory", "External memory"], answer: "Temporary memory" },
-    { s: "ITEC 101", q: "Which device is commonly used for long-term storage?", choices: ["SSD", "RAM", "Cache", "Register"], answer: "SSD" },
-    { s: "ITEC 101", q: "What does URL stand for?", choices: ["Uniform Resource Locator", "Universal Routing Link", "Unified Resource Loader", "User Resource Locator"], answer: "Uniform Resource Locator" },
-    { s: "ITEC 101", q: "Which is an example of system software?", choices: ["Operating System", "Spreadsheet", "Photo Editor", "Music Player"], answer: "Operating System" },
-    { s: "ITEC 101", q: "Processor speed is commonly measured in what unit?", choices: ["GHz", "Volts", "Pixels", "Bytes"], answer: "GHz" },
-    { s: "ITEC 101", q: "Which of the following is a web browser?", choices: ["Google Chrome", "Microsoft Word", "Adobe Photoshop", "WinRAR"], answer: "Google Chrome" },
-    { s: "ITEC 101", q: "Which network topology uses a central hub or switch?", choices: ["Star", "Bus", "Ring", "Mesh"], answer: "Star" },
-    { s: "ITEC 101", q: "What does LAN stand for?", choices: ["Local Area Network", "Large Access Node", "Linked Area Number", "Local Access Network"], answer: "Local Area Network" },
-    { s: "ITEC 101", q: "Which memory keeps data even when power is off?", choices: ["ROM", "RAM", "Cache", "Register"], answer: "ROM" },
-    { s: "ITEC 101", q: "What is the main purpose of an IP address?", choices: ["To identify a device on a network", "To increase battery life", "To clean a hard drive", "To print documents"], answer: "To identify a device on a network" },
-    { s: "ITEC 101", q: "Which of the following is an output device?", choices: ["Monitor", "Scanner", "Keyboard", "Mouse"], answer: "Monitor" },
-    { s: "ITEC 101", q: "What does a PSU do in a computer system?", choices: ["Supplies power to components", "Processes data", "Stores files online", "Connects to a projector"], answer: "Supplies power to components" },
-
-    { s: "ITEC 102", q: "What is an algorithm?", choices: ["A step-by-step procedure for solving a problem", "A computer virus", "A hardware upgrade", "A file compression tool"], answer: "A step-by-step procedure for solving a problem" },
-    { s: "ITEC 102", q: "What is the purpose of a variable in programming?", choices: ["To store data", "To break the computer", "To connect to Wi-Fi", "To print a paper"], answer: "To store data" },
-    { s: "ITEC 102", q: "Which statement is commonly used for decision-making in programs?", choices: ["if", "loop", "print", "scan"], answer: "if" },
-    { s: "ITEC 102", q: "What is a loop used for?", choices: ["To repeat a block of code", "To create hardware", "To remove all errors instantly", "To delete memory"], answer: "To repeat a block of code" },
-    { s: "ITEC 102", q: "What does debugging mean?", choices: ["Finding and fixing errors", "Deleting all variables", "Installing a browser", "Formatting a drive"], answer: "Finding and fixing errors" },
-    { s: "ITEC 102", q: "Which flowchart shape is commonly used for a decision?", choices: ["Diamond", "Circle", "Triangle", "Hexagon"], answer: "Diamond" },
-    { s: "ITEC 102", q: "What is an array?", choices: ["A structure that stores multiple values", "A type of printer", "A kind of motherboard", "A video file"], answer: "A structure that stores multiple values" },
-    { s: "ITEC 102", q: "A syntax error happens when what occurs?", choices: ["The rules of the programming language are broken", "The internet is slow", "The battery is low", "The keyboard is unplugged"], answer: "The rules of the programming language are broken" },
-    { s: "ITEC 102", q: "What is pseudocode?", choices: ["A plain-language way to describe program steps", "An antivirus", "Final machine code", "A spreadsheet formula"], answer: "A plain-language way to describe program steps" },
-    { s: "ITEC 102", q: "What does the modulus operator usually return?", choices: ["The remainder", "The average", "The product", "The square root"], answer: "The remainder" },
-    { s: "ITEC 102", q: "A Boolean value can be which of the following?", choices: ["True or False", "Blue or Green", "Small or Large", "Odd or Even"], answer: "True or False" },
-    { s: "ITEC 102", q: "What is a function in programming?", choices: ["A reusable block of code", "A hardware cable", "A browser tab", "A file extension"], answer: "A reusable block of code" },
-    { s: "ITEC 102", q: "What is a parameter?", choices: ["A value accepted by a function", "A type of monitor", "A programming error", "A storage device"], answer: "A value accepted by a function" },
-    { s: "ITEC 102", q: "In many programming languages, an array index often starts at what number?", choices: ["0", "1", "2", "10"], answer: "0" },
-    { s: "ITEC 102", q: "What is an infinite loop?", choices: ["A loop that never meets its stopping condition", "A loop used only online", "A loop that runs once", "A loop that stores images"], answer: "A loop that never meets its stopping condition" },
-
-    { s: "GEC 101", q: "What does self-concept refer to?", choices: ["A person's perception of themselves", "A person's Wi-Fi settings", "A school schedule", "A computer part"], answer: "A person's perception of themselves" },
-    { s: "GEC 101", q: "The physical self mainly refers to what?", choices: ["Body and appearance", "Internet speed", "National budget", "Classroom layout"], answer: "Body and appearance" },
-    { s: "GEC 101", q: "The social self develops mainly through what?", choices: ["Interaction with others", "Installing apps", "Writing machine code", "Watching only movies"], answer: "Interaction with others" },
-    { s: "GEC 101", q: "What is the digital self?", choices: ["A person's online identity", "A type of keyboard", "A storage file", "A network cable"], answer: "A person's online identity" },
-    { s: "GEC 101", q: "Emotional intelligence is the ability to do what?", choices: ["Understand and manage emotions", "Repair a computer", "Memorize every number", "Build a router"], answer: "Understand and manage emotions" },
-    { s: "GEC 101", q: "Self-esteem refers to what?", choices: ["A person's sense of self-worth", "A school uniform", "A mobile application", "A typing speed"], answer: "A person's sense of self-worth" },
-    { s: "GEC 101", q: "Which statement about development is most accurate?", choices: ["Both nature and nurture influence it", "Only nature matters", "Only nurture matters", "Technology decides everything"], answer: "Both nature and nurture influence it" },
-    { s: "GEC 101", q: "What is mindfulness?", choices: ["Awareness of the present moment", "A brand of laptop", "A type of printer", "A programming method"], answer: "Awareness of the present moment" },
-    { s: "GEC 101", q: "Values usually guide what?", choices: ["Decisions and behavior", "Battery voltage", "File downloads", "Screen brightness"], answer: "Decisions and behavior" },
-    { s: "GEC 101", q: "Johari Window is commonly associated with what?", choices: ["Self-awareness and feedback", "Computer hardware", "Network security", "Sports scoring"], answer: "Self-awareness and feedback" },
-    { s: "GEC 101", q: "What is the ideal self?", choices: ["The person one wants to become", "A default profile picture", "A secret password", "A temporary file"], answer: "The person one wants to become" },
-    { s: "GEC 101", q: "What is resilience?", choices: ["The ability to recover from challenges", "A software license", "A classroom project", "A phone setting"], answer: "The ability to recover from challenges" },
-    { s: "GEC 101", q: "Self-care mainly supports what?", choices: ["Well-being", "Hard drive speed", "Screen resolution", "Signal strength"], answer: "Well-being" },
-    { s: "GEC 101", q: "Which is a healthy stress-management technique?", choices: ["Deep breathing", "Ignoring every problem forever", "Skipping all sleep", "Never drinking water"], answer: "Deep breathing" },
-
-    { s: "GEC 102", q: "What is a primary source?", choices: ["Direct firsthand evidence", "A social media post without proof", "Only a summary", "A copied answer sheet"], answer: "Direct firsthand evidence" },
-    { s: "GEC 102", q: "Who wrote the Kartilya ng Katipunan?", choices: ["Emilio Jacinto", "Jose Rizal", "Andres Bonifacio", "Apolinario Mabini"], answer: "Emilio Jacinto" },
-    { s: "GEC 102", q: "Philippine independence in 1898 was declared in what place?", choices: ["Kawit, Cavite", "Dapitan", "Malolos only", "Intramuros"], answer: "Kawit, Cavite" },
-    { s: "GEC 102", q: "Who became the first President of the Philippines?", choices: ["Emilio Aguinaldo", "Jose Rizal", "Andres Bonifacio", "Manuel Quezon"], answer: "Emilio Aguinaldo" },
-    { s: "GEC 102", q: "Who arrived in the Philippines in 1521?", choices: ["Ferdinand Magellan", "Miguel Lopez de Legazpi", "Christopher Columbus", "Francisco Dagohoy"], answer: "Ferdinand Magellan" },
-    { s: "GEC 102", q: "Who led the Filipinos in the Battle of Mactan?", choices: ["Lapulapu", "Jose Rizal", "Aguinaldo", "Quezon"], answer: "Lapulapu" },
-    { s: "GEC 102", q: "What treaty transferred the Philippines from Spain to the United States?", choices: ["Treaty of Paris", "Treaty of Tordesillas", "Biyak-na-Bato Agreement", "Pact of Manila"], answer: "Treaty of Paris" },
-    { s: "GEC 102", q: "What is a secondary source?", choices: ["A source that interprets primary sources", "A firsthand diary entry", "An original government record", "A personal letter from the past"], answer: "A source that interprets primary sources" },
-    { s: "GEC 102", q: "Historical bias refers to what?", choices: ["A source being influenced by perspective or prejudice", "A source having more pages", "A source being written digitally", "A source being in Filipino"], answer: "A source being influenced by perspective or prejudice" },
-    { s: "GEC 102", q: "What is contextualization in history?", choices: ["Placing a source in its proper time and setting", "Destroying a source", "Printing a source", "Changing a source's language"], answer: "Placing a source in its proper time and setting" },
-    { s: "GEC 102", q: "The Cry of Pugad Lawin is associated with what?", choices: ["The start of the Philippine Revolution", "The signing of a peace treaty", "A school foundation day", "The opening of a university"], answer: "The start of the Philippine Revolution" },
-    { s: "GEC 102", q: "What year is associated with the EDSA People Power Revolution?", choices: ["1986", "1898", "1946", "1972"], answer: "1986" },
-    { s: "GEC 102", q: "What is Baybayin?", choices: ["A precolonial writing system", "A type of weapon", "A Spanish ship", "A modern app"], answer: "A precolonial writing system" },
-    { s: "GEC 102", q: "History is best described as the study of what?", choices: ["Past events based on evidence and sources", "Only future predictions", "Only myths and legends", "Only computer development"], answer: "Past events based on evidence and sources" },
-
-    { s: "P.I. 100", q: "What is the full name of Rizal?", choices: ["Jose Protacio Rizal Mercado y Alonso Realonda", "Jose Panganiban Rizal Mercado", "Jose Rizal Del Pilar", "Jose Protacio Bonifacio Realonda"], answer: "Jose Protacio Rizal Mercado y Alonso Realonda" },
-    { s: "P.I. 100", q: "Who wrote Noli Me Tangere?", choices: ["Jose Rizal", "Andres Bonifacio", "Apolinario Mabini", "Emilio Jacinto"], answer: "Jose Rizal" },
-    { s: "P.I. 100", q: "El Filibusterismo is the sequel to what novel?", choices: ["Noli Me Tangere", "Florante at Laura", "Mi Ultimo Adios", "Sa Aking Mga Kabata"], answer: "Noli Me Tangere" },
-    { s: "P.I. 100", q: "Where was Jose Rizal born?", choices: ["Calamba, Laguna", "Dapitan, Zamboanga", "Manila", "Kawit, Cavite"], answer: "Calamba, Laguna" },
-    { s: "P.I. 100", q: "What date was Rizal born?", choices: ["June 19, 1861", "December 30, 1896", "June 12, 1898", "August 30, 1896"], answer: "June 19, 1861" },
-    { s: "P.I. 100", q: "What is the main theme of Noli Me Tangere?", choices: ["Social injustice under Spanish rule", "Space exploration", "Modern web development", "Olympic sports"], answer: "Social injustice under Spanish rule" },
-    { s: "P.I. 100", q: "What is the main theme of El Filibusterismo?", choices: ["Revenge and reform", "Plant biology", "Digital marketing", "Volleyball training"], answer: "Revenge and reform" },
-    { s: "P.I. 100", q: "Which Rizal poem is often called his farewell masterpiece?", choices: ["Mi Ultimo Adios", "A La Juventud Filipina", "Sa Aking Mga Kabata", "To the Child Jesus"], answer: "Mi Ultimo Adios" },
-    { s: "P.I. 100", q: "In what place was Rizal executed?", choices: ["Bagumbayan", "Dapitan", "Fort Santiago", "Biak-na-Bato"], answer: "Bagumbayan" },
-    { s: "P.I. 100", q: "What profession is Rizal also known for?", choices: ["Ophthalmologist", "Architect", "Pilot", "Engineer"], answer: "Ophthalmologist" },
-    { s: "P.I. 100", q: "What organization did Rizal found in Hong Kong?", choices: ["La Liga Filipina", "Katipunan", "Propaganda Party", "Guardia Civil"], answer: "La Liga Filipina" },
-    { s: "P.I. 100", q: "Who among these was Rizal's mother?", choices: ["Teodora Alonso", "Gregoria de Jesus", "Melchora Aquino", "Trinidad Tecson"], answer: "Teodora Alonso" },
-    { s: "P.I. 100", q: "Why is Rizal considered a national hero?", choices: ["He inspired reform through his writings and sacrifice", "He invented the internet", "He won many elections", "He discovered electricity"], answer: "He inspired reform through his writings and sacrifice" },
-    { s: "P.I. 100", q: "What law requires the study of Rizal in Philippine schools?", choices: ["Rizal Law", "Education Act 2001", "Civil Code", "Barangay Law"], answer: "Rizal Law" },
-
-    { s: "KOMFIL", q: "What does KOMFIL stand for?", choices: ["Kontekstwalisadong Komunikasyon sa Filipino", "Komunikasyon para sa Literatura", "Kompyuter at Filipino", "Konteksto ng Midya at Filipino"], answer: "Kontekstwalisadong Komunikasyon sa Filipino" },
-    { s: "KOMFIL", q: "Ano ang pangunahing layunin ng komunikasyon?", choices: ["Magpahayag at magkaunawaan", "Magpalit ng grades", "Mag-compile ng code", "Mag-format ng hard drive"], answer: "Magpahayag at magkaunawaan" },
-    { s: "KOMFIL", q: "Ano ang tawag sa taong nagpapadala ng mensahe?", choices: ["Tagapagpadala", "Tagatanggap", "Daluyan", "Simbolo"], answer: "Tagapagpadala" },
-    { s: "KOMFIL", q: "Ano ang tawag sa taong tumatanggap ng mensahe?", choices: ["Tagatanggap", "Tagapagpadala", "Ingay", "Paksa"], answer: "Tagatanggap" },
-    { s: "KOMFIL", q: "Ano ang channel o daluyan sa komunikasyon?", choices: ["Daan na ginagamit sa pagpapahatid ng mensahe", "Uri ng grado", "Pamagat ng aklat", "Uri ng memorya"], answer: "Daan na ginagamit sa pagpapahatid ng mensahe" },
-    { s: "KOMFIL", q: "Ano ang ibig sabihin ng verbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng salita", "Komunikasyong puro larawan lamang", "Komunikasyong walang kahulugan", "Komunikasyong para sa robot lang"], answer: "Komunikasyong gumagamit ng salita" },
-    { s: "KOMFIL", q: "Ano ang nonverbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng kilos, galaw, at ekspresyon", "Komunikasyong para sa exams lamang", "Komunikasyong gamit ang printer", "Komunikasyong puro numero"], answer: "Komunikasyong gumagamit ng kilos, galaw, at ekspresyon" },
-    { s: "KOMFIL", q: "Ano ang halimbawa ng nonverbal communication?", choices: ["Pagngiti", "Pag-type ng password", "Pag-delete ng file", "Pag-shutdown ng laptop"], answer: "Pagngiti" },
-    { s: "KOMFIL", q: "Ano ang tinatawag na sagabal sa malinaw na komunikasyon?", choices: ["Ingay", "Paksa", "Talasalitaan", "Bantas"], answer: "Ingay" },
-    { s: "KOMFIL", q: "Ano ang register ng wika?", choices: ["Barayti ng wikang ginagamit ayon sa sitwasyon", "Uri ng camera", "Laki ng silid", "Pangalan ng estudyante"], answer: "Barayti ng wikang ginagamit ayon sa sitwasyon" },
-    { s: "KOMFIL", q: "Ano ang akademikong komunikasyon?", choices: ["Pormal na komunikasyong ginagamit sa paaralan at pananaliksik", "Usapang laro lamang", "Usapang meme lang", "Impormal na tsismisan"], answer: "Pormal na komunikasyong ginagamit sa paaralan at pananaliksik" },
-    { s: "KOMFIL", q: "Ano ang kahalagahan ng konteksto sa komunikasyon?", choices: ["Nakaaapekto ito sa kahulugan ng mensahe", "Wala itong epekto", "Ginagamit lamang sa coding", "Nagpapabagal ito ng internet"], answer: "Nakaaapekto ito sa kahulugan ng mensahe" },
-    { s: "KOMFIL", q: "Ano ang ibig sabihin ng midyum sa komunikasyon?", choices: ["Paraan o anyo ng paghahatid ng mensahe", "Pangkat ng mag-aaral", "Uri ng papel", "Office software"], answer: "Paraan o anyo ng paghahatid ng mensahe" },
-    { s: "KOMFIL", q: "Bakit mahalaga ang Filipino sa komunikasyong pambansa?", choices: ["Nagpapalawak ito ng pagkakaunawaan at pambansang identidad", "Pinapalitan nito ang lahat ng wika", "Ginagamit lamang sa social media", "Para lang ito sa elementarya"], answer: "Nagpapalawak ito ng pagkakaunawaan at pambansang identidad" },
-
-    { s: "PATHFIT 1", q: "What does PATHFIT commonly focus on?", choices: ["Physical activity and fitness", "Operating systems", "Film editing", "Bank accounting"], answer: "Physical activity and fitness" },
-    { s: "PATHFIT 1", q: "Why is warm-up important before exercise?", choices: ["It prepares the body for movement", "It instantly builds muscles", "It replaces sleep", "It lowers intelligence"], answer: "It prepares the body for movement" },
-    { s: "PATHFIT 1", q: "Which of these is a cardiovascular activity?", choices: ["Jogging", "Sleeping", "Reading", "Typing"], answer: "Jogging" },
-    { s: "PATHFIT 1", q: "What is flexibility?", choices: ["The ability of joints and muscles to move through a range of motion", "The speed of internet", "The size of a classroom", "The memory of a phone"], answer: "The ability of joints and muscles to move through a range of motion" },
-    { s: "PATHFIT 1", q: "Which exercise mainly develops muscular strength?", choices: ["Push-up", "Meditation", "Drawing", "Typing test"], answer: "Push-up" },
-    { s: "PATHFIT 1", q: "What should you do after intense exercise?", choices: ["Cool down", "Skip breathing", "Eat paper", "Stay completely still forever"], answer: "Cool down" },
-    { s: "PATHFIT 1", q: "Hydration is important because it helps what?", choices: ["Maintain body function during activity", "Increase screen brightness", "Charge batteries", "Improve Wi-Fi"], answer: "Maintain body function during activity" },
-    { s: "PATHFIT 1", q: "What is the ideal way to improve endurance?", choices: ["Regular aerobic exercise", "Never moving", "Only watching sports", "Studying only at night"], answer: "Regular aerobic exercise" },
-    { s: "PATHFIT 1", q: "Which is an example of a body-weight exercise?", choices: ["Squat", "Printing", "Encoding", "Browsing"], answer: "Squat" },
-    { s: "PATHFIT 1", q: "What does BMI stand for?", choices: ["Body Mass Index", "Body Motion Indicator", "Basic Muscle Intake", "Balance Measure Input"], answer: "Body Mass Index" },
-    { s: "PATHFIT 1", q: "Why is proper breathing important during workouts?", choices: ["It helps deliver oxygen to the body", "It deletes fatigue forever", "It replaces stretching", "It makes gravity weaker"], answer: "It helps deliver oxygen to the body" },
-    { s: "PATHFIT 1", q: "What is one benefit of regular physical activity?", choices: ["Improved health and stamina", "Automatic perfect grades", "Unlimited energy without sleep", "No need for food"], answer: "Improved health and stamina" },
-    { s: "PATHFIT 1", q: "Which activity best helps improve balance?", choices: ["Single-leg stand", "Scrolling", "Sleeping", "Watching TV"], answer: "Single-leg stand" },
-    { s: "PATHFIT 1", q: "What is the safest mindset during exercise?", choices: ["Practice proper form and listen to your body", "Rush every movement", "Ignore pain", "Compete every second"], answer: "Practice proper form and listen to your body" }
-  ];
-
-  var state = {
-    username: "",
-    score: 0,
-    lives: MAX_LIVES,
-    currentQuestion: null,
-    activePool: [],
-    currentIndex: 0,
-    locked: false
-  };
-
-  var elements = null;
-  var fallbackScores = [];
-  var storageReady = false;
-  var initialized = false;
-
-  function init() {
-    if (initialized) {
-      return;
-    }
-
-    elements = {
-      loginView: document.getElementById("loginView"),
-      gameView: document.getElementById("gameView"),
-      gameOverView: document.getElementById("gameOverView"),
-      usernameInput: document.getElementById("usernameInput"),
-      startBtn: document.getElementById("startBtn"),
-      restartBtn: document.getElementById("restartBtn"),
-      loginStatus: document.getElementById("loginStatus"),
-      hudUser: document.getElementById("hudUser"),
-      hudRank: document.getElementById("hudRank"),
-      hudScore: document.getElementById("hudScore"),
-      hudLives: document.getElementById("hudLives"),
-      subjectChip: document.getElementById("subjectChip"),
-      questionText: document.getElementById("questionText"),
-      choicesWrap: document.getElementById("choicesWrap"),
-      feedback: document.getElementById("feedback"),
-      leaderboardBody: document.getElementById("leaderboardBody"),
-      finalScore: document.getElementById("finalScore"),
-      finalRank: document.getElementById("finalRank")
+  (function () {
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOLgbNBg3-kIEC4rbO_Cgbrgo55fOQhTM",
+      authDomain: "bscs-reviewer-arena.firebaseapp.com",
+      databaseURL: "https://bscs-reviewer-arena-default-rtdb.firebaseio.com",
+      projectId: "bscs-reviewer-arena",
+      storageBucket: "bscs-reviewer-arena.firebasestorage.app",
+      messagingSenderId: "992707582654",
+      appId: "1:992707582654:web:6c578a8ff50e61eee69cef",
+      measurementId: "G-PF14N9BGHY"
     };
 
-    if (
-      !elements.loginView ||
-      !elements.gameView ||
-      !elements.gameOverView ||
-      !elements.usernameInput ||
-      !elements.startBtn ||
-      !elements.restartBtn ||
-      !elements.loginStatus ||
-      !elements.hudUser ||
-      !elements.hudRank ||
-      !elements.hudScore ||
-      !elements.hudLives ||
-      !elements.subjectChip ||
-      !elements.questionText ||
-      !elements.choicesWrap ||
-      !elements.feedback ||
-      !elements.leaderboardBody ||
-      !elements.finalScore ||
-      !elements.finalRank
-    ) {
-      setTimeout(init, 300);
-      return;
-    }
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-    storageReady = canUseLocalStorage();
+    isAnalyticsSupported()
+      .then((supported) => {
+        if (supported) {
+          getAnalytics(app);
+        }
+      })
+      .catch(() => {});
 
-    bindTap(elements.startBtn, function (event) {
-      if (event && event.preventDefault) {
-        event.preventDefault();
-      }
-      startGame();
-    });
+    const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v3";
+    const FIREBASE_TABLE = "arena_scores";
+    const SCORE_PER_CORRECT = 5;
+    const MAX_LIVES = 3;
 
-    bindTap(elements.restartBtn, function (event) {
-      if (event && event.preventDefault) {
-        event.preventDefault();
-      }
-      rebootArena();
-    });
+    const rankTable = [
+      { min: 0, title: "Warrior Fresh" },
+      { min: 10, title: "Elite Reviewer" },
+      { min: 20, title: "Master Scanner" },
+      { min: 35, title: "Grandmaster Solver" },
+      { min: 50, title: "Mythic Glory" },
+      { min: 70, title: "System Overload" },
+      { min: 100, title: "Ultimate Scholar" }
+    ];
 
-    elements.usernameInput.addEventListener("keydown", function (event) {
-      if (event.key === "Enter" || event.keyCode === 13) {
-        event.preventDefault();
-        startGame();
-      }
-    });
+    const questionBank = [
+      { s: "ITEC 101", q: "What does CPU stand for?", choices: ["Central Processing Unit", "Computer Power Utility", "Central Program Upload", "Control Processing User"], answer: "Central Processing Unit" },
+      { s: "ITEC 101", q: "Which of the following is an input device?", choices: ["Keyboard", "Monitor", "Speaker", "Projector"], answer: "Keyboard" },
+      { s: "ITEC 101", q: "Binary numbers are composed of which digits?", choices: ["0 and 1", "1 and 2", "2 and 3", "0 and 9"], answer: "0 and 1" },
+      { s: "ITEC 101", q: "RAM is best described as what type of memory?", choices: ["Temporary memory", "Permanent memory", "Optical memory", "External memory"], answer: "Temporary memory" },
+      { s: "ITEC 101", q: "Which device is commonly used for long-term storage?", choices: ["SSD", "RAM", "Cache", "Register"], answer: "SSD" },
+      { s: "ITEC 101", q: "What does URL stand for?", choices: ["Uniform Resource Locator", "Universal Routing Link", "Unified Resource Loader", "User Resource Locator"], answer: "Uniform Resource Locator" },
+      { s: "ITEC 101", q: "Which is an example of system software?", choices: ["Operating System", "Spreadsheet", "Photo Editor", "Music Player"], answer: "Operating System" },
+      { s: "ITEC 101", q: "Processor speed is commonly measured in what unit?", choices: ["GHz", "Volts", "Pixels", "Bytes"], answer: "GHz" },
+      { s: "ITEC 101", q: "Which of the following is a web browser?", choices: ["Google Chrome", "Microsoft Word", "Adobe Photoshop", "WinRAR"], answer: "Google Chrome" },
+      { s: "ITEC 101", q: "Which network topology uses a central hub or switch?", choices: ["Star", "Bus", "Ring", "Mesh"], answer: "Star" },
+      { s: "ITEC 101", q: "What does LAN stand for?", choices: ["Local Area Network", "Large Access Node", "Linked Area Number", "Local Access Network"], answer: "Local Area Network" },
+      { s: "ITEC 101", q: "Which memory keeps data even when power is off?", choices: ["ROM", "RAM", "Cache", "Register"], answer: "ROM" },
+      { s: "ITEC 101", q: "What is the main purpose of an IP address?", choices: ["To identify a device on a network", "To increase battery life", "To clean a hard drive", "To print documents"], answer: "To identify a device on a network" },
+      { s: "ITEC 101", q: "Which of the following is an output device?", choices: ["Monitor", "Scanner", "Keyboard", "Mouse"], answer: "Monitor" },
+      { s: "ITEC 101", q: "What does a PSU do in a computer system?", choices: ["Supplies power to components", "Processes data", "Stores files online", "Connects to a projector"], answer: "Supplies power to components" },
 
-    renderLeaderboard();
-    updateHud();
-    setView("loginView");
-    initialized = true;
-  }
+      { s: "ITEC 102", q: "What is an algorithm?", choices: ["A step-by-step procedure for solving a problem", "A computer virus", "A hardware upgrade", "A file compression tool"], answer: "A step-by-step procedure for solving a problem" },
+      { s: "ITEC 102", q: "What is the purpose of a variable in programming?", choices: ["To store data", "To break the computer", "To connect to Wi-Fi", "To print a paper"], answer: "To store data" },
+      { s: "ITEC 102", q: "Which statement is commonly used for decision-making in programs?", choices: ["if", "loop", "print", "scan"], answer: "if" },
+      { s: "ITEC 102", q: "What is a loop used for?", choices: ["To repeat a block of code", "To create hardware", "To remove all errors instantly", "To delete memory"], answer: "To repeat a block of code" },
+      { s: "ITEC 102", q: "What does debugging mean?", choices: ["Finding and fixing errors", "Deleting all variables", "Installing a browser", "Formatting a drive"], answer: "Finding and fixing errors" },
+      { s: "ITEC 102", q: "Which flowchart shape is commonly used for a decision?", choices: ["Diamond", "Circle", "Triangle", "Hexagon"], answer: "Diamond" },
+      { s: "ITEC 102", q: "What is an array?", choices: ["A structure that stores multiple values", "A type of printer", "A kind of motherboard", "A video file"], answer: "A structure that stores multiple values" },
+      { s: "ITEC 102", q: "A syntax error happens when what occurs?", choices: ["The rules of the programming language are broken", "The internet is slow", "The battery is low", "The keyboard is unplugged"], answer: "The rules of the programming language are broken" },
+      { s: "ITEC 102", q: "What is pseudocode?", choices: ["A plain-language way to describe program steps", "An antivirus", "Final machine code", "A spreadsheet formula"], answer: "A plain-language way to describe program steps" },
+      { s: "ITEC 102", q: "What does the modulus operator usually return?", choices: ["The remainder", "The average", "The product", "The square root"], answer: "The remainder" },
+      { s: "ITEC 102", q: "A Boolean value can be which of the following?", choices: ["True or False", "Blue or Green", "Small or Large", "Odd or Even"], answer: "True or False" },
+      { s: "ITEC 102", q: "What is a function in programming?", choices: ["A reusable block of code", "A hardware cable", "A browser tab", "A file extension"], answer: "A reusable block of code" },
+      { s: "ITEC 102", q: "What is a parameter?", choices: ["A value accepted by a function", "A type of monitor", "A programming error", "A storage device"], answer: "A value accepted by a function" },
+      { s: "ITEC 102", q: "In many programming languages, an array index often starts at what number?", choices: ["0", "1", "2", "10"], answer: "0" },
+      { s: "ITEC 102", q: "What is an infinite loop?", choices: ["A loop that never meets its stopping condition", "A loop used only online", "A loop that runs once", "A loop that stores images"], answer: "A loop that never meets its stopping condition" },
 
-  function bindTap(element, handler) {
-    var touched = false;
+      { s: "GEC 101", q: "What does self-concept refer to?", choices: ["A person's perception of themselves", "A person's Wi-Fi settings", "A school schedule", "A computer part"], answer: "A person's perception of themselves" },
+      { s: "GEC 101", q: "The physical self mainly refers to what?", choices: ["Body and appearance", "Internet speed", "National budget", "Classroom layout"], answer: "Body and appearance" },
+      { s: "GEC 101", q: "The social self develops mainly through what?", choices: ["Interaction with others", "Installing apps", "Writing machine code", "Watching only movies"], answer: "Interaction with others" },
+      { s: "GEC 101", q: "What is the digital self?", choices: ["A person's online identity", "A type of keyboard", "A storage file", "A network cable"], answer: "A person's online identity" },
+      { s: "GEC 101", q: "Emotional intelligence is the ability to do what?", choices: ["Understand and manage emotions", "Repair a computer", "Memorize every number", "Build a router"], answer: "Understand and manage emotions" },
+      { s: "GEC 101", q: "Self-esteem refers to what?", choices: ["A person's sense of self-worth", "A school uniform", "A mobile application", "A typing speed"], answer: "A person's sense of self-worth" },
+      { s: "GEC 101", q: "Which statement about development is most accurate?", choices: ["Both nature and nurture influence it", "Only nature matters", "Only nurture matters", "Technology decides everything"], answer: "Both nature and nurture influence it" },
+      { s: "GEC 101", q: "What is mindfulness?", choices: ["Awareness of the present moment", "A brand of laptop", "A type of printer", "A programming method"], answer: "Awareness of the present moment" },
+      { s: "GEC 101", q: "Values usually guide what?", choices: ["Decisions and behavior", "Battery voltage", "File downloads", "Screen brightness"], answer: "Decisions and behavior" },
+      { s: "GEC 101", q: "Johari Window is commonly associated with what?", choices: ["Self-awareness and feedback", "Computer hardware", "Network security", "Sports scoring"], answer: "Self-awareness and feedback" },
+      { s: "GEC 101", q: "What is the ideal self?", choices: ["The person one wants to become", "A default profile picture", "A secret password", "A temporary file"], answer: "The person one wants to become" },
+      { s: "GEC 101", q: "What is resilience?", choices: ["The ability to recover from challenges", "A software license", "A classroom project", "A phone setting"], answer: "The ability to recover from challenges" },
+      { s: "GEC 101", q: "Self-care mainly supports what?", choices: ["Well-being", "Hard drive speed", "Screen resolution", "Signal strength"], answer: "Well-being" },
+      { s: "GEC 101", q: "Which is a healthy stress-management technique?", choices: ["Deep breathing", "Ignoring every problem forever", "Skipping all sleep", "Never drinking water"], answer: "Deep breathing" },
 
-    element.addEventListener("touchend", function (event) {
-      touched = true;
-      handler(event);
-      setTimeout(function () {
-        touched = false;
-      }, 350);
-    }, { passive: false });
+      { s: "GEC 102", q: "What is a primary source?", choices: ["Direct firsthand evidence", "A social media post without proof", "Only a summary", "A copied answer sheet"], answer: "Direct firsthand evidence" },
+      { s: "GEC 102", q: "Who wrote the Kartilya ng Katipunan?", choices: ["Emilio Jacinto", "Jose Rizal", "Andres Bonifacio", "Apolinario Mabini"], answer: "Emilio Jacinto" },
+      { s: "GEC 102", q: "Philippine independence in 1898 was declared in what place?", choices: ["Kawit, Cavite", "Dapitan", "Malolos only", "Intramuros"], answer: "Kawit, Cavite" },
+      { s: "GEC 102", q: "Who became the first President of the Philippines?", choices: ["Emilio Aguinaldo", "Jose Rizal", "Andres Bonifacio", "Manuel Quezon"], answer: "Emilio Aguinaldo" },
+      { s: "GEC 102", q: "Who arrived in the Philippines in 1521?", choices: ["Ferdinand Magellan", "Miguel Lopez de Legazpi", "Christopher Columbus", "Francisco Dagohoy"], answer: "Ferdinand Magellan" },
+      { s: "GEC 102", q: "Who led the Filipinos in the Battle of Mactan?", choices: ["Lapulapu", "Jose Rizal", "Aguinaldo", "Quezon"], answer: "Lapulapu" },
+      { s: "GEC 102", q: "What treaty transferred the Philippines from Spain to the United States?", choices: ["Treaty of Paris", "Treaty of Tordesillas", "Biyak-na-Bato Agreement", "Pact of Manila"], answer: "Treaty of Paris" },
+      { s: "GEC 102", q: "What is a secondary source?", choices: ["A source that interprets primary sources", "A firsthand diary entry", "An original government record", "A personal letter from the past"], answer: "A source that interprets primary sources" },
+      { s: "GEC 102", q: "Historical bias refers to what?", choices: ["A source being influenced by perspective or prejudice", "A source having more pages", "A source being written digitally", "A source being in Filipino"], answer: "A source being influenced by perspective or prejudice" },
+      { s: "GEC 102", q: "What is contextualization in history?", choices: ["Placing a source in its proper time and setting", "Destroying a source", "Printing a source", "Changing a source's language"], answer: "Placing a source in its proper time and setting" },
+      { s: "GEC 102", q: "The Cry of Pugad Lawin is associated with what?", choices: ["The start of the Philippine Revolution", "The signing of a peace treaty", "A school foundation day", "The opening of a university"], answer: "The start of the Philippine Revolution" },
+      { s: "GEC 102", q: "What year is associated with the EDSA People Power Revolution?", choices: ["1986", "1898", "1946", "1972"], answer: "1986" },
+      { s: "GEC 102", q: "What is Baybayin?", choices: ["A precolonial writing system", "A type of weapon", "A Spanish ship", "A modern app"], answer: "A precolonial writing system" },
+      { s: "GEC 102", q: "History is best described as the study of what?", choices: ["Past events based on evidence and sources", "Only future predictions", "Only myths and legends", "Only computer development"], answer: "Past events based on evidence and sources" },
 
-    element.addEventListener("click", function (event) {
-      if (touched) {
+      { s: "P.I. 100", q: "What is the full name of Rizal?", choices: ["Jose Protacio Rizal Mercado y Alonso Realonda", "Jose Panganiban Rizal Mercado", "Jose Rizal Del Pilar", "Jose Protacio Bonifacio Realonda"], answer: "Jose Protacio Rizal Mercado y Alonso Realonda" },
+      { s: "P.I. 100", q: "Who wrote Noli Me Tangere?", choices: ["Jose Rizal", "Andres Bonifacio", "Apolinario Mabini", "Emilio Jacinto"], answer: "Jose Rizal" },
+      { s: "P.I. 100", q: "El Filibusterismo is the sequel to what novel?", choices: ["Noli Me Tangere", "Florante at Laura", "Mi Ultimo Adios", "Sa Aking Mga Kabata"], answer: "Noli Me Tangere" },
+      { s: "P.I. 100", q: "Where was Jose Rizal born?", choices: ["Calamba, Laguna", "Dapitan, Zamboanga", "Manila", "Kawit, Cavite"], answer: "Calamba, Laguna" },
+      { s: "P.I. 100", q: "What date was Rizal born?", choices: ["June 19, 1861", "December 30, 1896", "June 12, 1898", "August 30, 1896"], answer: "June 19, 1861" },
+      { s: "P.I. 100", q: "What is the main theme of Noli Me Tangere?", choices: ["Social injustice under Spanish rule", "Space exploration", "Modern web development", "Olympic sports"], answer: "Social injustice under Spanish rule" },
+      { s: "P.I. 100", q: "What is the main theme of El Filibusterismo?", choices: ["Revenge and reform", "Plant biology", "Digital marketing", "Volleyball training"], answer: "Revenge and reform" },
+      { s: "P.I. 100", q: "Which Rizal poem is often called his farewell masterpiece?", choices: ["Mi Ultimo Adios", "A La Juventud Filipina", "Sa Aking Mga Kabata", "To the Child Jesus"], answer: "Mi Ultimo Adios" },
+      { s: "P.I. 100", q: "In what place was Rizal executed?", choices: ["Bagumbayan", "Dapitan", "Fort Santiago", "Biak-na-Bato"], answer: "Bagumbayan" },
+      { s: "P.I. 100", q: "What profession is Rizal also known for?", choices: ["Ophthalmologist", "Architect", "Pilot", "Engineer"], answer: "Ophthalmologist" },
+      { s: "P.I. 100", q: "What organization did Rizal found in Hong Kong?", choices: ["La Liga Filipina", "Katipunan", "Propaganda Party", "Guardia Civil"], answer: "La Liga Filipina" },
+      { s: "P.I. 100", q: "Who among these was Rizal's mother?", choices: ["Teodora Alonso", "Gregoria de Jesus", "Melchora Aquino", "Trinidad Tecson"], answer: "Teodora Alonso" },
+      { s: "P.I. 100", q: "Why is Rizal considered a national hero?", choices: ["He inspired reform through his writings and sacrifice", "He invented the internet", "He won many elections", "He discovered electricity"], answer: "He inspired reform through his writings and sacrifice" },
+      { s: "P.I. 100", q: "What law requires the study of Rizal in Philippine schools?", choices: ["Rizal Law", "Education Act 2001", "Civil Code", "Barangay Law"], answer: "Rizal Law" },
+
+      { s: "KOMFIL", q: "What does KOMFIL stand for?", choices: ["Kontekstwalisadong Komunikasyon sa Filipino", "Komunikasyon para sa Literatura", "Kompyuter at Filipino", "Konteksto ng Midya at Filipino"], answer: "Kontekstwalisadong Komunikasyon sa Filipino" },
+      { s: "KOMFIL", q: "Ano ang pangunahing layunin ng komunikasyon?", choices: ["Magpahayag at magkaunawaan", "Magpalit ng grades", "Mag-compile ng code", "Mag-format ng hard drive"], answer: "Magpahayag at magkaunawaan" },
+      { s: "KOMFIL", q: "Ano ang tawag sa taong nagpapadala ng mensahe?", choices: ["Tagapagpadala", "Tagatanggap", "Daluyan", "Simbolo"], answer: "Tagapagpadala" },
+      { s: "KOMFIL", q: "Ano ang tawag sa taong tumatanggap ng mensahe?", choices: ["Tagatanggap", "Tagapagpadala", "Ingay", "Paksa"], answer: "Tagatanggap" },
+      { s: "KOMFIL", q: "Ano ang channel o daluyan sa komunikasyon?", choices: ["Daan na ginagamit sa pagpapahatid ng mensahe", "Uri ng grado", "Pamagat ng aklat", "Uri ng memorya"], answer: "Daan na ginagamit sa pagpapahatid ng mensahe" },
+      { s: "KOMFIL", q: "Ano ang ibig sabihin ng verbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng salita", "Komunikasyong puro larawan lamang", "Komunikasyong walang kahulugan", "Komunikasyong para sa robot lang"], answer: "Komunikasyong gumagamit ng salita" },
+      { s: "KOMFIL", q: "Ano ang nonverbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng kilos, galaw, at ekspresyon", "Komunikasyong para sa exams lamang", "Komunikasyong gamit ang printer", "Komunikasyong puro numero"], answer: "Komunikasyong gumagamit ng kilos, galaw, at ekspresyon" },
+      { s: "KOMFIL", q: "Ano ang halimbawa ng nonverbal communication?", choices: ["Pagngiti", "Pag-type ng password", "Pag-delete ng file", "Pag-shutdown ng laptop"], answer: "Pagngiti" },
+      { s: "KOMFIL", q: "Ano ang tinatawag na sagabal sa malinaw na komunikasyon?", choices: ["Ingay", "Paksa", "Talasalitaan", "Bantas"], answer: "Ingay" },
+      { s: "KOMFIL", q: "Ano ang register ng wika?", choices: ["Barayti ng wikang ginagamit ayon sa sitwasyon", "Uri ng camera", "Laki ng silid", "Pangalan ng estudyante"], answer: "Barayti ng wikang ginagamit ayon sa sitwasyon" },
+      { s: "KOMFIL", q: "Ano ang akademikong komunikasyon?", choices: ["Pormal na komunikasyong ginagamit sa paaralan at pananaliksik", "Usapang laro lamang", "Usapang meme lang", "Impormal na tsismisan"], answer: "Pormal na komunikasyong ginagamit sa paaralan at pananaliksik" },
+      { s: "KOMFIL", q: "Ano ang kahalagahan ng konteksto sa komunikasyon?", choices: ["Nakaaapekto ito sa kahulugan ng mensahe", "Wala itong epekto", "Ginagamit lamang sa coding", "Nagpapabagal ito ng internet"], answer: "Nakaaapekto ito sa kahulugan ng mensahe" },
+      { s: "KOMFIL", q: "Ano ang ibig sabihin ng midyum sa komunikasyon?", choices: ["Paraan o anyo ng paghahatid ng mensahe", "Pangkat ng mag-aaral", "Uri ng papel", "Office software"], answer: "Paraan o anyo ng paghahatid ng mensahe" },
+      { s: "KOMFIL", q: "Bakit mahalaga ang Filipino sa komunikasyong pambansa?", choices: ["Nagpapalawak ito ng pagkakaunawaan at pambansang identidad", "Pinapalitan nito ang lahat ng wika", "Ginagamit lamang sa social media", "Para lang ito sa elementarya"], answer: "Nagpapalawak ito ng pagkakaunawaan at pambansang identidad" },
+
+      { s: "PATHFIT 1", q: "What does PATHFIT commonly focus on?", choices: ["Physical activity and fitness", "Operating systems", "Film editing", "Bank accounting"], answer: "Physical activity and fitness" },
+      { s: "PATHFIT 1", q: "Why is warm-up important before exercise?", choices: ["It prepares the body for movement", "It instantly builds muscles", "It replaces sleep", "It lowers intelligence"], answer: "It prepares the body for movement" },
+      { s: "PATHFIT 1", q: "Which of these is a cardiovascular activity?", choices: ["Jogging", "Sleeping", "Reading", "Typing"], answer: "Jogging" },
+      { s: "PATHFIT 1", q: "What is flexibility?", choices: ["The ability of joints and muscles to move through a range of motion", "The speed of internet", "The size of a classroom", "The memory of a phone"], answer: "The ability of joints and muscles to move through a range of motion" },
+      { s: "PATHFIT 1", q: "Which exercise mainly develops muscular strength?", choices: ["Push-up", "Meditation", "Drawing", "Typing test"], answer: "Push-up" },
+      { s: "PATHFIT 1", q: "What should you do after intense exercise?", choices: ["Cool down", "Skip breathing", "Eat paper", "Stay completely still forever"], answer: "Cool down" },
+      { s: "PATHFIT 1", q: "Hydration is important because it helps what?", choices: ["Maintain body function during activity", "Increase screen brightness", "Charge batteries", "Improve Wi-Fi"], answer: "Maintain body function during activity" },
+      { s: "PATHFIT 1", q: "What is the ideal way to improve endurance?", choices: ["Regular aerobic exercise", "Never moving", "Only watching sports", "Studying only at night"], answer: "Regular aerobic exercise" },
+      { s: "PATHFIT 1", q: "Which is an example of a body-weight exercise?", choices: ["Squat", "Printing", "Encoding", "Browsing"], answer: "Squat" },
+      { s: "PATHFIT 1", q: "What does BMI stand for?", choices: ["Body Mass Index", "Body Motion Indicator", "Basic Muscle Intake", "Balance Measure Input"], answer: "Body Mass Index" },
+      { s: "PATHFIT 1", q: "Why is proper breathing important during workouts?", choices: ["It helps deliver oxygen to the body", "It deletes fatigue forever", "It replaces stretching", "It makes gravity weaker"], answer: "It helps deliver oxygen to the body" },
+      { s: "PATHFIT 1", q: "What is one benefit of regular physical activity?", choices: ["Improved health and stamina", "Automatic perfect grades", "Unlimited energy without sleep", "No need for food"], answer: "Improved health and stamina" },
+      { s: "PATHFIT 1", q: "Which activity best helps improve balance?", choices: ["Single-leg stand", "Scrolling", "Sleeping", "Watching TV"], answer: "Single-leg stand" },
+      { s: "PATHFIT 1", q: "What is the safest mindset during exercise?", choices: ["Practice proper form and listen to your body", "Rush every movement", "Ignore pain", "Compete every second"], answer: "Practice proper form and listen to your body" }
+    ];
+
+    const state = {
+      username: "",
+      score: 0,
+      lives: MAX_LIVES,
+      currentQuestion: null,
+      activePool: [],
+      currentIndex: 0,
+      locked: false
+    };
+
+    let elements = null;
+    let initialized = false;
+    let fallbackScores = [];
+
+    function init() {
+      if (initialized) return;
+
+      elements = {
+        loginView: document.getElementById("loginView"),
+        gameView: document.getElementById("gameView"),
+        gameOverView: document.getElementById("gameOverView"),
+        usernameInput: document.getElementById("usernameInput"),
+        startBtn: document.getElementById("startBtn"),
+        restartBtn: document.getElementById("restartBtn"),
+        loginStatus: document.getElementById("loginStatus"),
+        hudUser: document.getElementById("hudUser"),
+        hudRank: document.getElementById("hudRank"),
+        hudScore: document.getElementById("hudScore"),
+        hudLives: document.getElementById("hudLives"),
+        subjectChip: document.getElementById("subjectChip"),
+        questionText: document.getElementById("questionText"),
+        choicesWrap: document.getElementById("choicesWrap"),
+        feedback: document.getElementById("feedback"),
+        leaderboardBody: document.getElementById("leaderboardBody"),
+        finalScore: document.getElementById("finalScore"),
+        finalRank: document.getElementById("finalRank")
+      };
+
+      if (
+        !elements.loginView ||
+        !elements.gameView ||
+        !elements.gameOverView ||
+        !elements.usernameInput ||
+        !elements.startBtn ||
+        !elements.restartBtn ||
+        !elements.loginStatus ||
+        !elements.hudUser ||
+        !elements.hudRank ||
+        !elements.hudScore ||
+        !elements.hudLives ||
+        !elements.subjectChip ||
+        !elements.questionText ||
+        !elements.choicesWrap ||
+        !elements.feedback ||
+        !elements.leaderboardBody ||
+        !elements.finalScore ||
+        !elements.finalRank
+      ) {
+        setTimeout(init, 300);
         return;
       }
-      handler(event);
-    });
-  }
 
-  function canUseLocalStorage() {
-    try {
-      var testKey = "__bscs1a_test__";
-      window.localStorage.setItem(testKey, "1");
-      window.localStorage.removeItem(testKey);
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
+      bindTap(elements.startBtn, (event) => {
+        event.preventDefault();
+        startGame();
+      });
 
-  function shuffle(array) {
-    var copy = array.slice();
-    var i;
-    var j;
-    var temp;
+      bindTap(elements.restartBtn, (event) => {
+        event.preventDefault();
+        rebootArena();
+      });
 
-    for (i = copy.length - 1; i > 0; i--) {
-      j = Math.floor(Math.random() * (i + 1));
-      temp = copy[i];
-      copy[i] = copy[j];
-      copy[j] = temp;
+      elements.usernameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          startGame();
+        }
+      });
+
+      renderLeaderboard();
+      updateHud();
+      setView("loginView");
+      initialized = true;
     }
 
-    return copy;
-  }
+    function bindTap(element, handler) {
+      let touched = false;
 
-  function getRank(score) {
-    var current = rankTable[0].title;
-    var i;
+      element.addEventListener(
+        "touchend",
+        (event) => {
+          touched = true;
+          handler(event);
+          setTimeout(() => {
+            touched = false;
+          }, 350);
+        },
+        { passive: false }
+      );
 
-    for (i = 0; i < rankTable.length; i++) {
-      if (score >= rankTable[i].min) {
-        current = rankTable[i].title;
+      element.addEventListener("click", (event) => {
+        if (touched) return;
+        handler(event);
+      });
+    }
+
+    function shuffle(array) {
+      const copy = array.slice();
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
       }
+      return copy;
     }
 
-    return current;
-  }
-
-  function getLivesDisplay(lives) {
-    var hearts = "";
-    var i;
-
-    for (i = 0; i < lives; i++) {
-      hearts += "&#10084;";
-    }
-
-    return hearts || "0";
-  }
-
-  function setView(name) {
-    var views = ["loginView", "gameView", "gameOverView"];
-    var i;
-    var key;
-    var viewEl;
-
-    for (i = 0; i < views.length; i++) {
-      key = views[i];
-      viewEl = elements[key];
-      if (!viewEl) {
-        continue;
+    function getRank(score) {
+      let current = rankTable[0].title;
+      for (let i = 0; i < rankTable.length; i += 1) {
+        if (score >= rankTable[i].min) {
+          current = rankTable[i].title;
+        }
       }
-
-      if (key === name) {
-        viewEl.classList.add("active");
-      } else {
-        viewEl.classList.remove("active");
-      }
-    }
-  }
-
-  function updateHud() {
-    elements.hudUser.textContent = state.username || "-";
-    elements.hudRank.textContent = getRank(state.score);
-    elements.hudScore.textContent = String(state.score);
-    elements.hudLives.innerHTML = getLivesDisplay(state.lives);
-  }
-
-  function clearFeedback() {
-    elements.feedback.textContent = "";
-    elements.feedback.classList.remove("is-wrong");
-  }
-
-  function resetArena() {
-    state.score = 0;
-    state.lives = MAX_LIVES;
-    state.currentQuestion = null;
-    state.activePool = shuffle(questionBank);
-    state.currentIndex = 0;
-    state.locked = false;
-    elements.choicesWrap.innerHTML = "";
-    clearFeedback();
-    updateHud();
-  }
-
-  function nextQuestion() {
-    if (!state.activePool.length) {
-      state.activePool = shuffle(questionBank);
-      state.currentIndex = 0;
+      return current;
     }
 
-    if (state.currentIndex >= state.activePool.length) {
-      state.activePool = shuffle(questionBank);
-      state.currentIndex = 0;
+    function getLivesDisplay(lives) {
+      return lives > 0 ? "&#10084;".repeat(lives) : "0";
     }
 
-    state.currentQuestion = state.activePool[state.currentIndex];
-    state.currentIndex += 1;
-    renderQuestion();
-  }
-
-  function renderQuestion() {
-    var item = state.currentQuestion;
-    var shuffledChoices;
-    var i;
-    var button;
-
-    if (!item) {
-      return;
+    function setView(name) {
+      ["loginView", "gameView", "gameOverView"].forEach((key) => {
+        if (key === name) {
+          elements[key].classList.add("active");
+        } else {
+          elements[key].classList.remove("active");
+        }
+      });
     }
 
-    shuffledChoices = shuffle(item.choices);
-    state.locked = false;
-    clearFeedback();
-
-    elements.subjectChip.textContent = item.s;
-    elements.questionText.textContent = item.q;
-    elements.choicesWrap.innerHTML = "";
-
-    for (i = 0; i < shuffledChoices.length; i++) {
-      button = document.createElement("button");
-      button.type = "button";
-      button.className = "choice";
-      button.setAttribute("data-choice", shuffledChoices[i]);
-      button.textContent = shuffledChoices[i];
-
-      (function (btn, value) {
-        bindTap(btn, function (event) {
-          if (event && event.preventDefault) {
-            event.preventDefault();
-          }
-          handleAnswer(btn, value);
-        });
-      })(button, shuffledChoices[i]);
-
-      elements.choicesWrap.appendChild(button);
-    }
-  }
-
-  function disableChoices(answer) {
-    var buttons = elements.choicesWrap.querySelectorAll(".choice");
-    var i;
-    for (i = 0; i < buttons.length; i++) {
-      buttons[i].disabled = true;
-      if (buttons[i].textContent === answer) {
-        buttons[i].classList.add("correct");
-      }
-    }
-  }
-
-  function handleAnswer(button, selectedChoice) {
-    var isCorrect;
-
-    if (state.locked || !state.currentQuestion) {
-      return;
+    function updateHud() {
+      elements.hudUser.textContent = state.username || "-";
+      elements.hudRank.textContent = getRank(state.score);
+      elements.hudScore.textContent = String(state.score);
+      elements.hudLives.innerHTML = getLivesDisplay(state.lives);
     }
 
-    state.locked = true;
-    isCorrect = selectedChoice === state.currentQuestion.answer;
-    disableChoices(state.currentQuestion.answer);
-
-    if (isCorrect) {
-      state.score += SCORE_PER_CORRECT;
-      button.classList.add("correct");
-      elements.feedback.textContent = "Correct. +5 points secured.";
+    function clearFeedback() {
+      elements.feedback.textContent = "";
       elements.feedback.classList.remove("is-wrong");
-    } else {
-      state.lives = state.lives - 1;
-      if (state.lives < 0) {
-        state.lives = 0;
-      }
-      button.classList.add("wrong");
-      elements.feedback.textContent = "Wrong answer. One heart lost.";
-      elements.feedback.classList.add("is-wrong");
     }
 
-    updateHud();
+    function resetArena() {
+      state.score = 0;
+      state.lives = MAX_LIVES;
+      state.currentQuestion = null;
+      state.activePool = shuffle(questionBank);
+      state.currentIndex = 0;
+      state.locked = false;
+      elements.choicesWrap.innerHTML = "";
+      clearFeedback();
+      updateHud();
+    }
 
-    setTimeout(function () {
-      if (state.lives <= 0) {
-        endGame();
-      } else {
-        nextQuestion();
+    function nextQuestion() {
+      if (!state.activePool.length || state.currentIndex >= state.activePool.length) {
+        state.activePool = shuffle(questionBank);
+        state.currentIndex = 0;
       }
-    }, 900);
-  }
 
-  function readLeaderboard() {
-    var parsed;
+      state.currentQuestion = state.activePool[state.currentIndex];
+      state.currentIndex += 1;
+      renderQuestion();
+    }
 
-    try {
-      if (!storageReady) {
+    function renderQuestion() {
+      if (!state.currentQuestion) return;
+
+      const shuffledChoices = shuffle(state.currentQuestion.choices);
+      state.locked = false;
+      clearFeedback();
+
+      elements.subjectChip.textContent = state.currentQuestion.s;
+      elements.questionText.textContent = state.currentQuestion.q;
+      elements.choicesWrap.innerHTML = "";
+
+      shuffledChoices.forEach((choiceText) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "choice";
+        button.textContent = choiceText;
+
+        bindTap(button, (event) => {
+          event.preventDefault();
+          handleAnswer(button, choiceText);
+        });
+
+        elements.choicesWrap.appendChild(button);
+      });
+    }
+
+    function disableChoices(answer) {
+      const buttons = elements.choicesWrap.querySelectorAll(".choice");
+      buttons.forEach((button) => {
+        button.disabled = true;
+        if (button.textContent === answer) {
+          button.classList.add("correct");
+        }
+      });
+    }
+
+    function handleAnswer(button, selectedChoice) {
+      if (state.locked || !state.currentQuestion) return;
+
+      state.locked = true;
+      const isCorrect = selectedChoice === state.currentQuestion.answer;
+
+      disableChoices(state.currentQuestion.answer);
+
+      if (isCorrect) {
+        state.score += SCORE_PER_CORRECT;
+        button.classList.add("correct");
+        elements.feedback.textContent = "Correct. +5 points secured.";
+        elements.feedback.classList.remove("is-wrong");
+      } else {
+        state.lives -= 1;
+        if (state.lives < 0) state.lives = 0;
+        button.classList.add("wrong");
+        elements.feedback.textContent = "Wrong answer. One heart lost.";
+        elements.feedback.classList.add("is-wrong");
+      }
+
+      updateHud();
+
+      setTimeout(() => {
+        if (state.lives <= 0) {
+          endGame();
+        } else {
+          nextQuestion();
+        }
+      }, 900);
+    }
+
+    function canUseLocalStorage() {
+      try {
+        const testKey = "__bscs1a_test__";
+        localStorage.setItem(testKey, "1");
+        localStorage.removeItem(testKey);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function readLocalLeaderboard() {
+      try {
+        if (!canUseLocalStorage()) {
+          return fallbackScores.slice();
+        }
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
         return fallbackScores.slice();
       }
+    }
 
-      parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-      if (Object.prototype.toString.call(parsed) === "[object Array]") {
-        return parsed;
+    function writeLocalLeaderboard(entries) {
+      if (canUseLocalStorage()) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      } else {
+        fallbackScores = entries.slice();
       }
-      return [];
-    } catch (error) {
-      return fallbackScores.slice();
-    }
-  }
-
-  function writeLeaderboard(entries) {
-    if (storageReady) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } else {
-      fallbackScores = entries.slice();
-    }
-  }
-
-  function saveScore() {
-    var entries = readLeaderboard();
-
-    if (!state.username) {
-      return;
     }
 
-    entries.push({
-      username: state.username,
-      score: state.score,
-      badge: getRank(state.score),
-      createdAt: new Date().getTime()
-    });
-
-    entries.sort(function (a, b) {
-      if (b.score !== a.score) {
-        return b.score - a.score;
+    async function readFirebaseLeaderboard() {
+      try {
+        const snapshot = await get(ref(db, FIREBASE_TABLE));
+        if (!snapshot.exists()) return [];
+        const raw = snapshot.val();
+        return Object.keys(raw).map((key) => raw[key]);
+      } catch (error) {
+        return [];
       }
-      return a.createdAt - b.createdAt;
-    });
-
-    writeLeaderboard(entries.slice(0, 10));
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
-  function renderLeaderboard() {
-    var entries = readLeaderboard();
-    var i;
-    var row;
-
-    elements.leaderboardBody.innerHTML = "";
-
-    if (!entries.length) {
-      elements.leaderboardBody.innerHTML = '<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>';
-      return;
     }
 
-    for (i = 0; i < entries.length; i++) {
-      row = document.createElement("tr");
-      row.innerHTML =
-        "<td>" + (i + 1) + "</td>" +
-        "<td>" + escapeHtml(entries[i].username) + "</td>" +
-        "<td>" + escapeHtml(entries[i].badge) + "</td>" +
-        "<td>" + Number(entries[i].score) + "</td>";
-      elements.leaderboardBody.appendChild(row);
+    async function writeFirebaseScore(entry) {
+      try {
+        const uniqueKey =
+          "score_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+        await set(ref(db, FIREBASE_TABLE + "/" + uniqueKey), entry);
+      } catch (error) {}
     }
-  }
 
-  function sanitizeUsername(value) {
-    return String(value || "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
-  }
+    async function readLeaderboard() {
+      const firebaseEntries = await readFirebaseLeaderboard();
+      if (firebaseEntries.length) {
+        const sorted = firebaseEntries.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.createdAt - b.createdAt;
+        });
+        writeLocalLeaderboard(sorted.slice(0, 10));
+        return sorted.slice(0, 10);
+      }
 
-  function startGame() {
-    var username = sanitizeUsername(elements.usernameInput.value);
+      const localEntries = readLocalLeaderboard();
+      localEntries.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.createdAt - b.createdAt;
+      });
+      return localEntries.slice(0, 10);
+    }
 
-    if (!username) {
-      elements.loginStatus.textContent = "Maglagay muna ng valid username bago simulan ang arena.";
+    async function saveScore() {
+      if (!state.username) return;
+
+      const entry = {
+        username: state.username,
+        score: state.score,
+        badge: getRank(state.score),
+        createdAt: Date.now()
+      };
+
+      const localEntries = readLocalLeaderboard();
+      localEntries.push(entry);
+      localEntries.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return a.createdAt - b.createdAt;
+      });
+      writeLocalLeaderboard(localEntries.slice(0, 10));
+
+      await writeFirebaseScore(entry);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function renderLeaderboard() {
+      const entries = await readLeaderboard();
+      elements.leaderboardBody.innerHTML = "";
+
+      if (!entries.length) {
+        elements.leaderboardBody.innerHTML =
+          '<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>';
+        return;
+      }
+
+      entries.forEach((entry, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML =
+          "<td>" + (index + 1) + "</td>" +
+          "<td>" + escapeHtml(entry.username) + "</td>" +
+          "<td>" + escapeHtml(entry.badge) + "</td>" +
+          "<td>" + Number(entry.score) + "</td>";
+        elements.leaderboardBody.appendChild(row);
+      });
+    }
+
+    function sanitizeUsername(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function startGame() {
+      const username = sanitizeUsername(elements.usernameInput.value);
+
+      if (!username) {
+        elements.loginStatus.textContent =
+          "Maglagay muna ng valid username bago simulan ang arena.";
+        elements.usernameInput.focus();
+        return;
+      }
+
+      state.username = username.slice(0, 22);
+      elements.usernameInput.value = state.username;
+      elements.loginStatus.textContent = "Arena initialized. Good luck, challenger.";
+
+      resetArena();
+      setView("gameView");
+      nextQuestion();
+    }
+
+    async function endGame() {
+      await saveScore();
+      await renderLeaderboard();
+      elements.finalScore.textContent = String(state.score);
+      elements.finalRank.textContent = getRank(state.score);
+      setView("gameOverView");
+    }
+
+    function rebootArena() {
+      elements.usernameInput.value = "";
+      state.username = "";
+      resetArena();
+      elements.loginStatus.textContent =
+        "Enter your username to begin the reviewer challenge.";
+      setView("loginView");
       elements.usernameInput.focus();
-      return;
     }
 
-    state.username = username.substring(0, 22);
-    elements.usernameInput.value = state.username;
-    elements.loginStatus.textContent = "Arena initialized. Good luck, challenger.";
-
-    resetArena();
-    setView("gameView");
-    nextQuestion();
-  }
-
-  function endGame() {
-    saveScore();
-    renderLeaderboard();
-    elements.finalScore.textContent = String(state.score);
-    elements.finalRank.textContent = getRank(state.score);
-    setView("gameOverView");
-  }
-
-  function rebootArena() {
-    elements.usernameInput.value = "";
-    state.username = "";
-    resetArena();
-    elements.loginStatus.textContent = "Enter your username to begin the reviewer challenge.";
-    setView("loginView");
-    elements.usernameInput.focus();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init);
+    } else {
+      init();
+    }
+  })();
 </script>
 
 </body>
