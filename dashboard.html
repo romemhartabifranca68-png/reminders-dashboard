@@ -3,378 +3,881 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BSCS 1-A | Welcome</title>
+    <title>BSCS Reminder Dashboard</title>
     <style>
         :root {
-            --bg1: #081224;
-            --bg2: #101a33;
-            --bg3: #141d3a;
-            --bg4: #0d2b3f;
+            --bg-1: #1e1b4b;
+            --bg-2: #4c1d95;
+            --bg-3: #0f172a;
+            --bg-4: #04354b;
+
             --text: #f8fafc;
-            --muted: rgba(248, 250, 252, 0.76);
-            --glass: rgba(255, 255, 255, 0.08);
-            --border: rgba(255, 255, 255, 0.12);
-            --blue: #38bdf8;
-            --purple: #8b5cf6;
-            --green: #22c55e;
-            --shadow: 0 16px 36px rgba(0, 0, 0, 0.32);
+            --muted: rgba(248, 250, 252, 0.75);
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --card: rgba(0, 0, 0, 0.18);
+            --shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+
+            --accent: #38bdf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --soft-danger: rgba(239, 68, 68, 0.18);
+        }
+
+        body.dark-theme {
+            --bg-1: #020617;
+            --bg-2: #0f172a;
+            --bg-3: #111827;
+            --bg-4: #1e293b;
+
+            --text: #e2e8f0;
+            --muted: rgba(226, 232, 240, 0.75);
+            --glass: rgba(15, 23, 42, 0.55);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --card: rgba(255, 255, 255, 0.04);
+            --shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             margin: 0;
             min-height: 100vh;
+            padding: 22px 14px 40px;
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             color: var(--text);
-            background: linear-gradient(-45deg, var(--bg1), var(--bg2), var(--bg3), var(--bg4));
+            background: linear-gradient(-45deg, var(--bg-1), var(--bg-2), var(--bg-3), var(--bg-4));
             background-size: 400% 400%;
-            animation: bgMove 18s ease infinite;
-            padding: 20px 12px 36px;
+            animation: gradientBG 20s ease infinite;
             overflow-x: hidden;
             position: relative;
+            transition: background 0.4s ease, color 0.4s ease;
         }
 
-        @keyframes bgMove {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        @keyframes gradientBG {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         body::before {
             content: "";
             position: fixed;
             inset: 0;
-            background-image: radial-gradient(rgba(255, 255, 255, 0.10) 1px, transparent 1px);
-            background-size: 24px 24px;
-            opacity: 0.28;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.13) 1px, transparent 1px);
+            background-size: 28px 28px;
+            opacity: 0.35;
             pointer-events: none;
+            z-index: 0;
         }
 
         .container {
             width: 100%;
-            max-width: 1100px;
+            max-width: 980px;
             margin: 0 auto;
             position: relative;
             z-index: 1;
         }
 
-        .glass {
+        .glass-panel {
             background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 24px;
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
             box-shadow: var(--shadow);
         }
 
         .hero {
-            display: grid;
-            grid-template-columns: 1.1fr 0.9fr;
-            gap: 22px;
-            padding: 24px;
+            padding: 24px 20px;
+            text-align: center;
             margin-bottom: 18px;
         }
 
         .badge {
             display: inline-block;
-            padding: 8px 14px;
+            padding: 8px 16px;
             border-radius: 999px;
-            background: linear-gradient(135deg, var(--blue), var(--purple));
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             font-weight: 700;
-            margin-bottom: 16px;
-            box-shadow: 0 8px 20px rgba(56, 189, 248, 0.24);
-        }
-
-        h1 {
-            margin: 0 0 14px;
-            font-size: clamp(2rem, 5vw, 3.8rem);
-            line-height: 1.08;
-        }
-
-        h1 span {
-            color: var(--blue);
-        }
-
-        .lead {
-            margin: 0 0 14px;
-            color: var(--muted);
-            line-height: 1.8;
-            font-size: 1rem;
-        }
-
-        .sublead {
-            margin: 0 0 18px;
-            color: var(--muted);
-            line-height: 1.8;
-            font-size: 0.96rem;
-        }
-
-        .main-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
+            letter-spacing: 0.4px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
             color: #fff;
-            font-weight: 800;
-            font-size: 1rem;
-            padding: 14px 22px;
-            border-radius: 999px;
-            background: linear-gradient(135deg, var(--green), var(--blue), var(--purple));
-            box-shadow: 0 10px 26px rgba(34, 197, 94, 0.24);
+            margin-bottom: 14px;
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
         }
 
-        .logo-card {
-            padding: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .logo-box {
-            width: 100%;
-            aspect-ratio: 1 / 1;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 16px;
-        }
-
-        .logo-box img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
-        }
-
-        .two-col {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 18px;
-            margin-bottom: 18px;
-        }
-
-        .card {
-            padding: 22px;
-        }
-
-        .kicker {
-            font-size: 0.82rem;
-            font-weight: 800;
-            color: var(--blue);
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-
-        .card h2 {
-            margin: 0 0 10px;
+        #greeting {
             font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 6px;
         }
 
-        .card p {
+        #date {
+            color: var(--muted);
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        #clock {
+            font-size: clamp(2.3rem, 8vw, 4rem);
+            font-weight: 800;
+            letter-spacing: 2px;
+            margin: 8px 0 10px;
+            text-shadow: 0 0 24px rgba(56, 189, 248, 0.32);
+        }
+
+        .subtitle {
             margin: 0;
             color: var(--muted);
-            line-height: 1.85;
-            font-size: 0.97rem;
+            font-size: 0.95rem;
         }
 
-        .officers {
-            padding: 22px;
+        .hero-actions {
+            margin-top: 16px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .theme-btn,
+        .jump-btn {
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.14);
+            color: var(--text);
+            padding: 10px 16px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .theme-btn:hover,
+        .jump-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        .overview {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
             margin-bottom: 18px;
         }
 
-        .officers h2 {
-            margin: 0 0 6px;
-            font-size: 1.45rem;
+        .stat-card {
+            padding: 18px;
+            border-radius: 20px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow);
         }
 
-        .officers p {
-            margin: 0 0 16px;
+        .stat-label {
+            font-size: 0.85rem;
             color: var(--muted);
-            line-height: 1.7;
-        }
-
-        .officers-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 14px;
-        }
-
-        .officer-card {
-            padding: 16px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .role {
-            color: var(--blue);
-            font-size: 0.78rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
             margin-bottom: 8px;
         }
 
-        .name {
-            font-size: 1rem;
+        .stat-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+        }
+
+        .stat-sub {
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .next-deadline {
+            margin-bottom: 18px;
+            padding: 18px;
+        }
+
+        .next-deadline h2,
+        .tasks-panel h2,
+        .quote-panel h2 {
+            margin: 0 0 14px;
+            font-size: 1.25rem;
+        }
+
+        .next-box {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            padding: 16px;
+        }
+
+        .next-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .next-meta {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .tasks-panel {
+            padding: 18px;
+            margin-bottom: 18px;
+        }
+
+        .subject-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .subject-card {
+            background: var(--card);
+            border-radius: 22px;
+            padding: 18px;
+            border-left: 6px solid #38bdf8;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .subject-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.2);
+        }
+
+        .subject-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .subject-title {
+            font-size: 1.1rem;
+            font-weight: 800;
+            line-height: 1.45;
+        }
+
+        .subject-sub {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .subject-count {
+            font-size: 0.82rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid var(--glass-border);
+            border-radius: 999px;
+            padding: 6px 10px;
+            white-space: nowrap;
+        }
+
+        .task-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .task-item {
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .task-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .task-name {
             font-weight: 700;
             line-height: 1.45;
         }
 
-        .links {
-            padding: 22px;
+        .task-timer {
+            flex-shrink: 0;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 7px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
         }
 
-        .links h2 {
-            margin: 0 0 10px;
-            font-size: 1.35rem;
-        }
-
-        .links p {
-            margin: 0 0 14px;
+        .task-meta {
             color: var(--muted);
-            line-height: 1.7;
+            font-size: 0.9rem;
+            line-height: 1.6;
         }
 
-        .link-row {
+        .task-badges {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
+            margin-top: 10px;
         }
 
-        .quick-link {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            color: var(--text);
-            padding: 11px 16px;
+        .mini-badge {
+            display: inline-block;
+            padding: 5px 10px;
             border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .urgent {
+            background: var(--soft-danger);
+            border-color: rgba(239, 68, 68, 0.32);
+        }
+
+        .urgent .task-timer {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: rgba(239, 68, 68, 0.38);
+            color: #fecaca;
+        }
+
+        .done .task-timer {
+            background: rgba(16, 185, 129, 0.18);
+            border-color: rgba(16, 185, 129, 0.35);
+            color: #bbf7d0;
+        }
+
+        .progress-wrap {
+            margin-top: 10px;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            overflow: hidden;
             background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.10);
-            font-weight: 600;
-            font-size: 0.92rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 100%;
+            border-radius: inherit;
+            transition: width 1s linear, background 0.3s ease;
+        }
+
+        .quote-panel {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .quote-text {
+            font-size: 1.05rem;
+            font-style: italic;
+            line-height: 1.7;
+            margin: 0 0 8px;
+        }
+
+        .quote-author {
+            color: var(--muted);
+            font-size: 0.9rem;
         }
 
         .footer-note {
             margin-top: 14px;
+            text-align: center;
             color: var(--muted);
             font-size: 0.85rem;
-            line-height: 1.7;
         }
 
-        @media (max-width: 860px) {
-            .hero,
-            .two-col {
+        @media (max-width: 760px) {
+            .overview {
                 grid-template-columns: 1fr;
             }
-        }
 
-        @media (max-width: 520px) {
-            h1 {
-                font-size: 2rem;
+            .subject-header,
+            .task-top {
+                flex-direction: column;
+                align-items: flex-start;
             }
 
-            .main-btn {
-                width: 100%;
-                text-align: center;
+            .subject-count,
+            .task-timer {
+                align-self: flex-start;
             }
 
-            .hero,
-            .card,
-            .officers,
-            .links {
-                padding: 18px;
+            .hero {
+                padding: 20px 16px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <section class="glass hero">
-            <div>
-                <div class="badge">LSPU Siniloan Campus</div>
-                <h1>Welcome to <span>BS Computer Science - 1A</span></h1>
-                <p class="lead">
-                    Ito ang official welcome page ng BSCS 1-A. Dito mo makikita ang class dashboard,
-                    schedules, reminders, at important links ng section.
-                </p>
-                <p class="sublead">
-                    Bilang mga Computer Science students, sama-sama tayong mag-aaral, magtutulungan,
-                    at haharap sa bawat challenge nang may sipag, talino, at diskarte.
-                </p>
-                <a class="main-btn" href="./dashboard.html">Tingnan ang Class Dashboard &amp; Schedule</a>
-            </div>
+        <section class="glass-panel hero">
+            <div class="badge">BSCS 1-A | August 2026 Reminders</div>
+            <div id="greeting">Magandang Araw!</div>
+            <div id="date">Loading date...</div>
+            <div id="clock">00:00:00 AM</div>
+            <p class="subtitle">Updated schoolworks dashboard for BSCS 1-A students</p>
 
-            <div class="glass logo-card">
-                <div class="logo-box">
-                    <img src="./logo.png" alt="BSCS 1-A Logo" />
-                </div>
+            <div class="hero-actions">
+                <button class="theme-btn" onclick="toggleTheme()">Switch Theme</button>
+                <a href="#tasks" class="jump-btn">View Tasks</a>
             </div>
         </section>
 
-        <section class="two-col">
-            <article class="glass card">
-                <span class="kicker">Our Vision</span>
-                <h2>Vision of BSCS 1-A</h2>
-                <p>
-                    To be a powerhouse of innovative, technically proficient, and morally upright Computer Science
-                    freshmen of LSPU Siniloan, driven by passion and collaboration to shape a smarter digital future.
-                </p>
-            </article>
+        <section class="overview" id="overview">
+            <div class="stat-card">
+                <div class="stat-label">All Task</div>
+                <div class="stat-value" id="totalTasks">0</div>
+                <div class="stat-sub">E update ko nalang to pag may bagong task;)</div>
+            </div>
 
-            <article class="glass card">
-                <span class="kicker">Our Mission</span>
-                <h2>Mission of BSCS 1-A</h2>
-                <p>
-                    To study diligently and strive to become the intellectual leaders of tomorrow while embodying
-                    the values of kindness, intelligence, adaptability, and generosity in every given situation.
-                </p>
-            </article>
-        </section>
+            <div class="stat-card">
+                <div class="stat-label">Urgent Tasks</div>
+                <div class="stat-value" id="urgentTasks">0</div>
+                <div class="stat-sub">Kung ilan yong malapit na deadline sa loob ng 3 days</div>
+            </div>
 
-        <section class="glass officers">
-            <h2>Class Officers</h2>
-            <p>Mga pinuno ng BS Computer Science - 1A, LSPU Siniloan Campus.</p>
-
-            <div class="officers-grid">
-                <div class="officer-card"><div class="role">President</div><div class="name">Chraist Oclarino</div></div>
-                <div class="officer-card"><div class="role">Vice President</div><div class="name">John Ernest Baldemor</div></div>
-                <div class="officer-card"><div class="role">Secretary</div><div class="name">Ada Flores</div></div>
-                <div class="officer-card"><div class="role">Treasurer</div><div class="name">Troy Bacero</div></div>
-                <div class="officer-card"><div class="role">Auditor</div><div class="name">Loriejane Velina Lumacad</div></div>
-                <div class="officer-card"><div class="role">P.I.O.</div><div class="name">Abby Cainto</div></div>
-                <div class="officer-card"><div class="role">Technical Manager</div><div class="name">Rome Mhar Tabifranca</div></div>
-                <div class="officer-card"><div class="role">Representative</div><div class="name">Nash Cinena</div></div>
-                <div class="officer-card"><div class="role">P.O. Boy</div><div class="name">John Christian Guia</div></div>
-                <div class="officer-card"><div class="role">P.O. Girl</div><div class="name">Ashley Calamba</div></div>
+            <div class="stat-card">
+                <div class="stat-label">The Nearest Deadline</div>
+                <div class="stat-value" id="nearestDate">--</div>
+                <div class="stat-sub" id="nearestLabel">Loading...</div>
             </div>
         </section>
 
-        <section class="glass links">
-            <h2>Quick Links</h2>
-            <p>Mabilisang access para sa mga importanteng links ng section at school.</p>
-
-            <div class="link-row">
-                <a class="quick-link" href="https://www.facebook.com/share/14XqfRX2Enz/" target="_blank" rel="noopener noreferrer">Facebook</a>
-                <a class="quick-link" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">Google Drive</a>
-                <a class="quick-link" href="https://online.lspusys.com/" target="_blank" rel="noopener noreferrer">School Portal</a>
+        <section class="glass-panel next-deadline">
+            <h2>Next Deadline</h2>
+            <div class="next-box">
+                <div class="next-title" id="nextDeadlineTitle">Loading...</div>
+                <div class="next-meta" id="nextDeadlineMeta">Please wait...</div>
             </div>
+        </section>
 
-            <div class="footer-note">
-                ;)
-            </div>
+        <section class="glass-panel tasks-panel" id="tasks">
+            <h2>Active To-Do's</h2>
+            <div class="subject-grid" id="subjectGrid"></div>
+        </section>
+
+        <section class="glass-panel quote-panel">
+            <h2>Motivation</h2>
+            <p class="quote-text">"Believe you can and you're halfway there."</p>
+            <div class="quote-author">- Theodore Roosevelt</div>
+            <div class="footer-note">"Stay focused, brilliant classmates."- Rome</div>
         </section>
     </div>
+
+    <script>
+        const subjectData = [
+            {
+                subject: "GEC 102",
+                icon: "🇵🇭",
+                fullName: "Readings in Philippine History",
+                color: "#ffd166",
+                tasks: [
+                    {
+                        title: "Quiz after discussion of Module 2",
+                        due: "2026-08-12T08:30:00",
+                        note: "Wednesday; tentative",
+                        tags: ["Quiz", "Tentative"]
+                    },
+                    {
+                        title: "Start of Reporting: The First Mass Site in the Philippines",
+                        due: "2026-08-17T07:00:00",
+                        note: "Monday; tentative",
+                        people: ["Ashley Calamba", "Matt Louis Gamayon"],
+                        tags: ["Reporting", "Tentative"]
+                    }
+                ]
+            },
+            {
+                subject: "P.I. 101",
+                icon: "📝",
+                fullName: "The Life and Works of Jose Rizal",
+                color: "#34d399",
+                tasks: [
+                    {
+                        title: "The book 'The Life and Works of Jose Rizal - Second Edition' should be on hand",
+                        due: "2026-08-12T07:00:00",
+                        note: "Wednesday",
+                        tags: ["Book Requirement"]
+                    },
+                    {
+                        title: "Mind Mapping Activity by next meeting",
+                        due: "2026-08-10T10:00:00",
+                        note: "Tentative: August 10 or August 12",
+                        tags: ["Activity", "Tentative"]
+                    },
+                    {
+                        title: "Activity (TBA)",
+                        due: "2026-08-06T13:00:00",
+                        note: "Submit via Google Drive",
+                        tags: ["Google Drive", "Urgent"]
+                    }
+                ]
+            },
+            {
+                subject: "GEC 101",
+                icon: "🧘‍♀️",
+                fullName: "Understanding the Self",
+                color: "#38bdf8",
+                tasks: [
+                    {
+                        title: "Memorize the University's Quality Policy",
+                        due: "2026-08-12T13:00:00",
+                        note: "Wednesday",
+                        people: ["Rhylie Millarez", "Chraist Oclarino"],
+                        tags: ["Memorization"]
+                    }
+                ]
+            },
+            {
+                subject: "PATHFIT",
+                icon: "⛹️‍♀️",
+                fullName: "PATHFit 1: Movement Competency Training",
+                color: "#f472b6",
+                tasks: [
+                    {
+                        title: "PAR-Q Assessment should be printed by next meeting",
+                        due: "2026-08-12T07:00:00",
+                        note: "Ma'am Jhona will send it later this week",
+                        tags: ["Print", "Assessment"]
+                    },
+                    {
+                        title: "Prepare 1/2 index card with your 1x1 picture",
+                        due: "2026-08-12T07:00:00",
+                        note: "For next class meeting",
+                        tags: ["Index Card", "1x1 Picture"]
+                    },
+                    {
+                        title: "Warm up by partner every meeting (3-5 mins)",
+                        due: "2026-08-12T07:00:00",
+                        note: "Partner warm-up reminder",
+                        people: ["Mark Angelo Astrera", "Ian Guia"],
+                        tags: ["Partner Task"]
+                    },
+                    {
+                        title: "'Strava' step-counting activity within campus only",
+                        due: "2026-08-12T07:00:00",
+                        note: "Instruction is TBA",
+                        tags: ["Strava", "TBA"]
+                    }
+                ]
+            },
+            {
+                subject: "NSTP 1",
+                icon: "🎖️",
+                fullName: "National Service Training Program 1",
+                color: "#fb7185",
+                tasks: [
+                    {
+                        title: "General Orientation",
+                        due: "2026-08-08T07:00:00",
+                        note: "Saturday at 7:00 AM",
+                        tags: ["Orientation"]
+                    }
+                ]
+            }
+        ];
+
+        function updateClock() {
+            const now = new Date();
+            const hour = now.getHours();
+            let greeting = "Magandang Araw!";
+
+            if (hour >= 5 && hour < 12) {
+                greeting = "Magandang Umaga, Classmates!✷⁠‿⁠✷";
+            } else if (hour >= 12 && hour < 18) {
+                greeting = "Magandang Hapon, Classmates!:)";
+            } else {
+                greeting = "Magandang Gabi, Classmates!;)";
+            }
+
+            document.getElementById("greeting").innerText = greeting;
+            document.getElementById("clock").innerText = now.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true
+            });
+
+            document.getElementById("date").innerText = now.toLocaleDateString("tl-PH", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric"
+            });
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle("dark-theme");
+            const isDark = document.body.classList.contains("dark-theme");
+            localStorage.setItem("dashboard-theme", isDark ? "dark" : "light");
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem("dashboard-theme");
+            if (savedTheme === "dark") {
+                document.body.classList.add("dark-theme");
+            }
+        }
+
+        function formatDue(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true
+            });
+        }
+
+        function getTimeParts(targetDate) {
+            const now = new Date().getTime();
+            const target = new Date(targetDate).getTime();
+            const diff = target - now;
+
+            if (diff <= 0) {
+                return {
+                    isDone: true,
+                    text: "Tapos na",
+                    diff: 0
+                };
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            let text = "";
+            if (days > 0) {
+                text = `${days}d ${hours}h left`;
+            } else if (hours > 0) {
+                text = `${hours}h ${minutes}m left`;
+            } else {
+                text = `${minutes}m left`;
+            }
+
+            return {
+                isDone: false,
+                text,
+                diff
+            };
+        }
+
+        function getProgressPercent(targetDate) {
+            const now = new Date().getTime();
+            const target = new Date(targetDate).getTime();
+            const baseStart = new Date("2026-08-05T00:00:00").getTime();
+
+            const total = target - baseStart;
+            const remaining = target - now;
+
+            if (remaining <= 0) {
+                return 0;
+            }
+
+            if (total <= 0) {
+                return 100;
+            }
+
+            return Math.max(0, Math.min(100, (remaining / total) * 100));
+        }
+
+        function getProgressColor(diff) {
+            const oneDay = 24 * 60 * 60 * 1000;
+            const threeDays = 3 * oneDay;
+
+            if (diff <= oneDay) {
+                return "linear-gradient(90deg, #fb7185, #ef4444)";
+            }
+
+            if (diff <= threeDays) {
+                return "linear-gradient(90deg, #fbbf24, #f59e0b)";
+            }
+
+            return "linear-gradient(90deg, #34d399, #10b981)";
+        }
+
+        function flattenTasks() {
+            const all = [];
+
+            subjectData.forEach(subject => {
+                subject.tasks.forEach(task => {
+                    all.push({
+                        subject: subject.subject,
+                        fullName: subject.fullName,
+                        color: subject.color,
+                        icon: subject.icon,
+                        ...task
+                    });
+                });
+            });
+
+            return all.sort((a, b) => new Date(a.due) - new Date(b.due));
+        }
+
+        function updateOverview() {
+            const allTasks = flattenTasks();
+            const now = new Date().getTime();
+            const urgentLimit = 3 * 24 * 60 * 60 * 1000;
+
+            const activeTasks = allTasks.filter(task => new Date(task.due).getTime() > now);
+            const urgentTasks = activeTasks.filter(task => new Date(task.due).getTime() - now <= urgentLimit);
+
+            document.getElementById("totalTasks").innerText = activeTasks.length;
+            document.getElementById("urgentTasks").innerText = urgentTasks.length;
+
+            if (activeTasks.length > 0) {
+                const nearest = activeTasks[0];
+                const nearestDate = new Date(nearest.due);
+
+                document.getElementById("nearestDate").innerText = nearestDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric"
+                });
+
+                document.getElementById("nearestLabel").innerText = `${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon} ${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nextDeadlineMeta").innerHTML = `
+                    Due: ${formatDue(nearest.due)}<br>
+                    Course: ${nearest.fullName}<br>
+                    Details: ${nearest.note || "No additional note"}
+                `;
+            } else {
+                document.getElementById("nearestDate").innerText = "Done";
+                document.getElementById("nearestLabel").innerText = "Wala nang pending tasks";
+                document.getElementById("nextDeadlineTitle").innerText = "Great job!";
+                document.getElementById("nextDeadlineMeta").innerText = "Wala nang active deadlines sa ngayon.";
+            }
+        }
+
+        function renderSubjects() {
+            const subjectGrid = document.getElementById("subjectGrid");
+            const now = new Date().getTime();
+
+            const sortedSubjects = [...subjectData].sort((a, b) => {
+                const aNearest = Math.min(...a.tasks.map(task => new Date(task.due).getTime()));
+                const bNearest = Math.min(...b.tasks.map(task => new Date(task.due).getTime()));
+                return aNearest - bNearest;
+            });
+
+            subjectGrid.innerHTML = sortedSubjects.map(subject => {
+                const pendingCount = subject.tasks.filter(task => new Date(task.due).getTime() > now).length;
+
+                const taskList = subject.tasks
+                    .sort((a, b) => new Date(a.due) - new Date(b.due))
+                    .map(task => {
+                        const timeInfo = getTimeParts(task.due);
+                        const progress = getProgressPercent(task.due);
+                        const isUrgent = !timeInfo.isDone && timeInfo.diff <= 3 * 24 * 60 * 60 * 1000;
+                        const taskClasses = [
+                            "task-item",
+                            isUrgent ? "urgent" : "",
+                            timeInfo.isDone ? "done" : ""
+                        ].join(" ").trim();
+
+                        const peopleLine = task.people && task.people.length
+                            ? `<div>Assigned / Mentioned: ${task.people.join(", ")}</div>`
+                            : "";
+
+                        const badges = (task.tags || [])
+                            .map(tag => `<span class="mini-badge">${tag}</span>`)
+                            .join("");
+
+                        return `
+                            <div class="${taskClasses}">
+                                <div class="task-top">
+                                    <div class="task-name">${task.title}</div>
+                                    <div class="task-timer">${timeInfo.text}</div>
+                                </div>
+
+                                <div class="task-meta">
+                                    <div>Due: ${formatDue(task.due)}</div>
+                                    <div>Note: ${task.note || "No extra note"}</div>
+                                    ${peopleLine}
+                                </div>
+
+                                <div class="task-badges">
+                                    ${badges}
+                                </div>
+
+                                <div class="progress-wrap">
+                                    <div class="progress-label">
+                                        <span>Countdown Progress</span>
+                                        <span>${Math.round(progress)}%</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${progress}%; background: ${getProgressColor(timeInfo.diff)};"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                    })
+                    .join("");
+
+                return `
+                    <article class="subject-card" style="border-left-color: ${subject.color};">
+                        <div class="subject-header">
+                            <div>
+                                <div class="subject-title">${subject.icon} ${subject.subject} - ${subject.fullName}</div>
+                                <div class="subject-sub">Updated reminders and schoolworks</div>
+                            </div>
+                            <div class="subject-count">${pendingCount} active</div>
+                        </div>
+
+                        <div class="task-list">
+                            ${taskList}
+                        </div>
+                    </article>
+                `;
+            }).join("");
+        }
+
+        function refreshDashboard() {
+            updateClock();
+            updateOverview();
+            renderSubjects();
+        }
+
+        loadTheme();
+        refreshDashboard();
+        setInterval(refreshDashboard, 1000);
+    </script>
 </body>
 </html>
