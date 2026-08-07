@@ -3,87 +3,87 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#081120" />
+  <meta name="theme-color" content="#0a192f" />
   <meta
     name="description"
-    content="Official section hub of BS Computer Science 1-A, LSPU Siniloan Campus. Announcements, officers, schedule, directory, and Freedom Wall in one place."
+    content="Official Section Hub ng BS Computer Science 1-A (LSPU Siniloan Campus) para sa announcements, schedule, officers, freshmen directory, reviewer arena, at freedom wall."
   />
   <meta property="og:title" content="BSCS 1-A | Official Section Hub" />
   <meta
     property="og:description"
-    content="Welcome to the official BSCS 1-A hub for announcements, class schedule, officers, freshmen directory, and Freedom Wall."
+    content="Welcome page ng BSCS 1-A na may premium dark UI, reviewer arena, section directory, at school quick links."
   />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="logo.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="BSCS 1-A | Official Section Hub" />
   <meta
     name="twitter:description"
-    content="Official section hub for BSCS 1-A, LSPU Siniloan Campus."
+    content="Premium section website ng BSCS 1-A, LSPU Siniloan Campus."
   />
-  <meta name="twitter:image" content="logo.png" />
-  <link rel="icon" href="logo.png" />
   <title>BSCS 1-A | Official Section Hub</title>
-
   <style>
     :root {
-      --bg: #07111f;
-      --panel: rgba(13, 27, 49, 0.78);
-      --panel-strong: rgba(17, 34, 60, 0.92);
-      --line: rgba(125, 241, 255, 0.16);
-      --text: #edf5ff;
-      --muted: #a9bbd4;
-      --accent: #72f6dd;
-      --accent-2: #5db6ff;
-      --accent-3: #94ffe8;
-      --shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 15px;
-      --max: 1180px;
+      --bg: #081426;
+      --bg-2: #0a192f;
+      --panel: rgba(23, 42, 69, 0.76);
+      --panel-soft: rgba(23, 42, 69, 0.52);
+      --panel-strong: rgba(9, 20, 38, 0.92);
+      --text: #e6f1ff;
+      --muted: rgba(230, 241, 255, 0.72);
+      --accent: #64ffda;
+      --accent-2: #00e5ff;
+      --gold: #ffd27d;
+      --danger: #ff7262;
+      --line: rgba(100, 255, 218, 0.15);
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
+      --glow: 0 0 1rem rgba(100, 255, 218, 0.25);
+      --radius: 24px;
+      --radius-sm: 16px;
+      --max: 1200px;
     }
-
+ 
     * {
       box-sizing: border-box;
     }
-
+ 
     html {
       scroll-behavior: smooth;
     }
-
+ 
     body {
       margin: 0;
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(114, 246, 221, 0.18), transparent 28%),
-        radial-gradient(circle at top right, rgba(93, 182, 255, 0.14), transparent 24%),
-        linear-gradient(180deg, #07111f 0%, #091624 38%, #0c1930 100%);
-      min-height: 100vh;
+        radial-gradient(1100px 700px at 0% -10%, rgba(100, 255, 218, 0.1), transparent 52%),
+        radial-gradient(900px 600px at 100% 0%, rgba(0, 229, 255, 0.08), transparent 48%),
+        radial-gradient(800px 500px at 70% 110%, rgba(100, 255, 218, 0.06), transparent 54%),
+        linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 50%, #091527 100%);
+      overflow-x: hidden;
     }
-
+ 
     a {
       color: inherit;
       text-decoration: none;
     }
-
+ 
+    button,
+    input {
+      font: inherit;
+    }
+ 
     img {
       display: block;
       max-width: 100%;
     }
-
-    iframe {
-      display: block;
-      width: 100%;
-      border: 0;
-    }
-
+ 
     .wrap {
-      width: min(var(--max), calc(100% - 2rem));
+      width: min(var(--max), calc(100% - 1.5rem));
       margin: 0 auto;
     }
-
-    .skip-link {
+ 
+    .skip {
       position: absolute;
       left: -999px;
       top: auto;
@@ -91,822 +91,1204 @@
       height: 1px;
       overflow: hidden;
     }
-
-    .skip-link:focus {
+ 
+    .skip:focus {
       left: 1rem;
       top: 1rem;
       width: auto;
       height: auto;
-      padding: 0.85rem 1rem;
-      border-radius: 999px;
+      padding: 0.8rem 1rem;
       background: #ffffff;
-      color: #07111f;
-      z-index: 100;
+      color: #061423;
+      border-radius: 999px;
+      z-index: 999;
     }
-
-    .topbar {
+ 
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(100, 255, 218, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(100, 255, 218, 0.05) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: radial-gradient(circle at center, black 45%, transparent 95%);
+    }
+ 
+    .topline {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.55), transparent);
+      opacity: 0.72;
+    }
+ 
+    .nav {
       position: sticky;
       top: 0;
       z-index: 50;
-      backdrop-filter: blur(14px);
-      background: rgba(7, 17, 31, 0.72);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(16px);
+      background: rgba(8, 20, 38, 0.72);
+      border-bottom: 1px solid rgba(100, 255, 218, 0.1);
     }
-
-    .topbar-inner {
+ 
+    .nav-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
       padding: 0.9rem 0;
     }
-
+ 
     .brand {
       display: flex;
       align-items: center;
       gap: 0.85rem;
       min-width: 0;
     }
-
-    .brand-mark {
-      width: 46px;
-      height: 46px;
-      border-radius: 50%;
-      padding: 4px;
-      background: linear-gradient(135deg, rgba(114, 246, 221, 0.22), rgba(93, 182, 255, 0.16));
-      border: 1px solid rgba(114, 246, 221, 0.35);
-      box-shadow: 0 0 0 4px rgba(114, 246, 221, 0.06);
-      flex: 0 0 auto;
+ 
+    .brand-copy {
+      min-width: 0;
     }
-
-    .brand-mark img {
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-
+ 
     .brand-copy strong,
     .brand-copy span {
       display: block;
-      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      white-space: nowrap;
     }
-
+ 
     .brand-copy strong {
-      font-size: 0.97rem;
+      font-size: 0.98rem;
       letter-spacing: 0.02em;
     }
-
+ 
     .brand-copy span {
+      font-size: 0.82rem;
       color: var(--muted);
-      font-size: 0.83rem;
     }
-
+ 
+    .logo-badge,
+    .logo-shell {
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      border: 1px solid rgba(100, 255, 218, 0.28);
+      background: linear-gradient(180deg, rgba(100, 255, 218, 0.2), rgba(23, 42, 69, 0.72));
+      box-shadow: var(--glow);
+      color: #f6fffd;
+      text-align: center;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      line-height: 1.1;
+    }
+ 
+    .logo-badge {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      font-size: 0.7rem;
+    }
+ 
     .nav-links {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.65rem;
       justify-content: flex-end;
+      gap: 0.55rem;
     }
-
+ 
     .nav-links a {
-      padding: 0.65rem 0.9rem;
+      padding: 0.62rem 0.88rem;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(100, 255, 218, 0.12);
       background: rgba(255, 255, 255, 0.03);
-      color: #dce8f7;
-      font-size: 0.92rem;
-      transition: 0.2s ease;
+      color: rgba(230, 241, 255, 0.84);
+      font-size: 0.9rem;
+      font-weight: 700;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
     }
-
+ 
     .nav-links a:hover,
     .nav-links a:focus-visible {
-      border-color: rgba(114, 246, 221, 0.34);
-      background: rgba(114, 246, 221, 0.08);
+      transform: translateY(-2px);
+      background: rgba(100, 255, 218, 0.08);
+      border-color: rgba(100, 255, 218, 0.34);
       outline: none;
     }
-
+ 
     .hero {
-      padding: 3.6rem 0 1.6rem;
+      padding: 2.8rem 0 1.4rem;
     }
-
-    .hero-shell {
+ 
+    .hero-shell,
+    .arena-grid,
+    .two-col,
+    .quick-grid {
       display: grid;
-      grid-template-columns: 1.3fr 0.9fr;
-      gap: 1.35rem;
+      gap: 1rem;
+    }
+ 
+    .hero-shell {
+      grid-template-columns: 1.2fr 0.85fr;
       align-items: stretch;
     }
-
-    .hero-main,
-    .hero-side,
-    .panel {
-      background: var(--panel);
+ 
+    .glass,
+    .card {
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.72), rgba(23, 42, 69, 0.42));
       border: 1px solid var(--line);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
-
-    .hero-main {
-      border-radius: var(--radius-xl);
-      padding: 2rem;
+ 
+    .hero-main,
+    .hero-side {
       position: relative;
       overflow: hidden;
+      border-radius: 28px;
     }
-
-    .hero-main::before {
+ 
+    .hero-main::before,
+    .hero-side::before,
+    .arena-shell::before {
       content: "";
       position: absolute;
       inset: 0;
-      background:
-        radial-gradient(circle at top left, rgba(114, 246, 221, 0.16), transparent 36%),
-        radial-gradient(circle at bottom right, rgba(93, 182, 255, 0.12), transparent 36%);
       pointer-events: none;
+      background:
+        radial-gradient(700px 250px at 10% 0%, rgba(100, 255, 218, 0.1), transparent 58%),
+        radial-gradient(700px 250px at 100% 100%, rgba(0, 229, 255, 0.08), transparent 58%);
     }
-
-    .hero-top {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      position: relative;
-      z-index: 1;
+ 
+    .hero-main {
+      padding: 1.4rem;
     }
-
-    .hero-logo {
-      width: 112px;
-      height: 112px;
-      border-radius: 24px;
-      padding: 0.45rem;
-      background: linear-gradient(135deg, rgba(114, 246, 221, 0.24), rgba(93, 182, 255, 0.14));
-      border: 1px solid rgba(114, 246, 221, 0.28);
-      flex: 0 0 auto;
+ 
+    .hero-side {
+      padding: 1.1rem;
+      display: grid;
+      gap: 0.9rem;
     }
-
-    .hero-logo img {
-      width: 100%;
-      height: 100%;
-      border-radius: 20px;
-      object-fit: cover;
-    }
-
+ 
     .eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 0.55rem;
-      padding: 0.45rem 0.85rem;
+      padding: 0.45rem 0.82rem;
       border-radius: 999px;
-      background: rgba(114, 246, 221, 0.08);
-      border: 1px solid rgba(114, 246, 221, 0.18);
-      color: var(--accent-3);
+      border: 1px solid rgba(100, 255, 218, 0.22);
+      background: rgba(100, 255, 218, 0.06);
+      color: rgba(100, 255, 218, 0.96);
       font-size: 0.88rem;
-      letter-spacing: 0.03em;
-      margin-bottom: 0.95rem;
+      font-weight: 700;
     }
-
+ 
     .eyebrow::before {
       content: "";
-      width: 0.5rem;
-      height: 0.5rem;
+      width: 0.55rem;
+      height: 0.55rem;
       border-radius: 50%;
       background: var(--accent);
-      box-shadow: 0 0 18px rgba(114, 246, 221, 0.58);
+      box-shadow: 0 0 14px rgba(100, 255, 218, 0.7);
     }
-
-    h1, h2, h3 {
+ 
+    .hero-top {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 126px 1fr;
+      gap: 1rem;
+      align-items: center;
+      margin-top: 1rem;
+    }
+ 
+    .logo-shell {
+      width: 120px;
+      height: 120px;
+      padding: 0.9rem;
+      position: relative;
+      isolation: isolate;
+      box-shadow:
+        0 0 1rem rgba(100, 255, 218, 0.38),
+        0 0 2.8rem rgba(100, 255, 218, 0.16),
+        var(--shadow);
+    }
+ 
+    .logo-shell::before {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      background: conic-gradient(
+        from 220deg,
+        rgba(100, 255, 218, 0),
+        rgba(100, 255, 218, 0.46),
+        rgba(0, 229, 255, 0.24),
+        rgba(100, 255, 218, 0)
+      );
+      filter: blur(10px);
+      z-index: -1;
+    }
+ 
+    .logo-shell span {
+      font-size: 1.05rem;
+    }
+ 
+    .hero-title {
       margin: 0;
+      font-size: clamp(1.8rem, 2.4vw + 1rem, 3.15rem);
+      line-height: 1.08;
+      letter-spacing: 0.02em;
     }
-
-    .hero h1 {
-      font-size: clamp(2rem, 3vw, 3.55rem);
-      line-height: 1.04;
-      max-width: 12ch;
+ 
+    .hero-sub {
+      margin: 0.42rem 0 0;
+      font-size: clamp(0.98rem, 0.4vw + 0.9rem, 1.12rem);
+      color: var(--muted);
+    }
+ 
+    .announce {
+      margin-top: 1rem;
+      padding: 1rem 1.05rem;
+      border-radius: 20px;
       position: relative;
-      z-index: 1;
+      overflow: hidden;
+      border: 1px solid rgba(255, 196, 94, 0.28);
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.72), rgba(23, 42, 69, 0.44));
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.32);
     }
-
-    .hero p.lead {
-      margin: 1rem 0 0;
-      max-width: 62ch;
-      color: #d6e5f8;
-      line-height: 1.7;
-      font-size: 1rem;
-      position: relative;
-      z-index: 1;
+ 
+    .announce::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      box-shadow:
+        0 0 0 1px rgba(255, 204, 102, 0.3) inset,
+        0 0 18px rgba(255, 204, 102, 0.14);
+      animation: pulseWarn 2.8s ease-in-out infinite;
+      pointer-events: none;
     }
-
-    .hero-actions {
+ 
+    @keyframes pulseWarn {
+      0%,
+      100% {
+        opacity: 0.55;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.004);
+      }
+    }
+ 
+    .announce p,
+    .note-card p,
+    .statbox p,
+    .vm p,
+    .arena-panel p,
+    .linkcard p,
+    .footer-box p {
+      margin: 0;
+      color: rgba(230, 241, 255, 0.88);
+      line-height: 1.62;
+    }
+ 
+    .announce strong,
+    .note-card strong {
+      color: #fff2d0;
+    }
+ 
+    .hero-actions,
+    .quick-jump,
+    .input-wrap,
+    .tagrow {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.8rem;
-      margin-top: 1.45rem;
+      gap: 0.75rem;
       position: relative;
       z-index: 1;
     }
-
+ 
+    .quick-jump {
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+ 
+    .btn,
+    .arena-btn,
+    .choice {
+      transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        background 0.18s ease,
+        box-shadow 0.18s ease;
+    }
+ 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.65rem;
-      padding: 0.95rem 1.15rem;
-      border-radius: 14px;
-      font-weight: 700;
-      transition: 0.2s ease;
-      border: 1px solid transparent;
+      padding: 1rem 1.14rem;
+      border-radius: 16px;
+      font-weight: 800;
+      border: 1px solid rgba(100, 255, 218, 0.32);
+      box-shadow: var(--shadow);
+      user-select: none;
     }
-
+ 
     .btn-primary {
-      background: linear-gradient(135deg, var(--accent), #8fffe3);
-      color: #062233;
-      box-shadow: 0 14px 35px rgba(114, 246, 221, 0.16);
+      color: #062635;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.92), rgba(143, 255, 227, 0.95));
     }
-
+ 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.09);
       color: var(--text);
+      background: rgba(255, 255, 255, 0.04);
     }
-
+ 
     .btn:hover,
-    .btn:focus-visible {
+    .btn:focus-visible,
+    .arena-btn:hover,
+    .arena-btn:focus-visible,
+    .choice:hover,
+    .choice:focus-visible,
+    .quick-jump a:hover,
+    .quick-jump a:focus-visible,
+    .linkcard:hover,
+    .linkcard:focus-visible {
       transform: translateY(-2px);
+      border-color: rgba(100, 255, 218, 0.36);
       outline: none;
     }
-
-    .hero-side {
-      border-radius: var(--radius-xl);
-      padding: 1.35rem;
-      display: grid;
-      gap: 1rem;
-    }
-
-    .hero-side .note {
-      background: rgba(255, 211, 124, 0.08);
-      border: 1px solid rgba(255, 211, 124, 0.18);
-      border-radius: var(--radius-lg);
-      padding: 1rem;
-    }
-
-    .hero-side .note strong {
-      display: block;
-      color: #ffe3aa;
-      margin-bottom: 0.35rem;
-    }
-
-    .hero-side .note p,
-    .hero-side .mini-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .mini-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 0.85rem;
-    }
-
-    .mini-card {
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      padding: 1rem;
-    }
-
-    .mini-card strong {
-      display: block;
-      font-size: 1.4rem;
-      color: var(--accent);
-      margin-bottom: 0.25rem;
-    }
-
-    main {
-      padding-bottom: 3rem;
-    }
-
-    section {
-      margin-top: 1.35rem;
-    }
-
-    .section-heading {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .section-heading h2 {
-      font-size: 1.35rem;
-      letter-spacing: 0.01em;
-    }
-
-    .section-heading span {
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-
-    .panel {
-      border-radius: var(--radius-lg);
-      padding: 1.25rem;
-    }
-
-    .split {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-    }
-
-    .vision-card h3 {
-      margin-bottom: 0.75rem;
-      font-size: 1.08rem;
-    }
-
-    .vision-card p {
-      margin: 0;
-      line-height: 1.7;
-      color: #d7e6f7;
-    }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.9rem;
-      margin-top: 1rem;
-    }
-
-    .stat {
-      padding: 1rem;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .stat strong {
-      display: block;
-      font-size: 1.5rem;
-      color: var(--accent);
-      margin-bottom: 0.25rem;
-    }
-
-    .stat span {
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-
-    .officer-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0.9rem;
-    }
-
-    .officer {
-      padding: 1rem;
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      transition: 0.2s ease;
-    }
-
-    .officer:hover {
-      transform: translateY(-3px);
-      border-color: rgba(114, 246, 221, 0.24);
-    }
-
-    .officer .role-tag {
-      display: inline-flex;
-      padding: 0.28rem 0.6rem;
+ 
+    .quick-jump a {
+      padding: 0.58rem 0.78rem;
       border-radius: 999px;
-      font-size: 0.76rem;
-      background: rgba(114, 246, 221, 0.08);
-      border: 1px solid rgba(114, 246, 221, 0.18);
-      color: var(--accent-3);
-      margin-bottom: 0.85rem;
+      border: 1px solid rgba(100, 255, 218, 0.14);
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(230, 241, 255, 0.82);
+      font-size: 0.86rem;
+      font-weight: 700;
     }
-
-    .officer h3 {
-      font-size: 1rem;
-      margin-bottom: 0.45rem;
-    }
-
-    .officer p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .schedule {
-      overflow: auto;
-    }
-
-    table {
-      width: 100%;
-      min-width: 720px;
-      border-collapse: collapse;
-    }
-
-    th,
-    td {
-      text-align: left;
+ 
+    .note-card,
+    .statbox,
+    .padlet-box,
+    .arena-panel,
+    .hud-card,
+    .question-box,
+    .crash {
+      border-radius: 20px;
       padding: 1rem;
-      vertical-align: top;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    th {
-      color: #f6fbff;
-      font-size: 0.92rem;
       background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      position: relative;
+      z-index: 1;
     }
-
-    td strong {
-      display: block;
-      margin-bottom: 0.35rem;
-      font-size: 0.98rem;
-    }
-
-    .class-list {
+ 
+    .stats-grid {
       display: grid;
-      gap: 0.55rem;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.8rem;
     }
-
-    .class-item {
-      padding: 0.85rem 0.9rem;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      color: #dce7f5;
-      line-height: 1.5;
-    }
-
-    .freshmen-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.75rem;
-    }
-
-    .freshman {
-      padding: 0.85rem 0.95rem;
-      border-radius: 14px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      color: #dce6f6;
-      font-size: 0.95rem;
-    }
-
-    .freshman b {
+ 
+    .statbox h3,
+    .metric-number {
+      margin: 0 0 0.18rem;
+      font-size: 1.55rem;
       color: var(--accent);
-      margin-right: 0.4rem;
     }
-
-    .wall-box {
-      padding: 1rem;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .wall-box .helper {
-      margin: 0.95rem 0 0;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .link-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.9rem;
-    }
-
-    .link-card {
-      padding: 1.05rem;
-      border-radius: 18px;
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      transition: 0.2s ease;
-    }
-
-    .link-card:hover,
-    .link-card:focus-visible {
-      transform: translateY(-3px);
-      border-color: rgba(114, 246, 221, 0.24);
-      outline: none;
-    }
-
-    .link-card strong {
+ 
+    .statbox small,
+    .metric-label {
       display: block;
-      margin-bottom: 0.4rem;
+      margin-bottom: 0.28rem;
+      color: rgba(230, 241, 255, 0.78);
+      font-weight: 700;
     }
-
-    .link-card p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.55;
-      font-size: 0.94rem;
+ 
+    main {
+      padding: 1rem 0 3rem;
     }
-
-    footer {
-      padding: 1.5rem 0 3rem;
+ 
+    section {
+      margin-top: 1.25rem;
     }
-
+ 
+    .section-title,
+    .leaderboard-title,
+    .question-meta,
     .footer-box {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
+      gap: 0.8rem;
       flex-wrap: wrap;
-      padding: 1.2rem 1.25rem;
+    }
+ 
+    .section-title {
+      margin: 0 0 0.9rem;
+    }
+ 
+    .section-title h2,
+    .leaderboard-title h3 {
+      margin: 0;
+    }
+ 
+    .section-title span,
+    .lb-note,
+    .arena-note,
+    .stream-chip {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+ 
+    .card {
+      border-radius: var(--radius);
+    }
+ 
+    .pad {
+      padding: 1.1rem;
+    }
+ 
+    .two-col {
+      grid-template-columns: repeat(2, 1fr);
+    }
+ 
+    .vm h3,
+    .arena-panel h3,
+    .linkcard strong {
+      margin: 0 0 0.45rem;
+      font-size: 1.08rem;
+    }
+ 
+    .officer-grid,
+    .freshmen-grid,
+    .hud {
+      display: grid;
+      gap: 0.85rem;
+    }
+ 
+    .officer-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+ 
+    .officer {
       border-radius: 18px;
-      background: var(--panel-strong);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 1rem;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+      border: 1px solid rgba(100, 255, 218, 0.14);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+    }
+ 
+    .badge,
+    .subject-chip,
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.36rem;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+ 
+    .badge {
+      padding: 0.24rem 0.58rem;
+      border: 1px solid rgba(100, 255, 218, 0.22);
+      background: rgba(10, 25, 47, 0.54);
+      color: rgba(100, 255, 218, 0.96);
+      font-size: 0.74rem;
+      margin-bottom: 0.8rem;
+    }
+ 
+    .role {
+      margin: 0;
+      color: #f2f7ff;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+ 
+    .name {
+      margin: 0.45rem 0 0;
+      color: rgba(230, 241, 255, 0.82);
+      line-height: 1.42;
+    }
+ 
+    .schedule-wrap,
+    .table-shell {
+      overflow: auto;
+      border-radius: var(--radius);
+    }
+ 
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+ 
+    .schedule {
+      min-width: 760px;
+      border: 1px solid rgba(100, 255, 218, 0.14);
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.58), rgba(23, 42, 69, 0.38));
       box-shadow: var(--shadow);
     }
-
-    .footer-box p {
-      margin: 0;
-      color: var(--muted);
-      line-height: 1.6;
+ 
+    .schedule th,
+    .schedule td,
+    .lb th,
+    .lb td {
+      padding: 1rem;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(100, 255, 218, 0.08);
     }
-
-    .footer-box strong {
+ 
+    .schedule thead th,
+    .lb th {
+      background: rgba(10, 25, 47, 0.58);
+      color: #f4f9ff;
+      font-size: 0.92rem;
+    }
+ 
+    .day {
+      font-weight: 900;
+      letter-spacing: 0.04em;
+    }
+ 
+    .tag {
+      padding: 0.24rem 0.58rem;
+      background: rgba(10, 25, 47, 0.54);
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      font-size: 0.74rem;
+      color: rgba(230, 241, 255, 0.88);
+    }
+ 
+    .tag.online {
+      border-color: rgba(100, 255, 218, 0.34);
+      color: rgba(100, 255, 218, 0.96);
+    }
+ 
+    .tag.f2f {
+      border-color: rgba(0, 229, 255, 0.26);
+      color: rgba(0, 229, 255, 0.95);
+    }
+ 
+    .tag.vacant {
+      border-color: rgba(230, 241, 255, 0.16);
+    }
+ 
+    .slot {
+      margin: 0.22rem 0 0.6rem;
+    }
+ 
+    .slot:last-child {
+      margin-bottom: 0;
+    }
+ 
+    .time {
+      font-weight: 800;
+      color: #eef6ff;
+    }
+ 
+    .subj {
+      color: rgba(230, 241, 255, 0.84);
+    }
+ 
+    .room {
+      color: rgba(230, 241, 255, 0.66);
+    }
+ 
+    .freshmen-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+ 
+    .freshman {
+      padding: 0.9rem 0.92rem;
+      border-radius: 15px;
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.56), rgba(23, 42, 69, 0.34));
+      color: rgba(230, 241, 255, 0.86);
+      box-shadow: 0 10px 34px rgba(0, 0, 0, 0.24);
+    }
+ 
+    .freshman b {
       color: var(--accent);
     }
-
-    @media (max-width: 1080px) {
-      .officer-grid,
-      .stats {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
+ 
+    .arena-shell {
+      position: relative;
+      overflow: hidden;
+      border-radius: 26px;
+      background:
+        radial-gradient(600px 260px at 0% 0%, rgba(100, 255, 218, 0.07), transparent 55%),
+        radial-gradient(600px 260px at 100% 100%, rgba(0, 229, 255, 0.07), transparent 55%),
+        linear-gradient(180deg, rgba(7, 14, 28, 0.98), rgba(8, 17, 31, 0.98));
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      box-shadow: var(--shadow), 0 0 0 1px rgba(100, 255, 218, 0.08) inset;
+    }
+ 
+    .terminal-top {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.85rem 1rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid rgba(100, 255, 218, 0.1);
+      color: rgba(230, 241, 255, 0.84);
+    }
+ 
+    .terminal-dots {
+      display: flex;
+      gap: 0.42rem;
+    }
+ 
+    .terminal-dots span {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 50%;
+      display: block;
+    }
+ 
+    .terminal-dots span:nth-child(1) {
+      background: #ff5f56;
+    }
+ 
+    .terminal-dots span:nth-child(2) {
+      background: #ffbd2e;
+    }
+ 
+    .terminal-dots span:nth-child(3) {
+      background: #27c93f;
+    }
+ 
+    .terminal-title,
+    .sysline,
+    .stream-chip,
+    .crash-title {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+ 
+    .terminal-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+ 
+    .arena-content {
+      position: relative;
+      z-index: 1;
+      padding: 1rem;
+    }
+ 
+    .arena-grid {
+      grid-template-columns: 1.15fr 0.85fr;
+    }
+ 
+    .sysline {
+      margin: 0.25rem 0 1rem;
+      color: rgba(100, 255, 218, 0.88);
+      font-size: 0.88rem;
+    }
+ 
+    .arena-input {
+      flex: 1 1 260px;
+      min-width: 0;
+      padding: 0.92rem 1rem;
+      border-radius: 14px;
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--text);
+    }
+ 
+    .arena-input:focus {
+      outline: none;
+      border-color: rgba(100, 255, 218, 0.42);
+      box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.12);
+    }
+ 
+    .arena-btn,
+    .choice {
+      border: 1px solid rgba(100, 255, 218, 0.22);
+      cursor: pointer;
+    }
+ 
+    .arena-btn {
+      padding: 0.92rem 1.12rem;
+      border-radius: 14px;
+      color: #eafffb;
+      font-weight: 800;
+      background: linear-gradient(135deg, rgba(100, 255, 218, 0.18), rgba(0, 229, 255, 0.14));
+    }
+ 
+    .view {
+      display: none;
+    }
+ 
+    .view.active {
+      display: block;
+    }
+ 
+    .hud {
+      grid-template-columns: repeat(4, 1fr);
+      margin-bottom: 1rem;
+    }
+ 
+    .hud-label {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-size: 0.76rem;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+ 
+    .hud-value {
+      display: block;
+      font-size: 1rem;
+      line-height: 1.25;
+      font-weight: 900;
+      color: #f4fbff;
+    }
+ 
+    .lives {
+      letter-spacing: 0.12rem;
+      font-size: 1.14rem;
+    }
+ 
+    .subject-chip {
+      padding: 0.32rem 0.66rem;
+      background: rgba(100, 255, 218, 0.08);
+      border: 1px solid rgba(100, 255, 218, 0.18);
+      color: rgba(100, 255, 218, 0.94);
+      font-size: 0.8rem;
+    }
+ 
+    .question-text {
+      margin: 0;
+      font-size: 1.08rem;
+      line-height: 1.58;
+      color: #eef6ff;
+    }
+ 
+    .choices {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.8rem;
+      margin-top: 1rem;
+    }
+ 
+    .choice {
+      width: 100%;
+      text-align: left;
+      padding: 1rem;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      color: #eaf5ff;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+ 
+    .choice.correct {
+      border-color: rgba(100, 255, 218, 0.55);
+      background: rgba(100, 255, 218, 0.12);
+      box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.18) inset;
+    }
+ 
+    .choice.wrong {
+      border-color: rgba(255, 95, 86, 0.54);
+      background: rgba(255, 95, 86, 0.1);
+    }
+ 
+    .choice:disabled {
+      cursor: default;
+    }
+ 
+    .feedback {
+      min-height: 1.5rem;
+      margin-top: 0.9rem;
+      font-weight: 800;
+      color: rgba(100, 255, 218, 0.9);
+      letter-spacing: 0.02em;
+    }
+ 
+    .feedback.is-wrong {
+      color: #ffb7a8;
+    }
+ 
+    .crash {
+      text-align: center;
+      padding: 1.6rem 1rem;
+    }
+ 
+    .crash-title {
+      margin: 0;
+      color: #ffd7a3;
+      font-size: 1.24rem;
+      letter-spacing: 0.08em;
+    }
+ 
+    .crash-score,
+    .crash-rank {
+      margin: 0.65rem 0 0;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+ 
+    .crash-rank {
+      color: var(--accent);
+    }
+ 
+    .table-shell {
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      background: rgba(255, 255, 255, 0.02);
+    }
+ 
+    .lb {
+      min-width: 520px;
+    }
+ 
+    .lb tbody tr:hover td {
+      background: rgba(100, 255, 218, 0.03);
+    }
+ 
+    .lb-empty {
+      text-align: center;
+      color: var(--muted);
+    }
+ 
+    .quick-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+ 
+    .linkcard {
+      border-radius: 18px;
+      padding: 1rem;
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.58), rgba(23, 42, 69, 0.34));
+      border: 1px solid rgba(100, 255, 218, 0.14);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.26);
+    }
+ 
+    footer {
+      padding: 1.4rem 0 2.4rem;
+    }
+ 
+    .footer-box {
+      border-radius: 20px;
+      padding: 1.15rem 1.1rem;
+      background: linear-gradient(180deg, rgba(23, 42, 69, 0.68), rgba(23, 42, 69, 0.42));
+      border: 1px solid rgba(100, 255, 218, 0.12);
+      box-shadow: var(--shadow);
+    }
+ 
+    .footer-box span {
+      color: var(--accent);
+    }
+ 
+    .muted {
+      color: var(--muted);
+    }
+ 
+    .hidden-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+ 
+    @media (max-width: 1100px) {
       .hero-shell,
-      .split,
-      .link-grid {
+      .arena-grid,
+      .two-col,
+      .quick-grid {
         grid-template-columns: 1fr;
       }
-
-      .freshmen-grid {
+ 
+      .officer-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+ 
+    @media (max-width: 860px) {
+      .hud {
+        grid-template-columns: repeat(2, 1fr);
+      }
+ 
+      .freshmen-grid,
+      .officer-grid,
+      .stats-grid {
         grid-template-columns: repeat(2, 1fr);
       }
     }
-
-    @media (max-width: 760px) {
-      .wrap {
-        width: min(var(--max), calc(100% - 1rem));
-      }
-
-      .topbar-inner,
+ 
+    @media (max-width: 720px) {
+      .nav-inner,
       .hero-top {
-        flex-direction: column;
-        align-items: flex-start;
+        display: grid;
+        grid-template-columns: 1fr;
       }
-
+ 
       .nav-links {
         justify-content: flex-start;
       }
-
+ 
       .hero {
         padding-top: 2rem;
       }
-
+ 
       .hero-main,
       .hero-side,
-      .panel {
+      .pad,
+      .arena-content {
         padding: 1rem;
       }
-
-      .hero-logo {
-        width: 88px;
-        height: 88px;
+ 
+      .logo-shell {
+        width: 104px;
+        height: 104px;
       }
-
-      .officer-grid,
+ 
+      .choices,
+      .quick-grid,
+      .two-col,
       .freshmen-grid,
-      .stats,
-      .mini-grid {
+      .officer-grid,
+      .stats-grid,
+      .hud {
         grid-template-columns: 1fr;
       }
-
-      .hero-actions .btn {
+ 
+      .hero-actions .btn,
+      .input-wrap .arena-btn,
+      .input-wrap .arena-input {
         width: 100%;
       }
     }
-
+ 
     @media (prefers-reduced-motion: reduce) {
-      html {
-        scroll-behavior: auto;
-      }
-
-      *,
-      *::before,
-      *::after {
+      * {
+        scroll-behavior: auto !important;
         transition: none !important;
+        animation: none !important;
       }
     }
   </style>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to main content</a>
-
-  <header class="topbar">
-    <div class="wrap topbar-inner">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="grid-bg" aria-hidden="true"></div>
+  <div class="topline" aria-hidden="true"></div>
+ 
+  <nav class="nav">
+    <div class="wrap nav-inner">
       <a class="brand" href="#">
-        <div class="brand-mark">
-          <img src="logo.png" alt="BSCS 1-A logo" />
-        </div>
+        <div class="logo-badge" aria-hidden="true">1A</div>
         <div class="brand-copy">
           <strong>BSCS 1-A Section Hub</strong>
           <span>LSPU Siniloan Campus | Batch 2026</span>
         </div>
       </a>
-
-      <nav class="nav-links" aria-label="Primary navigation">
-        <a href="#about">About</a>
+ 
+      <div class="nav-links" aria-label="Section navigation">
+        <a href="#vision-mission">Vision &amp; Mission</a>
         <a href="#officers">Officers</a>
         <a href="#schedule">Schedule</a>
         <a href="#freshmen">Freshmen</a>
+        <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#freedom-wall">Freedom Wall</a>
-      </nav>
+      </div>
+    </div>
+  </nav>
+ 
+  <header class="hero">
+    <div class="wrap hero-shell">
+      <section class="hero-main glass">
+        <div class="eyebrow">Premium Digital Introduction Page</div>
+ 
+        <div class="hero-top">
+          <div class="logo-shell" aria-label="BSCS 1-A official mark">
+            <span>BSCS<br />1-A</span>
+          </div>
+ 
+          <div>
+            <h1 class="hero-title">BS Computer Science - 1A</h1>
+            <p class="hero-sub">Official Section Hub | LSPU Siniloan Campus | Batch 2026</p>
+          </div>
+        </div>
+ 
+        <div class="announce" role="status" aria-live="polite">
+          <p>
+            <strong>Welcome, BSCS 1-A Freshmen.</strong> Dito ninyo makikita ang section
+            officers, weekly schedule, reviewer arena, freedom wall, at quick links para sa
+            inyong class resources.
+          </p>
+        </div>
+ 
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="dashboard.html">Tingnan ang Class Dashboard</a>
+          <a class="btn btn-secondary" href="#reviewer-arena">Enter Reviewer Arena</a>
+        </div>
+ 
+        <div class="quick-jump" aria-label="Quick jump links">
+          <a href="#vision-mission">Vision &amp; Mission</a>
+          <a href="#officers">Class Officers</a>
+          <a href="#schedule">Weekly Schedule</a>
+          <a href="#freshmen">Freshmen Directory</a>
+          <a href="#reviewer-arena">Academic Reviewer Arena</a>
+          <a href="#freedom-wall">Freedom Wall</a>
+        </div>
+      </section>
+ 
+      <aside class="hero-side glass" aria-label="Section quick info">
+        <div class="note-card">
+          <strong>Section Status</strong>
+          <p>
+            Centralized welcome page ito ng BSCS 1-A para sa officers, weekly schedule,
+            directory, section interactions, at mixed-subject reviewer game.
+          </p>
+        </div>
+ 
+        <div class="stats-grid">
+          <div class="statbox">
+            <small>Freshmen</small>
+            <h3>20</h3>
+            <p>Complete class directory</p>
+          </div>
+          <div class="statbox">
+            <small>Officers</small>
+            <h3>10</h3>
+            <p>Official class leaders</p>
+          </div>
+          <div class="statbox">
+            <small>Question Pool</small>
+            <h3>100</h3>
+            <p>Mixed-subject reviewer set</p>
+          </div>
+          <div class="statbox">
+            <small>Access</small>
+            <h3>24/7</h3>
+            <p>Responsive section hub</p>
+          </div>
+        </div>
+ 
+        <div class="note-card">
+          <strong>Dark Theme Identity</strong>
+          <p>
+            Deep navy blue, slate glass panels, at neon teal accents ang ginamit para sa
+            premium at modern Computer Science aesthetic.
+          </p>
+        </div>
+      </aside>
     </div>
   </header>
-
+ 
   <main id="main">
-    <section class="hero">
-      <div class="wrap hero-shell">
-        <div class="hero-main">
-          <div class="eyebrow">Official online home of BSCS 1-A</div>
-
-          <div class="hero-top">
-            <div class="hero-logo">
-              <img src="logo.png" alt="BSCS 1-A official logo" />
-            </div>
-
-            <div>
-              <h1>BS Computer Science 1-A</h1>
-              <p class="lead">
-                Welcome to the official section website of BSCS 1-A, LSPU Siniloan Campus.
-                Dito makikita ang class officers, weekly schedule, freshmen directory,
-                important links, at ang Freedom Wall ng section.
-              </p>
-            </div>
-          </div>
-
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="dashboard.html">Open Class Dashboard</a>
-            <a class="btn btn-secondary" href="#freedom-wall">Go to Freedom Wall</a>
-          </div>
+    <div class="wrap">
+      <section id="vision-mission">
+        <div class="section-title">
+          <h2>Vision &amp; Mission</h2>
+          <span>Core ideals of BSCS 1-A</span>
         </div>
-
-        <aside class="hero-side" aria-label="Quick overview">
-          <div class="note">
-            <strong>Welcome, BSCS 1-A Freshmen</strong>
-            <p>
-              Palaging i-check ang section hub para updated sa class reminders,
-              files, weekly schedule, at important school links.
-            </p>
-          </div>
-
-          <div class="mini-grid">
-            <div class="mini-card">
-              <strong>20</strong>
-              <p>Freshmen listed in the section directory</p>
-            </div>
-            <div class="mini-card">
-              <strong>10</strong>
-              <p>Class officers serving the section</p>
-            </div>
-            <div class="mini-card">
-              <strong>5</strong>
-              <p>Class days shown in the weekly schedule</p>
-            </div>
-            <div class="mini-card">
-              <strong>1</strong>
-              <p>Freedom Wall for confessions, thoughts, and memories</p>
-            </div>
-          </div>
-        </aside>
-      </div>
-    </section>
-
-    <section id="about">
-      <div class="wrap">
-        <div class="section-heading">
-          <h2>Vision and Mission</h2>
-          <span>Identity and purpose of the section</span>
-        </div>
-
-        <div class="split">
-          <article class="panel vision-card">
+ 
+        <div class="two-col">
+          <article class="card pad vm">
             <h3>Our Vision</h3>
             <p>
-              To be a community of innovative, technically skilled, and morally upright
-              Computer Science students of LSPU Siniloan who grow through discipline,
-              collaboration, and shared ambition for a smarter digital future.
+              To be a powerhouse of innovative, technically proficient, and morally upright
+              Computer Science freshmen of LSPU Siniloan, driven by passion and collaboration
+              to shape a smarter digital future.
             </p>
           </article>
-
-          <article class="panel vision-card">
+ 
+          <article class="card pad vm">
             <h3>Our Mission</h3>
             <p>
-              To study diligently, support one another, and develop into capable future
-              professionals while living with kindness, integrity, adaptability, and
-              responsibility inside and outside the classroom.
+              To study diligently and strive to become the intellectual leaders of tomorrow while
+              embodying the values of kindness, intelligence, adaptability, and generosity in
+              every situation.
             </p>
           </article>
         </div>
-
-        <div class="panel stats" aria-label="Section overview">
-          <div class="stat">
-            <strong>BSCS</strong>
-            <span>Program and section identity</span>
-          </div>
-          <div class="stat">
-            <strong>1-A</strong>
-            <span>Section designation</span>
-          </div>
-          <div class="stat">
-            <strong>LSPU</strong>
-            <span>Siniloan Campus community</span>
-          </div>
-          <div class="stat">
-            <strong>2026</strong>
-            <span>Batch marker shown on this hub</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="officers">
-      <div class="wrap">
-        <div class="section-heading">
+      </section>
+ 
+      <section id="officers">
+        <div class="section-title">
           <h2>Class Officers</h2>
-          <span>Student leaders of BSCS 1-A</span>
+          <span>Official leadership roster</span>
         </div>
-
-        <div class="panel officer-grid" role="list">
-          <article class="officer" role="listitem">
-            <span class="role-tag">President</span>
-            <h3>Chraist Albert D. Oclarino</h3>
-            <p>Leads the section and helps coordinate class matters and activities.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Vice President</span>
-            <h3>Ernest John Reu M. Baldemor</h3>
-            <p>Supports the president and helps maintain class coordination.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Secretary</span>
-            <h3>Dekada A. Flores</h3>
-            <p>Handles records, notes, and important class information.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Treasurer</span>
-            <h3>Troy V. Bacero</h3>
-            <p>Manages class funds and financial updates.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Auditor</span>
-            <h3>Loriejane V. Lumacad</h3>
-            <p>Checks transparency and supports proper fund monitoring.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">P.I.O.</span>
-            <h3>Marianne Abby V. Cainto</h3>
-            <p>Helps distribute updates and public information for the section.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Technical Manager</span>
-            <h3>Rome Mhar S. Tabifranca</h3>
-            <p>Handles the website, digital tools, and technical support needs.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">Representative</span>
-            <h3>Nash Rael M. Cinena</h3>
-            <p>Represents the section in relevant student concerns and activities.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">P.O. Boy</span>
-            <h3>John Christian C. Guia</h3>
-            <p>Supports order, coordination, and section organization.</p>
-          </article>
-          <article class="officer" role="listitem">
-            <span class="role-tag">P.O. Girl</span>
-            <h3>Ashley Nicole F. Calamba</h3>
-            <p>Supports discipline, order, and class coordination tasks.</p>
-          </article>
+ 
+        <div class="card pad">
+          <div class="officer-grid" role="list">
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">President</p>
+              <p class="name">Mr. Chraist Albert D. Oclarino</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">Vice President</p>
+              <p class="name">Mr. Ernest John Reu M. Baldemor</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Ms.</div>
+              <p class="role">Secretary</p>
+              <p class="name">Ms. Dekada A. Flores</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">Treasurer</p>
+              <p class="name">Mr. Troy V. Bacero</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Ms.</div>
+              <p class="role">Auditor</p>
+              <p class="name">Ms. Loriejane V. Lumacad</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Ms.</div>
+              <p class="role">P.I.O.</p>
+              <p class="name">Ms. Marianne Abby V. Cainto</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">Technical Manager</p>
+              <p class="name">Mr. Rome Mhar S. Tabifranca</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">Representative</p>
+              <p class="name">Mr. Nash Rael M. Cinena</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Mr.</div>
+              <p class="role">P.O. Boy</p>
+              <p class="name">Mr. John Christian C. Guia</p>
+            </article>
+            <article class="officer" role="listitem">
+              <div class="badge">Ms.</div>
+              <p class="role">P.O. Girl</p>
+              <p class="name">Ms. Ashley Nicole F. Calamba</p>
+            </article>
+          </div>
         </div>
-      </div>
-    </section>
-
-    <section id="schedule">
-      <div class="wrap">
-        <div class="section-heading">
+      </section>
+ 
+      <section id="schedule">
+        <div class="section-title">
           <h2>Weekly Class Schedule</h2>
-          <span>Quick class view for the whole week</span>
+          <span>Responsive class overview</span>
         </div>
-
-        <div class="panel schedule">
-          <table>
+ 
+        <div class="schedule-wrap">
+          <table class="schedule" role="table">
             <thead>
               <tr>
                 <th scope="col">Day</th>
@@ -915,189 +1297,714 @@
             </thead>
             <tbody>
               <tr>
-                <td><strong>Monday</strong>All online</td>
+                <td class="day">
+                  MONDAY
+                  <div class="tagrow"><span class="tag online">All Online</span></div>
+                </td>
                 <td>
-                  <div class="class-list">
-                    <div class="class-item">8:30 - 10:00 AM | GEC 102 - Readings in Philippine History</div>
-                    <div class="class-item">10:00 - 11:30 AM | P.I. 100 - Life and Works of Rizal</div>
-                    <div class="class-item">1:00 - 2:30 PM | GEC 101 - Understanding the Self</div>
-                    <div class="class-item">2:30 - 4:00 PM | KOMFIL - Kontekstwalisadong Komunikasyon</div>
+                  <div class="slot">
+                    <span class="time">8:30-10:00 AM</span>
+                    <span class="subj">GEC 102 - Readings in Philippine History</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">10:00-11:30 AM</span>
+                    <span class="subj">P.I. 100 - Life and Works of Rizal</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">1:00-2:30 PM</span>
+                    <span class="subj">GEC 101 - Understanding the Self</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">2:30-4:00 PM</span>
+                    <span class="subj">KOMFIL - Kontekstwalisadong Komunikasyon</span>
                   </div>
                 </td>
               </tr>
               <tr>
-                <td><strong>Tuesday</strong>Hybrid classes</td>
+                <td class="day">
+                  TUESDAY
+                  <div class="tagrow"><span class="tag f2f">Class Day</span></div>
+                </td>
                 <td>
-                  <div class="class-list">
-                    <div class="class-item">10:00 AM - 12:00 PM | ITEC 102 - Fundamentals of Programming | RM. 100 | Face-to-face</div>
-                    <div class="class-item">2:30 - 4:00 PM | KOMFIL - Kontekstwalisadong Komunikasyon | Online</div>
+                  <div class="slot">
+                    <span class="time">10:00 AM-12:00 PM</span>
+                    <span class="subj">ITEC 102 - Fundamentals of Programming</span>
+                    <span class="room">| Room 100</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">2:30-4:00 PM</span>
+                    <span class="subj">KOMFIL - Kontekstwalisadong Komunikasyon</span>
+                    <span class="room">| TBA</span>
                   </div>
                 </td>
               </tr>
               <tr>
-                <td><strong>Wednesday</strong>All face-to-face</td>
+                <td class="day">
+                  WEDNESDAY
+                  <div class="tagrow"><span class="tag f2f">All Face-to-Face</span></div>
+                </td>
                 <td>
-                  <div class="class-list">
-                    <div class="class-item">8:30 - 10:00 AM | GEC 102 | VoAg 101</div>
-                    <div class="class-item">10:00 - 11:30 AM | P.I. 100 | ACAD Building 2 - Room 208</div>
-                    <div class="class-item">1:00 - 2:30 PM | GEC 101 | VoAg Room 100</div>
-                    <div class="class-item">3:00 - 4:30 PM | PATHFIT 1 | GYM</div>
+                  <div class="slot">
+                    <span class="time">8:30-10:00 AM</span>
+                    <span class="subj">GEC 102</span>
+                    <span class="room">| VoAg 101</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">10:00-11:30 AM</span>
+                    <span class="subj">P.I. 100</span>
+                    <span class="room">| Acad Bldg. 2 - Room 208</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">1:00-2:30 PM</span>
+                    <span class="subj">GEC 101</span>
+                    <span class="room">| VoAg Room 100</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">3:00-4:30 PM</span>
+                    <span class="subj">PATHFIT 1</span>
+                    <span class="room">| GYM</span>
                   </div>
                 </td>
               </tr>
               <tr>
-                <td><strong>Thursday</strong>Face-to-face</td>
+                <td class="day">
+                  THURSDAY
+                  <div class="tagrow"><span class="tag f2f">Class Day</span></div>
+                </td>
                 <td>
-                  <div class="class-list">
-                    <div class="class-item">7:00 - 10:00 AM | ITEC 102 - Fundamentals of Programming | VoAg 207</div>
-                    <div class="class-item">2:00 - 4:00 PM | ITEC 101 - Introduction to Computing | VoAg 101</div>
+                  <div class="slot">
+                    <span class="time">7:00-10:00 AM</span>
+                    <span class="subj">ITEC 102 - Fundamentals of Programming</span>
+                    <span class="room">| VoAg 207</span>
+                  </div>
+                  <div class="slot">
+                    <span class="time">2:00-4:00 PM</span>
+                    <span class="subj">ITEC 101 - Introduction to Computing</span>
+                    <span class="room">| VoAg 101</span>
                   </div>
                 </td>
               </tr>
               <tr>
-                <td><strong>Friday</strong>Vacant</td>
+                <td class="day">
+                  FRIDAY
+                  <div class="tagrow"><span class="tag vacant">Vacant</span></div>
+                </td>
                 <td>
-                  <div class="class-list">
-                    <div class="class-item">No classes scheduled</div>
+                  <div class="slot">
+                    <span class="time">No Classes</span>
+                    <span class="room">| Vacant</span>
                   </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
-    </section>
-
-    <section id="freshmen">
-      <div class="wrap">
-        <div class="section-heading">
+      </section>
+ 
+      <section id="freshmen">
+        <div class="section-title">
           <h2>Meet the Freshmen</h2>
-          <span>Directory of BSCS 1-A students</span>
+          <span>Section directory</span>
         </div>
-
-        <div class="panel freshmen-grid" role="list">
-          <div class="freshman" role="listitem"><b>1.</b> Anggay, Sheikh Hassan G.</div>
-          <div class="freshman" role="listitem"><b>2.</b> Astrera, Mark Angelo F.</div>
-          <div class="freshman" role="listitem"><b>3.</b> Bacero, Troy V.</div>
-          <div class="freshman" role="listitem"><b>4.</b> Baldemor, Ernest John Reu M.</div>
-          <div class="freshman" role="listitem"><b>5.</b> Cainto, Marianne Abby V.</div>
-          <div class="freshman" role="listitem"><b>6.</b> Calamba, Ashley Nicole F.</div>
-          <div class="freshman" role="listitem"><b>7.</b> Cinena, Nash Rael M.</div>
-          <div class="freshman" role="listitem"><b>8.</b> Coronacion, Leenard G.</div>
-          <div class="freshman" role="listitem"><b>9.</b> Dolar, Naz Louie Gonzales</div>
-          <div class="freshman" role="listitem"><b>10.</b> Enciso, Prince James F.</div>
-          <div class="freshman" role="listitem"><b>11.</b> Flores, Dekada A.</div>
-          <div class="freshman" role="listitem"><b>12.</b> Gamayon, Matt Louis F.</div>
-          <div class="freshman" role="listitem"><b>13.</b> Guia, John Christian C.</div>
-          <div class="freshman" role="listitem"><b>14.</b> Lumacad, Loriejane V.</div>
-          <div class="freshman" role="listitem"><b>15.</b> Millarez, Rhylie B.</div>
-          <div class="freshman" role="listitem"><b>16.</b> Navarro, Cee Jay B.</div>
-          <div class="freshman" role="listitem"><b>17.</b> Oclarino, Chraist Albert D.</div>
-          <div class="freshman" role="listitem"><b>18.</b> Persincula, Josiah Leonel J.</div>
-          <div class="freshman" role="listitem"><b>19.</b> Recomo, John Mark</div>
-          <div class="freshman" role="listitem"><b>20.</b> Tabifranca, Rome Mhar S.</div>
-        </div>
-      </div>
-    </section>
-
-    <section id="freedom-wall">
-      <div class="wrap">
-        <div class="section-heading">
-          <h2>Freedom Wall</h2>
-          <span>Share thoughts, messages, and section memories</span>
-        </div>
-
-        <div class="panel">
-          <div class="wall-box">
-            <div
-              class="padlet-embed"
-              style="border:1px solid rgba(255,255,255,0.08);border-radius:16px;box-sizing:border-box;overflow:hidden;position:relative;width:100%;background:#f4f4f4"
-            >
-              <p style="padding:0;margin:0">
-                <iframe
-                  src="https://padlet.com/embed/dbsy286cnt50z3om"
-                  allow="camera; microphone; geolocation; display-capture; clipboard-write"
-                  style="width:100%;height:608px;display:block;padding:0;margin:0"
-                  title="BSCS 1-A Freedom Wall"
-                ></iframe>
-              </p>
-            </div>
-            <p class="helper">
-              Paalala: gamitin ang Freedom Wall nang maayos, may respeto, at iwasan ang
-              anumang harmful or inappropriate posts.
-            </p>
+ 
+        <div class="card pad">
+          <div class="freshmen-grid" role="list">
+            <div class="freshman" role="listitem"><b>1.</b> ANGGAY, SHEIKH HASSAN G.</div>
+            <div class="freshman" role="listitem"><b>2.</b> ASTRERA, MARK ANGELO F.</div>
+            <div class="freshman" role="listitem"><b>3.</b> BACERO, TROY V.</div>
+            <div class="freshman" role="listitem"><b>4.</b> BALDEMOR, ERNEST JOHN REU M.</div>
+            <div class="freshman" role="listitem"><b>5.</b> CAINTO, MARIANNE ABBY V.</div>
+            <div class="freshman" role="listitem"><b>6.</b> CALAMBA, ASHLEY NICOLE F.</div>
+            <div class="freshman" role="listitem"><b>7.</b> CINENA, NASH RAEL M.</div>
+            <div class="freshman" role="listitem"><b>8.</b> CORONACION, LEENARD G.</div>
+            <div class="freshman" role="listitem"><b>9.</b> DOLAR, NAZ LOUIE GONZALES</div>
+            <div class="freshman" role="listitem"><b>10.</b> ENCISO, PRINCE JAMES F.</div>
+            <div class="freshman" role="listitem"><b>11.</b> FLORES, DEKADA A.</div>
+            <div class="freshman" role="listitem"><b>12.</b> GAMAYON, MATT LOUIS F.</div>
+            <div class="freshman" role="listitem"><b>13.</b> GUIA, JOHN CHRISTIAN C.</div>
+            <div class="freshman" role="listitem"><b>14.</b> LUMACAD, LORIEJANE V.</div>
+            <div class="freshman" role="listitem"><b>15.</b> MILLAREZ, RHYLIE B.</div>
+            <div class="freshman" role="listitem"><b>16.</b> NAVARRO, CEE JAY B.</div>
+            <div class="freshman" role="listitem"><b>17.</b> OCLARINO, CHRAIST ALBERT D.</div>
+            <div class="freshman" role="listitem"><b>18.</b> PERSINCULA, JOSIAH LEONEL J.</div>
+            <div class="freshman" role="listitem"><b>19.</b> RECOMO, JOHN MARK</div>
+            <div class="freshman" role="listitem"><b>20.</b> TABIFRANCA, ROME MHAR S.</div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section>
-      <div class="wrap">
-        <div class="section-heading">
+      </section>
+ 
+      <section id="reviewer-arena">
+        <div class="section-title">
+          <h2>BSCS 1-A Academic Reviewer Arena</h2>
+          <span>Infinite mixed-subject challenge</span>
+        </div>
+ 
+        <div class="arena-shell">
+          <div class="terminal-top">
+            <div class="terminal-dots" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <div class="terminal-title">BSCS_1A_REVIEWER_ARENA.exe</div>
+            <div class="terminal-title">INFINITE MODE</div>
+          </div>
+ 
+          <div class="arena-content">
+            <div class="arena-grid">
+              <div class="arena-panel">
+                <div id="loginView" class="view active">
+                  <h3>Initialize Arena Session</h3>
+                  <p class="sysline">[SYSTEM READY] Enter your codename to begin the reviewer challenge.</p>
+                  <label class="hidden-label" for="usernameInput">Enter your username</label>
+                  <div class="input-wrap">
+                    <input
+                      id="usernameInput"
+                      class="arena-input"
+                      type="text"
+                      maxlength="22"
+                      placeholder="Enter your username"
+                    />
+                    <button id="startBtn" class="arena-btn" type="button">INITIALIZE</button>
+                  </div>
+                  <p id="loginStatus" class="arena-note">
+                    Scores are stored on this device using LocalStorage. Cloud sync variables are
+                    prepared in the script if you want to connect Supabase or Firebase later.
+                  </p>
+                </div>
+ 
+                <div id="gameView" class="view">
+                  <div class="hud">
+                    <div class="hud-card">
+                      <span class="hud-label">Username</span>
+                      <span id="hudUser" class="hud-value">-</span>
+                    </div>
+                    <div class="hud-card">
+                      <span class="hud-label">Badge Title</span>
+                      <span id="hudRank" class="hud-value">Warrior Fresh</span>
+                    </div>
+                    <div class="hud-card">
+                      <span class="hud-label">Live Score</span>
+                      <span id="hudScore" class="hud-value">0</span>
+                    </div>
+                    <div class="hud-card">
+                      <span class="hud-label">Hearts</span>
+                      <span id="hudLives" class="hud-value lives">&#10084;&#10084;&#10084;</span>
+                    </div>
+                  </div>
+ 
+                  <div class="question-box">
+                    <div class="question-meta">
+                      <span id="subjectChip" class="subject-chip">ITEC 101</span>
+                      <span class="stream-chip">QUESTION_STREAM: INFINITE_RANDOMIZED</span>
+                    </div>
+                    <p id="questionText" class="question-text">Loading question...</p>
+                    <div id="choicesWrap" class="choices"></div>
+                    <div id="feedback" class="feedback" aria-live="polite"></div>
+                  </div>
+                </div>
+ 
+                <div id="gameOverView" class="view">
+                  <div class="crash">
+                    <h3 class="crash-title">[SYSTEM CRASH] REVIEWER OVER</h3>
+                    <p class="crash-score">Final Score: <span id="finalScore">0</span></p>
+                    <p class="crash-rank">Final Badge: <span id="finalRank">Warrior Fresh</span></p>
+                    <button id="restartBtn" class="arena-btn" type="button">Reboot Arena</button>
+                  </div>
+                </div>
+              </div>
+ 
+              <div class="arena-panel">
+                <h3>Game Protocol</h3>
+                <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | Top 10 leaderboard</p>
+                <p>
+                  Start with <strong>3 lives</strong>. Every correct answer gives
+                  <strong>5 points</strong>. Every wrong answer removes one heart. Kapag naubos ang
+                  hearts, magti-trigger ang game over system.
+                </p>
+                <p>
+                  Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
+                  GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
+                </p>
+                <p>
+                  Dynamic ang badge title habang tumataas ang score mo. Kapag naubos ang buong
+                  question cycle, automatic na magre-reshuffle ang arena para tuloy-tuloy ang review.
+                </p>
+ 
+                <div class="leaderboard-title">
+                  <h3>Top Arena Challengers</h3>
+                  <span class="lb-note">Top 10 highest scores on this device</span>
+                </div>
+ 
+                <div class="table-shell">
+                  <table class="lb" aria-label="Top Arena Challengers">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>Badge</th>
+                        <th>Score</th>
+                      </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                      <tr>
+                        <td colspan="4" class="lb-empty">No challenger records yet.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+ 
+                <p class="arena-note">
+                  Replace the placeholder links and Padlet URL later if gusto mong i-connect ito sa
+                  real section assets. Naka-ready na ang structure para doon.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+ 
+      <section id="freedom-wall">
+        <div class="section-title">
+          <h2>Integrated Freedom Wall</h2>
+          <span>Padlet-powered interaction space</span>
+        </div>
+ 
+        <div class="card pad">
+          <div class="padlet-box">
+            <p class="muted" style="margin: 0 0 0.8rem;">
+              <div class="padlet-embed" style="border:1px solid rgba(0,0,0,0.1);border-radius:2px;box-sizing:border-box;overflow:hidden;position:relative;width:100%;background:#F4F4F4"><p style="padding:0;margin:0"><iframe src="https://padlet.com/embed/dbsy286cnt50z3om" frameborder="0" allow="camera;microphone;geolocation;display-capture;clipboard-write" style="width:100%;height:608px;display:block;padding:0;margin:0"></iframe></p></div>
+            </p>
+                    </div>
+      </section>
+      
+ 
+      <section id="quick-links">
+        <div class="section-title">
           <h2>Quick Links</h2>
-          <span>Important resources for the class</span>
+          <span>Essential external resources</span>
         </div>
-
-        <div class="panel link-grid">
-          <a class="link-card" href="dashboard.html">
-            <strong>Class Dashboard</strong>
-            <p>Open the dashboard for reminders, access cards, and quick class actions.</p>
+ 
+        <div class="quick-grid">
+          <a class="linkcard" href="https://drive.google.com" target="_blank" rel="noopener noreferrer">
+            <strong>Google Drive Link</strong>
+            <p>Open your shared reviewer files, modules, and section resources.</p>
           </a>
-
-          <a
-            class="link-card"
-            href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <strong>Google Drive Folder</strong>
-            <p>Access shared files, learning materials, and uploaded class documents.</p>
-          </a>
-
-          <a
-            class="link-card"
-            href="https://lspusys.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <strong>School Portal</strong>
-            <p>Visit the LSPU system for school-related records and transactions.</p>
-          </a>
-
-          <a
-            class="link-card"
-            href="https://www.facebook.com/share/1DVCSg9qrn/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a class="linkcard" href="https://facebook.com" target="_blank" rel="noopener noreferrer">
             <strong>Facebook Page or Group</strong>
-            <p>Open the class Facebook page or group for social updates and announcements.</p>
+            <p>Visit the section social page for updates, announcements, and coordination.</p>
           </a>
-
-          <a class="link-card" href="#officers">
-            <strong>Officer Directory</strong>
-            <p>View the complete class officer list and section leadership structure.</p>
-          </a>
-
-          <a class="link-card" href="#schedule">
-            <strong>Weekly Schedule</strong>
-            <p>Check class days, subject times, and room assignments in one section.</p>
+          <a class="linkcard" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">
+            <strong>School Portal</strong>
+            <p>Access the official portal for academic and school transactions.</p>
           </a>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
-
+ 
   <footer>
     <div class="wrap">
       <div class="footer-box">
         <p>
-          Official website of <strong>BSCS 1-A</strong> for section updates,
-          organization, and student connection.
+          Official digital welcome page of <span>BSCS 1-A</span> built with a premium dark theme
+          for a modern Computer Science identity.
         </p>
         <p>Designed and coded by the | Technical Manager</p>
       </div>
     </div>
   </footer>
+ 
+  <script>
+    const CLOUD_SYNC = {
+      enabled: false,
+      provider: "localStorage",
+      endpoint: "",
+      apiKey: "",
+      tableName: "arena_scores"
+    };
+ 
+    const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v1";
+    const SCORE_PER_CORRECT = 5;
+    const MAX_LIVES = 3;
+ 
+    const rankTable = [
+      { min: 0, title: "Warrior Fresh" },
+      { min: 10, title: "Elite Reviewer" },
+      { min: 20, title: "Master Scanner" },
+      { min: 35, title: "Grandmaster Solver" },
+      { min: 50, title: "Mythic Glory" },
+      { min: 70, title: "System Overload" },
+      { min: 100, title: "Ultimate Scholar" }
+    ];
+ 
+    const questionBank = [
+      { s: "ITEC 101", q: "What does CPU stand for?", choices: ["Central Processing Unit", "Computer Power Utility", "Central Program Upload", "Control Processing User"], answer: "Central Processing Unit" },
+      { s: "ITEC 101", q: "Which of the following is an input device?", choices: ["Keyboard", "Monitor", "Speaker", "Projector"], answer: "Keyboard" },
+      { s: "ITEC 101", q: "Binary numbers are composed of which digits?", choices: ["0 and 1", "1 and 2", "2 and 3", "0 and 9"], answer: "0 and 1" },
+      { s: "ITEC 101", q: "RAM is best described as what type of memory?", choices: ["Temporary memory", "Permanent memory", "Optical memory", "External memory"], answer: "Temporary memory" },
+      { s: "ITEC 101", q: "Which device is commonly used for long-term storage?", choices: ["SSD", "RAM", "Cache", "Register"], answer: "SSD" },
+      { s: "ITEC 101", q: "What does URL stand for?", choices: ["Uniform Resource Locator", "Universal Routing Link", "Unified Resource Loader", "User Resource Locator"], answer: "Uniform Resource Locator" },
+      { s: "ITEC 101", q: "Which is an example of system software?", choices: ["Operating System", "Spreadsheet", "Photo Editor", "Music Player"], answer: "Operating System" },
+      { s: "ITEC 101", q: "Processor speed is commonly measured in what unit?", choices: ["GHz", "Volts", "Pixels", "Bytes"], answer: "GHz" },
+      { s: "ITEC 101", q: "Which of the following is a web browser?", choices: ["Google Chrome", "Microsoft Word", "Adobe Photoshop", "WinRAR"], answer: "Google Chrome" },
+      { s: "ITEC 101", q: "Which network topology uses a central hub or switch?", choices: ["Star", "Bus", "Ring", "Mesh"], answer: "Star" },
+      { s: "ITEC 101", q: "What does LAN stand for?", choices: ["Local Area Network", "Large Access Node", "Linked Area Number", "Local Access Network"], answer: "Local Area Network" },
+      { s: "ITEC 101", q: "Which memory keeps data even when power is off?", choices: ["ROM", "RAM", "Cache", "Register"], answer: "ROM" },
+      { s: "ITEC 101", q: "What is the main purpose of an IP address?", choices: ["To identify a device on a network", "To increase battery life", "To clean a hard drive", "To print documents"], answer: "To identify a device on a network" },
+      { s: "ITEC 101", q: "Which of the following is an output device?", choices: ["Monitor", "Scanner", "Keyboard", "Mouse"], answer: "Monitor" },
+      { s: "ITEC 101", q: "What does a PSU do in a computer system?", choices: ["Supplies power to components", "Processes data", "Stores files online", "Connects to a projector"], answer: "Supplies power to components" },
+ 
+      { s: "ITEC 102", q: "What is an algorithm?", choices: ["A step-by-step procedure for solving a problem", "A computer virus", "A hardware upgrade", "A file compression tool"], answer: "A step-by-step procedure for solving a problem" },
+      { s: "ITEC 102", q: "What is the purpose of a variable in programming?", choices: ["To store data", "To break the computer", "To connect to Wi-Fi", "To print a paper"], answer: "To store data" },
+      { s: "ITEC 102", q: "Which statement is commonly used for decision-making in programs?", choices: ["if", "loop", "print", "scan"], answer: "if" },
+      { s: "ITEC 102", q: "What is a loop used for?", choices: ["To repeat a block of code", "To create hardware", "To remove all errors instantly", "To delete memory"], answer: "To repeat a block of code" },
+      { s: "ITEC 102", q: "What does debugging mean?", choices: ["Finding and fixing errors", "Deleting all variables", "Installing a browser", "Formatting a drive"], answer: "Finding and fixing errors" },
+      { s: "ITEC 102", q: "Which flowchart shape is commonly used for a decision?", choices: ["Diamond", "Circle", "Triangle", "Hexagon"], answer: "Diamond" },
+      { s: "ITEC 102", q: "What is an array?", choices: ["A structure that stores multiple values", "A type of printer", "A kind of motherboard", "A video file"], answer: "A structure that stores multiple values" },
+      { s: "ITEC 102", q: "A syntax error happens when what occurs?", choices: ["The rules of the programming language are broken", "The internet is slow", "The battery is low", "The keyboard is unplugged"], answer: "The rules of the programming language are broken" },
+      { s: "ITEC 102", q: "What is pseudocode?", choices: ["A plain-language way to describe program steps", "An antivirus", "Final machine code", "A spreadsheet formula"], answer: "A plain-language way to describe program steps" },
+      { s: "ITEC 102", q: "What does the modulus operator usually return?", choices: ["The remainder", "The average", "The product", "The square root"], answer: "The remainder" },
+      { s: "ITEC 102", q: "A Boolean value can be which of the following?", choices: ["True or False", "Blue or Green", "Small or Large", "Odd or Even"], answer: "True or False" },
+      { s: "ITEC 102", q: "What is a function in programming?", choices: ["A reusable block of code", "A hardware cable", "A browser tab", "A file extension"], answer: "A reusable block of code" },
+      { s: "ITEC 102", q: "What is a parameter?", choices: ["A value accepted by a function", "A type of monitor", "A programming error", "A storage device"], answer: "A value accepted by a function" },
+      { s: "ITEC 102", q: "In many programming languages, an array index often starts at what number?", choices: ["0", "1", "2", "10"], answer: "0" },
+      { s: "ITEC 102", q: "What is an infinite loop?", choices: ["A loop that never meets its stopping condition", "A loop used only online", "A loop that runs once", "A loop that stores images"], answer: "A loop that never meets its stopping condition" },
+ 
+      { s: "GEC 101", q: "What does self-concept refer to?", choices: ["A person's perception of themselves", "A person's Wi-Fi settings", "A school schedule", "A computer part"], answer: "A person's perception of themselves" },
+      { s: "GEC 101", q: "The physical self mainly refers to what?", choices: ["Body and appearance", "Internet speed", "National budget", "Classroom layout"], answer: "Body and appearance" },
+      { s: "GEC 101", q: "The social self develops mainly through what?", choices: ["Interaction with others", "Installing apps", "Writing machine code", "Watching only movies"], answer: "Interaction with others" },
+      { s: "GEC 101", q: "What is the digital self?", choices: ["A person's online identity", "A type of keyboard", "A storage file", "A network cable"], answer: "A person's online identity" },
+      { s: "GEC 101", q: "Emotional intelligence is the ability to do what?", choices: ["Understand and manage emotions", "Repair a computer", "Memorize every number", "Build a router"], answer: "Understand and manage emotions" },
+      { s: "GEC 101", q: "Self-esteem refers to what?", choices: ["A person's sense of self-worth", "A school uniform", "A mobile application", "A typing speed"], answer: "A person's sense of self-worth" },
+      { s: "GEC 101", q: "Which statement about development is most accurate?", choices: ["Both nature and nurture influence it", "Only nature matters", "Only nurture matters", "Technology decides everything"], answer: "Both nature and nurture influence it" },
+      { s: "GEC 101", q: "What is mindfulness?", choices: ["Awareness of the present moment", "A brand of laptop", "A type of printer", "A programming method"], answer: "Awareness of the present moment" },
+      { s: "GEC 101", q: "Values usually guide what?", choices: ["Decisions and behavior", "Battery voltage", "File downloads", "Screen brightness"], answer: "Decisions and behavior" },
+      { s: "GEC 101", q: "Johari Window is commonly associated with what?", choices: ["Self-awareness and feedback", "Computer hardware", "Network security", "Sports scoring"], answer: "Self-awareness and feedback" },
+      { s: "GEC 101", q: "What is the ideal self?", choices: ["The person one wants to become", "A default profile picture", "A secret password", "A temporary file"], answer: "The person one wants to become" },
+      { s: "GEC 101", q: "What is resilience?", choices: ["The ability to recover from challenges", "A software license", "A classroom project", "A phone setting"], answer: "The ability to recover from challenges" },
+      { s: "GEC 101", q: "Self-care mainly supports what?", choices: ["Well-being", "Hard drive speed", "Screen resolution", "Signal strength"], answer: "Well-being" },
+      { s: "GEC 101", q: "Which is a healthy stress-management technique?", choices: ["Deep breathing", "Ignoring every problem forever", "Skipping all sleep", "Never drinking water"], answer: "Deep breathing" },
+ 
+      { s: "GEC 102", q: "What is a primary source?", choices: ["Direct firsthand evidence", "A social media post without proof", "Only a summary", "A copied answer sheet"], answer: "Direct firsthand evidence" },
+      { s: "GEC 102", q: "Who wrote the Kartilya ng Katipunan?", choices: ["Emilio Jacinto", "Jose Rizal", "Andres Bonifacio", "Apolinario Mabini"], answer: "Emilio Jacinto" },
+      { s: "GEC 102", q: "Philippine independence in 1898 was declared in what place?", choices: ["Kawit, Cavite", "Dapitan", "Malolos only", "Intramuros"], answer: "Kawit, Cavite" },
+      { s: "GEC 102", q: "Who became the first President of the Philippines?", choices: ["Emilio Aguinaldo", "Jose Rizal", "Andres Bonifacio", "Manuel Quezon"], answer: "Emilio Aguinaldo" },
+      { s: "GEC 102", q: "Who arrived in the Philippines in 1521?", choices: ["Ferdinand Magellan", "Miguel Lopez de Legazpi", "Christopher Columbus", "Francisco Dagohoy"], answer: "Ferdinand Magellan" },
+      { s: "GEC 102", q: "Who led the Filipinos in the Battle of Mactan?", choices: ["Lapulapu", "Jose Rizal", "Aguinaldo", "Quezon"], answer: "Lapulapu" },
+      { s: "GEC 102", q: "What treaty transferred the Philippines from Spain to the United States?", choices: ["Treaty of Paris", "Treaty of Tordesillas", "Biyak-na-Bato Agreement", "Pact of Manila"], answer: "Treaty of Paris" },
+      { s: "GEC 102", q: "What is a secondary source?", choices: ["A source that interprets primary sources", "A firsthand diary entry", "An original government record", "A personal letter from the past"], answer: "A source that interprets primary sources" },
+      { s: "GEC 102", q: "Historical bias refers to what?", choices: ["A source being influenced by perspective or prejudice", "A source having more pages", "A source being written digitally", "A source being in Filipino"], answer: "A source being influenced by perspective or prejudice" },
+      { s: "GEC 102", q: "What is contextualization in history?", choices: ["Placing a source in its proper time and setting", "Destroying a source", "Printing a source", "Changing a source's language"], answer: "Placing a source in its proper time and setting" },
+      { s: "GEC 102", q: "The Cry of Pugad Lawin is associated with what?", choices: ["The start of the Philippine Revolution", "The signing of a peace treaty", "A school foundation day", "The opening of a university"], answer: "The start of the Philippine Revolution" },
+      { s: "GEC 102", q: "What year is associated with the EDSA People Power Revolution?", choices: ["1986", "1898", "1946", "1972"], answer: "1986" },
+      { s: "GEC 102", q: "What is Baybayin?", choices: ["A precolonial writing system", "A type of weapon", "A Spanish ship", "A modern app"], answer: "A precolonial writing system" },
+      { s: "GEC 102", q: "History is best described as the study of what?", choices: ["Past events based on evidence and sources", "Only future predictions", "Only myths and legends", "Only computer development"], answer: "Past events based on evidence and sources" },
+ 
+      { s: "P.I. 100", q: "What is the full name of Rizal?", choices: ["Jose Protacio Rizal Mercado y Alonso Realonda", "Jose Panganiban Rizal Mercado", "Jose Rizal Del Pilar", "Jose Protacio Bonifacio Realonda"], answer: "Jose Protacio Rizal Mercado y Alonso Realonda" },
+      { s: "P.I. 100", q: "Who wrote Noli Me Tangere?", choices: ["Jose Rizal", "Andres Bonifacio", "Apolinario Mabini", "Emilio Jacinto"], answer: "Jose Rizal" },
+      { s: "P.I. 100", q: "El Filibusterismo is the sequel to what novel?", choices: ["Noli Me Tangere", "Florante at Laura", "Mi Ultimo Adios", "Sa Aking Mga Kabata"], answer: "Noli Me Tangere" },
+      { s: "P.I. 100", q: "Where was Jose Rizal born?", choices: ["Calamba, Laguna", "Dapitan, Zamboanga", "Manila", "Kawit, Cavite"], answer: "Calamba, Laguna" },
+      { s: "P.I. 100", q: "What date was Rizal born?", choices: ["June 19, 1861", "December 30, 1896", "June 12, 1898", "August 30, 1896"], answer: "June 19, 1861" },
+      { s: "P.I. 100", q: "What is the main theme of Noli Me Tangere?", choices: ["Social injustice under Spanish rule", "Space exploration", "Modern web development", "Olympic sports"], answer: "Social injustice under Spanish rule" },
+      { s: "P.I. 100", q: "What is the main theme of El Filibusterismo?", choices: ["Revenge and reform", "Plant biology", "Digital marketing", "Volleyball training"], answer: "Revenge and reform" },
+      { s: "P.I. 100", q: "Which Rizal poem is often called his farewell masterpiece?", choices: ["Mi Ultimo Adios", "A La Juventud Filipina", "Sa Aking Mga Kabata", "To the Child Jesus"], answer: "Mi Ultimo Adios" },
+      { s: "P.I. 100", q: "In what place was Rizal executed?", choices: ["Bagumbayan", "Dapitan", "Fort Santiago", "Biak-na-Bato"], answer: "Bagumbayan" },
+      { s: "P.I. 100", q: "What profession is Rizal also known for?", choices: ["Ophthalmologist", "Architect", "Pilot", "Engineer"], answer: "Ophthalmologist" },
+      { s: "P.I. 100", q: "What organization did Rizal found in Hong Kong?", choices: ["La Liga Filipina", "Katipunan", "Propaganda Party", "Guardia Civil"], answer: "La Liga Filipina" },
+      { s: "P.I. 100", q: "Who among these was Rizal's mother?", choices: ["Teodora Alonso", "Gregoria de Jesus", "Melchora Aquino", "Trinidad Tecson"], answer: "Teodora Alonso" },
+      { s: "P.I. 100", q: "Why is Rizal considered a national hero?", choices: ["He inspired reform through his writings and sacrifice", "He invented the internet", "He won many elections", "He discovered electricity"], answer: "He inspired reform through his writings and sacrifice" },
+      { s: "P.I. 100", q: "What law requires the study of Rizal in Philippine schools?", choices: ["Rizal Law", "Education Act 2001", "Civil Code", "Barangay Law"], answer: "Rizal Law" },
+ 
+      { s: "KOMFIL", q: "What does KOMFIL stand for?", choices: ["Kontekstwalisadong Komunikasyon sa Filipino", "Komunikasyon para sa Literatura", "Kompyuter at Filipino", "Konteksto ng Midya at Filipino"], answer: "Kontekstwalisadong Komunikasyon sa Filipino" },
+      { s: "KOMFIL", q: "Ano ang pangunahing layunin ng komunikasyon?", choices: ["Magpahayag at magkaunawaan", "Magpalit ng grades", "Mag-compile ng code", "Mag-format ng hard drive"], answer: "Magpahayag at magkaunawaan" },
+      { s: "KOMFIL", q: "Ano ang tawag sa taong nagpapadala ng mensahe?", choices: ["Tagapagpadala", "Tagatanggap", "Daluyan", "Simbolo"], answer: "Tagapagpadala" },
+      { s: "KOMFIL", q: "Ano ang tawag sa taong tumatanggap ng mensahe?", choices: ["Tagatanggap", "Tagapagpadala", "Ingay", "Paksa"], answer: "Tagatanggap" },
+      { s: "KOMFIL", q: "Ano ang channel o daluyan sa komunikasyon?", choices: ["Daan na ginagamit sa pagpapahatid ng mensahe", "Uri ng grado", "Pamagat ng aklat", "Uri ng memorya"], answer: "Daan na ginagamit sa pagpapahatid ng mensahe" },
+      { s: "KOMFIL", q: "Ano ang ibig sabihin ng verbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng salita", "Komunikasyong puro larawan lamang", "Komunikasyong walang kahulugan", "Komunikasyong para sa robot lang"], answer: "Komunikasyong gumagamit ng salita" },
+      { s: "KOMFIL", q: "Ano ang nonverbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng kilos, galaw, at ekspresyon", "Komunikasyong para sa exams lamang", "Komunikasyong gamit ang printer", "Komunikasyong puro numero"], answer: "Komunikasyong gumagamit ng kilos, galaw, at ekspresyon" },
+      { s: "KOMFIL", q: "Ano ang halimbawa ng nonverbal communication?", choices: ["Pagngiti", "Pag-type ng password", "Pag-delete ng file", "Pag-shutdown ng laptop"], answer: "Pagngiti" },
+      { s: "KOMFIL", q: "Ano ang tinatawag na sagabal sa malinaw na komunikasyon?", choices: ["Ingay", "Paksa", "Talasalitaan", "Bantas"], answer: "Ingay" },
+      { s: "KOMFIL", q: "Ano ang register ng wika?", choices: ["Barayti ng wikang ginagamit ayon sa sitwasyon", "Uri ng camera", "Laki ng silid", "Pangalan ng estudyante"], answer: "Barayti ng wikang ginagamit ayon sa sitwasyon" },
+      { s: "KOMFIL", q: "Ano ang akademikong komunikasyon?", choices: ["Pormal na komunikasyong ginagamit sa paaralan at pananaliksik", "Usapang laro lamang", "Usapang meme lang", "Impormal na tsismisan"], answer: "Pormal na komunikasyong ginagamit sa paaralan at pananaliksik" },
+      { s: "KOMFIL", q: "Ano ang kahalagahan ng konteksto sa komunikasyon?", choices: ["Nakaaapekto ito sa kahulugan ng mensahe", "Wala itong epekto", "Ginagamit lamang sa coding", "Nagpapabagal ito ng internet"], answer: "Nakaaapekto ito sa kahulugan ng mensahe" },
+      { s: "KOMFIL", q: "Ano ang ibig sabihin ng midyum sa komunikasyon?", choices: ["Paraan o anyo ng paghahatid ng mensahe", "Pangkat ng mag-aaral", "Uri ng papel", "Office software"], answer: "Paraan o anyo ng paghahatid ng mensahe" },
+      { s: "KOMFIL", q: "Bakit mahalaga ang Filipino sa komunikasyong pambansa?", choices: ["Nagpapalawak ito ng pagkakaunawaan at pambansang identidad", "Pinapalitan nito ang lahat ng wika", "Ginagamit lamang sa social media", "Para lang ito sa elementarya"], answer: "Nagpapalawak ito ng pagkakaunawaan at pambansang identidad" },
+ 
+      { s: "PATHFIT 1", q: "What does PATHFIT commonly focus on?", choices: ["Physical activity and fitness", "Operating systems", "Film editing", "Bank accounting"], answer: "Physical activity and fitness" },
+      { s: "PATHFIT 1", q: "Why is warm-up important before exercise?", choices: ["It prepares the body for movement", "It instantly builds muscles", "It replaces sleep", "It lowers intelligence"], answer: "It prepares the body for movement" },
+      { s: "PATHFIT 1", q: "Which of these is a cardiovascular activity?", choices: ["Jogging", "Sleeping", "Reading", "Typing"], answer: "Jogging" },
+      { s: "PATHFIT 1", q: "What is flexibility?", choices: ["The ability of joints and muscles to move through a range of motion", "The speed of internet", "The size of a classroom", "The memory of a phone"], answer: "The ability of joints and muscles to move through a range of motion" },
+      { s: "PATHFIT 1", q: "Which exercise mainly develops muscular strength?", choices: ["Push-up", "Meditation", "Drawing", "Typing test"], answer: "Push-up" },
+      { s: "PATHFIT 1", q: "What should you do after intense exercise?", choices: ["Cool down", "Skip breathing", "Eat paper", "Stay completely still forever"], answer: "Cool down" },
+      { s: "PATHFIT 1", q: "Hydration is important because it helps what?", choices: ["Maintain body function during activity", "Increase screen brightness", "Charge batteries", "Improve Wi-Fi"], answer: "Maintain body function during activity" },
+      { s: "PATHFIT 1", q: "What is the ideal way to improve endurance?", choices: ["Regular aerobic exercise", "Never moving", "Only watching sports", "Studying only at night"], answer: "Regular aerobic exercise" },
+      { s: "PATHFIT 1", q: "Which is an example of a body-weight exercise?", choices: ["Squat", "Printing", "Encoding", "Browsing"], answer: "Squat" },
+      { s: "PATHFIT 1", q: "What does BMI stand for?", choices: ["Body Mass Index", "Body Motion Indicator", "Basic Muscle Intake", "Balance Measure Input"], answer: "Body Mass Index" },
+      { s: "PATHFIT 1", q: "Why is proper breathing important during workouts?", choices: ["It helps deliver oxygen to the body", "It deletes fatigue forever", "It replaces stretching", "It makes gravity weaker"], answer: "It helps deliver oxygen to the body" },
+      { s: "PATHFIT 1", q: "What is one benefit of regular physical activity?", choices: ["Improved health and stamina", "Automatic perfect grades", "Unlimited energy without sleep", "No need for food"], answer: "Improved health and stamina" },
+      { s: "PATHFIT 1", q: "Which activity best helps improve balance?", choices: ["Single-leg stand", "Scrolling", "Sleeping", "Watching TV"], answer: "Single-leg stand" },
+      { s: "PATHFIT 1", q: "What is the safest mindset during exercise?", choices: ["Practice proper form and listen to your body", "Rush every movement", "Ignore pain", "Compete every second"], answer: "Practice proper form and listen to your body" }
+    ];
+ 
+    const elements = {
+      loginView: document.getElementById("loginView"),
+      gameView: document.getElementById("gameView"),
+      gameOverView: document.getElementById("gameOverView"),
+      usernameInput: document.getElementById("usernameInput"),
+      startBtn: document.getElementById("startBtn"),
+      restartBtn: document.getElementById("restartBtn"),
+      loginStatus: document.getElementById("loginStatus"),
+      hudUser: document.getElementById("hudUser"),
+      hudRank: document.getElementById("hudRank"),
+      hudScore: document.getElementById("hudScore"),
+      hudLives: document.getElementById("hudLives"),
+      subjectChip: document.getElementById("subjectChip"),
+      questionText: document.getElementById("questionText"),
+      choicesWrap: document.getElementById("choicesWrap"),
+      feedback: document.getElementById("feedback"),
+      leaderboardBody: document.getElementById("leaderboardBody"),
+      finalScore: document.getElementById("finalScore"),
+      finalRank: document.getElementById("finalRank")
+    };
+ 
+    const state = {
+      username: "",
+      score: 0,
+      lives: MAX_LIVES,
+      currentQuestion: null,
+      activePool: [],
+      currentIndex: 0,
+      locked: false
+    };
+ 
+    function shuffle(array) {
+      const copy = [...array];
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+ 
+    function getRank(score) {
+      let current = rankTable[0].title;
+      rankTable.forEach((rank) => {
+        if (score >= rank.min) {
+          current = rank.title;
+        }
+      });
+      return current;
+    }
+ 
+    function getLivesDisplay(lives) {
+      return "&#10084;".repeat(lives) || "0";
+    }
+ 
+    function setView(name) {
+      ["loginView", "gameView", "gameOverView"].forEach((key) => {
+        elements[key].classList.toggle("active", key === name);
+      });
+    }
+ 
+    function updateHud() {
+      elements.hudUser.textContent = state.username || "-";
+      elements.hudRank.textContent = getRank(state.score);
+      elements.hudScore.textContent = String(state.score);
+      elements.hudLives.innerHTML = getLivesDisplay(state.lives);
+    }
+ 
+    function resetArena() {
+      state.score = 0;
+      state.lives = MAX_LIVES;
+      state.locked = false;
+      state.activePool = shuffle(questionBank);
+      state.currentIndex = 0;
+      state.currentQuestion = null;
+      elements.feedback.textContent = "";
+      elements.feedback.classList.remove("is-wrong");
+      updateHud();
+    }
+ 
+    function nextQuestion() {
+      if (state.currentIndex >= state.activePool.length) {
+        state.activePool = shuffle(questionBank);
+        state.currentIndex = 0;
+      }
+ 
+      const rawQuestion = state.activePool[state.currentIndex];
+      state.currentIndex += 1;
+      const shuffledChoices = shuffle(rawQuestion.choices);
+ 
+      state.currentQuestion = {
+        subject: rawQuestion.s,
+        question: rawQuestion.q,
+        choices: shuffledChoices,
+        answer: rawQuestion.answer
+      };
+ 
+      renderQuestion();
+    }
+ 
+    function renderQuestion() {
+      const item = state.currentQuestion;
+      if (!item) {
+        return;
+      }
+ 
+      elements.subjectChip.textContent = item.subject;
+      elements.questionText.textContent = item.question;
+      elements.choicesWrap.innerHTML = "";
+      elements.feedback.textContent = "";
+      elements.feedback.classList.remove("is-wrong");
+      state.locked = false;
+ 
+      item.choices.forEach((choiceText) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "choice";
+        button.textContent = choiceText;
+        button.addEventListener("click", () => handleAnswer(button, choiceText));
+        elements.choicesWrap.appendChild(button);
+      });
+    }
+ 
+    function handleAnswer(button, selectedChoice) {
+      if (state.locked || !state.currentQuestion) {
+        return;
+      }
+ 
+      state.locked = true;
+      const buttons = [...elements.choicesWrap.querySelectorAll(".choice")];
+      const isCorrect = selectedChoice === state.currentQuestion.answer;
+ 
+      buttons.forEach((item) => {
+        item.disabled = true;
+        if (item.textContent === state.currentQuestion.answer) {
+          item.classList.add("correct");
+        }
+      });
+ 
+      if (isCorrect) {
+        state.score += SCORE_PER_CORRECT;
+        button.classList.add("correct");
+        elements.feedback.textContent = "Correct. +5 points secured.";
+        elements.feedback.classList.remove("is-wrong");
+      } else {
+        state.lives -= 1;
+        button.classList.add("wrong");
+        elements.feedback.textContent = "Wrong answer. One heart lost.";
+        elements.feedback.classList.add("is-wrong");
+      }
+ 
+      updateHud();
+ 
+      window.setTimeout(() => {
+        if (state.lives <= 0) {
+          endGame();
+        } else {
+          nextQuestion();
+        }
+      }, 900);
+    }
+ 
+    function readLeaderboard() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+ 
+    function writeLeaderboard(entries) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+ 
+    function saveScore() {
+      const entries = readLeaderboard();
+      entries.push({
+        username: state.username,
+        score: state.score,
+        badge: getRank(state.score),
+        createdAt: Date.now()
+      });
+ 
+      entries.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return a.createdAt - b.createdAt;
+      });
+ 
+      writeLeaderboard(entries.slice(0, 10));
+    }
+ 
+    function renderLeaderboard() {
+      const entries = readLeaderboard();
+      elements.leaderboardBody.innerHTML = "";
+ 
+      if (!entries.length) {
+        elements.leaderboardBody.innerHTML = '<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>';
+        return;
+      }
+ 
+      entries.forEach((entry, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML =
+          "<td>" + (index + 1) + "</td>" +
+          "<td>" + escapeHtml(entry.username) + "</td>" +
+          "<td>" + escapeHtml(entry.badge) + "</td>" +
+          "<td>" + entry.score + "</td>";
+        elements.leaderboardBody.appendChild(row);
+      });
+    }
+ 
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+ 
+    function startGame() {
+      const username = elements.usernameInput.value.trim();
+      if (!username) {
+        elements.loginStatus.textContent = "Maglagay muna ng valid username bago simulan ang arena.";
+        return;
+      }
+ 
+      state.username = username.slice(0, 22);
+      resetArena();
+      setView("gameView");
+      nextQuestion();
+    }
+ 
+    function endGame() {
+      saveScore();
+      renderLeaderboard();
+      elements.finalScore.textContent = String(state.score);
+      elements.finalRank.textContent = getRank(state.score);
+      setView("gameOverView");
+    }
+ 
+    elements.startBtn.addEventListener("click", startGame);
+    elements.restartBtn.addEventListener("click", () => {
+      resetArena();
+      setView("gameView");
+      nextQuestion();
+    });
+    elements.usernameInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        startGame();
+      }
+    });
+ 
+    renderLeaderboard();
+    updateHud();
+  <\/script>
 </body>
 </html>
+    
