@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-analytics.js";
-import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 (function () {
   const firebaseConfig = {
@@ -35,66 +35,48 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
       console.warn("[Arena] Analytics not initialized:", error);
     });
 
-  const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v4";
+  const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v5";
   const FIREBASE_TABLE = "arena_scores";
+  const ADMIN_PASSCODE = "RST-ADMIN-2026";
   const SCORE_PER_CORRECT = 2;
   const STREAK_TARGET = 5;
   const STREAK_BONUS = 1;
   const MAX_LIVES = 3;
-  const QUESTION_TIME_LIMIT = 15;
+  const QUESTION_TIME_LIMIT = 25;
   const WIN_SCORE = 500;
+  const AVATARS = ["\u{1F916}", "\u{1F4BB}", "\u{1F680}", "\u{1F47E}", "\u{1F3AF}", "\u{1F575}\uFE0F\u200D\u2642\uFE0F"];
 
   const badWords = [
-    "fuck",
-    "shit",
-    "bitch",
-    "asshole",
-    "puta",
-    "putangina",
-    "gago",
-    "ulol",
-    "tanga",
-    "bobo",
-    "tarantado",
-    "hindot",
-    "leche",
-    "bwisit",
-    "pakyu",
-    "pokpok"
+    "fuck", "shit", "bitch", "asshole", "puta", "putangina", "gago", "ulol",
+    "tanga", "bobo", "tarantado", "hindot", "leche", "bwisit", "pakyu", "pokpok"
   ];
 
+  // In-game encouragement quotes shown on the game-over screen.
   const motivationalQuotes = [
-    {
-      text: "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-      author: "Winston Churchill"
-    },
+    { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
     { text: "The expert in anything was once a beginner.", author: "Helen Hayes" },
-    {
-      text: "Don't let what you cannot do interfere with what you can do.",
-      author: "John Wooden"
-    },
+    { text: "Don't let what you cannot do interfere with what you can do.", author: "John Wooden" },
     { text: "Mistakes are proof that you are trying.", author: "" },
-    {
-      text: "An investment in knowledge pays the best interest.",
-      author: "Benjamin Franklin"
-    },
-    {
-      text: "It's not that I'm so smart, it's just that I stay with problems longer.",
-      author: "Albert Einstein"
-    },
-    {
-      text: "You don't have to be great to start, but you have to start to be great.",
-      author: "Zig Ziglar"
-    },
-    {
-      text: "Failure is simply the opportunity to begin again, this time more intelligently.",
-      author: "Henry Ford"
-    },
+    { text: "An investment in knowledge pays the best interest.", author: "Benjamin Franklin" },
+    { text: "It's not that I'm so smart, it's just that I stay with problems longer.", author: "Albert Einstein" },
+    { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
+    { text: "Failure is simply the opportunity to begin again, this time more intelligently.", author: "Henry Ford" },
     { text: "Consistency is the key. Bawi tayo sa susunod na round, Scholar!", author: "" },
-    {
-      text: "Algorithms aren't built in a day. Debug your mistakes and try again!",
-      author: ""
-    }
+    { text: "Algorithms aren't built in a day. Debug your mistakes and try again!", author: "" }
+  ];
+
+  // Cyberpunk / developer greeting quotes shown once in the welcome modal.
+  const cyberpunkGreetingQuotes = [
+    { text: "Code hard, debug harder, and never let a semicolon decide your fate.", author: "Anonymous Dev" },
+    { text: "In a world full of bugs, be the fix.", author: "Anonymous Dev" },
+    { text: "Talk is cheap. Show me the code.", author: "Linus Torvalds" },
+    { text: "The best error message is the one that never shows up.", author: "Thomas Fuchs" },
+    { text: "First, solve the problem. Then, write the code.", author: "John Johnson" },
+    { text: "Every expert was once a disaster who refused to stop compiling.", author: "Anonymous Dev" },
+    { text: "Your future runtime starts with today's commit.", author: "Anonymous Dev" },
+    { text: "We are all beta versions of ourselves, pushing updates every day.", author: "Anonymous Dev" },
+    { text: "Ctrl+Z doesn't exist in real life, so make every keystroke count.", author: "Anonymous Dev" },
+    { text: "The obstacle is just an unhandled exception waiting for your logic.", author: "Anonymous Dev" }
   ];
 
   const questionBank = [
@@ -208,6 +190,7 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
 
   const state = {
     username: "",
+    avatar: AVATARS[0],
     score: 0,
     lives: MAX_LIVES,
     currentQuestion: null,
@@ -226,58 +209,236 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
     allowBlurPenalty: true,
     confettiStopper: null,
     victoryAchieved: false,
-    lastEndReason: ""
+    lastEndReason: "",
+    mistakes: [],
+    displayedScore: 0,
+    scoreAnimId: null
   };
 
   let elements = null;
   let initialized = false;
   let fallbackScores = [];
   let initAttempts = 0;
-  const MAX_INIT_ATTEMPTS = 40; // ~12s of retrying before giving up
+  const MAX_INIT_ATTEMPTS = 40;
+
+  function $(id) { return document.getElementById(id); }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function containsBadWord(text) {
+    const lowered = text.toLowerCase();
+    return badWords.some((word) => lowered.includes(word));
+  }
+
+  function sanitizeUsername(raw) {
+    return raw.replace(/[<>]/g, "").trim().slice(0, 22);
+  }
+
+  function shuffle(arr) {
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  function getRandomQuote() {
+    return motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+  }
+
+  function formatQuote(quote) {
+    return quote.author ? `"${quote.text}" \u2014 ${quote.author}` : `"${quote.text}"`;
+  }
+
+  function getRank(score) {
+    if (score >= WIN_SCORE) return "Academic Overlord";
+    if (score >= 300) return "Systems Architect";
+    if (score >= 200) return "Senior Debugger";
+    if (score >= 120) return "Code Specialist";
+    if (score >= 60) return "Junior Scholar";
+    if (score >= 20) return "Warrior Fresh";
+    return "Rookie Freshman";
+  }
+
+  /* ---------------- Bind helper: click + touch without double-fire ---------------- */
+  function bindTap(el, handler) {
+    if (!el) return;
+    let touched = false;
+    el.addEventListener(
+      "touchend",
+      (event) => {
+        touched = true;
+        handler(event);
+        window.setTimeout(() => { touched = false; }, 400);
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", (event) => {
+      if (touched) return;
+      handler(event);
+    });
+  }
+
+  /* ---------------- Welcome modal ---------------- */
+  function initWelcomeModal() {
+    const modal = $("welcomeModal");
+    const quoteEl = $("welcomeQuote");
+    const enterBtn = $("welcomeEnterBtn");
+    if (!modal || !quoteEl || !enterBtn) return;
+
+    const quote = cyberpunkGreetingQuotes[Math.floor(Math.random() * cyberpunkGreetingQuotes.length)];
+    quoteEl.textContent = quote.text;
+
+    const dismiss = () => {
+      modal.setAttribute("hidden", "hidden");
+      document.body.classList.remove("no-scroll");
+    };
+
+    document.body.classList.add("no-scroll");
+    bindTap(enterBtn, (event) => {
+      event.preventDefault();
+      dismiss();
+    });
+  }
+
+  /* ---------------- Binary matrix ambient background ---------------- */
+  function initMatrixBackground() {
+    const host = $("matrixBg");
+    if (!host) return;
+    const colCount = Math.max(10, Math.floor(window.innerWidth / 26));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < colCount; i += 1) {
+      const col = document.createElement("div");
+      col.className = "matrix-col";
+      col.style.left = `${(i / colCount) * 100}%`;
+      col.style.animationDuration = `${8 + Math.random() * 10}s`;
+      col.style.animationDelay = `${Math.random() * -12}s`;
+      let stream = "";
+      const rows = 40 + Math.floor(Math.random() * 30);
+      for (let r = 0; r < rows; r += 1) {
+        stream += Math.round(Math.random()) + "\n";
+      }
+      col.textContent = stream;
+      frag.appendChild(col);
+    }
+    host.appendChild(frag);
+  }
+
+  /* ---------------- Mobile nav + smooth scroll ---------------- */
+  function initNav() {
+    const toggle = $("navToggle");
+    const links = $("navLinks");
+    if (toggle && links) {
+      bindTap(toggle, (event) => {
+        event.preventDefault();
+        const open = links.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }
+
+    document.querySelectorAll(".js-smooth, .nav-links a").forEach((a) => {
+      a.addEventListener("click", (event) => {
+        const href = a.getAttribute("href") || "";
+        if (!href.startsWith("#")) return;
+        const target = document.querySelector(href);
+        if (!target) return;
+        event.preventDefault();
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (links) {
+          links.classList.remove("open");
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        }
+        history.replaceState(null, "", href);
+      });
+    });
+  }
+
+  /* ---------------- Avatar picker ---------------- */
+  function initAvatarGrid() {
+    const grid = $("avatarGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    AVATARS.forEach((emoji, index) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "avatar-opt" + (index === 0 ? " selected" : "");
+      btn.textContent = emoji;
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", index === 0 ? "true" : "false");
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        grid.querySelectorAll(".avatar-opt").forEach((el) => {
+          el.classList.remove("selected");
+          el.setAttribute("aria-checked", "false");
+        });
+        btn.classList.add("selected");
+        btn.setAttribute("aria-checked", "true");
+        state.avatar = emoji;
+      });
+      grid.appendChild(btn);
+    });
+    state.avatar = AVATARS[0];
+  }
 
   function init() {
     if (initialized) return;
 
     elements = {
-      loginView: document.getElementById("loginView"),
-      gameView: document.getElementById("gameView"),
-      gameOverView: document.getElementById("gameOverView"),
-      usernameInput: document.getElementById("usernameInput"),
-      startBtn: document.getElementById("startBtn"),
-      restartBtn: document.getElementById("restartBtn"),
-      loginStatus: document.getElementById("loginStatus"),
-      hudUser: document.getElementById("hudUser"),
-      hudRank: document.getElementById("hudRank"),
-      hudScore: document.getElementById("hudScore"),
-      hudLives: document.getElementById("hudLives"),
-      subjectChip: document.getElementById("subjectChip"),
-      questionText: document.getElementById("questionText"),
-      choicesWrap: document.getElementById("choicesWrap"),
-      feedback: document.getElementById("feedback"),
-      leaderboardBody: document.getElementById("leaderboardBody"),
-      finalScore: document.getElementById("finalScore"),
-      finalRank: document.getElementById("finalRank")
+      loginView: $("loginView"),
+      gameView: $("gameView"),
+      gameOverView: $("gameOverView"),
+      usernameInput: $("usernameInput"),
+      startBtn: $("startBtn"),
+      restartBtn: $("restartBtn"),
+      loginStatus: $("loginStatus"),
+      hudUser: $("hudUser"),
+      hudRank: $("hudRank"),
+      hudScore: $("hudScore"),
+      hudLives: $("hudLives"),
+      subjectChip: $("subjectChip"),
+      questionText: $("questionText"),
+      choicesWrap: $("choicesWrap"),
+      feedback: $("feedback"),
+      leaderboardBody: $("leaderboardBody"),
+      finalScore: $("finalScore"),
+      finalRank: $("finalRank"),
+      timerBarFill: $("timerBarFill"),
+      timerNum: $("timerNum"),
+      lifelineRow: $("lifelineRow"),
+      gameOverNote: $("gameOverNote"),
+      gameOverQuote: $("gameOverQuote"),
+      reviewList: $("reviewList"),
+      lbTitle: $("lbTitle")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
-
     if (missing.length) {
       initAttempts += 1;
       if (initAttempts === 1) {
         console.warn("[Arena] Waiting for DOM elements, missing so far:", missing);
       }
       if (initAttempts >= MAX_INIT_ATTEMPTS) {
-        console.error(
-          "[Arena] Giving up: these element IDs were never found in the HTML:",
-          missing
-        );
+        console.error("[Arena] Giving up: these element IDs were never found in the HTML:", missing);
         return;
       }
       setTimeout(init, 300);
       return;
     }
 
-    injectDynamicElements();
+    initWelcomeModal();
+    initMatrixBackground();
+    initNav();
+    initAvatarGrid();
+    initLifelineButtons();
+    initAdminTrigger();
 
     bindTap(elements.startBtn, (event) => {
       event.preventDefault();
@@ -306,310 +467,108 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
     console.log("[Arena] Game initialized OK.");
   }
 
-  function injectDynamicElements() {
-    if (!elements.statusStrip) {
-      const strip = document.createElement("div");
-      strip.style.display = "flex";
-      strip.style.flexWrap = "wrap";
-      strip.style.gap = "8px";
-      strip.style.margin = "10px 0 14px";
+  /* ---------------- Lifelines ---------------- */
+  function initLifelineButtons() {
+    const row = elements.lifelineRow;
+    row.innerHTML = "";
 
-      const timerBadge = document.createElement("div");
-      timerBadge.id = "arenaTimerBadge";
-      timerBadge.style.padding = "8px 12px";
-      timerBadge.style.borderRadius = "999px";
-      timerBadge.style.background = "rgba(14, 165, 233, 0.15)";
-      timerBadge.style.border = "1px solid rgba(14, 165, 233, 0.35)";
-      timerBadge.style.fontWeight = "700";
-
-      const streakBadge = document.createElement("div");
-      streakBadge.id = "arenaStreakBadge";
-      streakBadge.style.padding = "8px 12px";
-      streakBadge.style.borderRadius = "999px";
-      streakBadge.style.background = "rgba(52, 211, 153, 0.15)";
-      streakBadge.style.border = "1px solid rgba(52, 211, 153, 0.35)";
-      streakBadge.style.fontWeight = "700";
-
-      const lifeBadge = document.createElement("div");
-      lifeBadge.id = "arenaLifelineBadge";
-      lifeBadge.style.padding = "8px 12px";
-      lifeBadge.style.borderRadius = "999px";
-      lifeBadge.style.background = "rgba(251, 191, 36, 0.15)";
-      lifeBadge.style.border = "1px solid rgba(251, 191, 36, 0.35)";
-      lifeBadge.style.fontWeight = "700";
-
-      strip.appendChild(timerBadge);
-      strip.appendChild(streakBadge);
-      strip.appendChild(lifeBadge);
-
-      elements.questionText.parentNode.insertBefore(strip, elements.questionText);
-      elements.statusStrip = strip;
-      elements.timerBadge = timerBadge;
-      elements.streakBadge = streakBadge;
-      elements.lifelineBadge = lifeBadge;
-    }
-
-    if (!elements.timerBarTrack) {
-      const timerBarTrack = document.createElement("div");
-      timerBarTrack.setAttribute("aria-hidden", "true");
-      timerBarTrack.style.width = "100%";
-      timerBarTrack.style.height = "6px";
-      timerBarTrack.style.borderRadius = "999px";
-      timerBarTrack.style.background = "rgba(255,255,255,0.08)";
-      timerBarTrack.style.overflow = "hidden";
-      timerBarTrack.style.marginBottom = "12px";
-
-      const timerBarFill = document.createElement("div");
-      timerBarFill.style.height = "100%";
-      timerBarFill.style.width = "100%";
-      timerBarFill.style.borderRadius = "999px";
-      timerBarFill.style.background =
-        "linear-gradient(90deg, rgba(100,255,218,0.9), rgba(0,229,255,0.9))";
-      timerBarFill.style.transition = "width 1s linear, background 0.3s ease";
-
-      timerBarTrack.appendChild(timerBarFill);
-      elements.questionText.parentNode.insertBefore(timerBarTrack, elements.questionText);
-      elements.timerBarTrack = timerBarTrack;
-      elements.timerBarFill = timerBarFill;
-    }
-
-    if (!elements.lifelineRow) {
-      const lifelineRow = document.createElement("div");
-      lifelineRow.style.display = "flex";
-      lifelineRow.style.flexWrap = "wrap";
-      lifelineRow.style.gap = "8px";
-      lifelineRow.style.margin = "0 0 12px";
-
-      const fiftyBtn = document.createElement("button");
-      fiftyBtn.type = "button";
-      fiftyBtn.className = "arena-btn";
-      fiftyBtn.style.flex = "1 1 140px";
-      fiftyBtn.style.padding = "0.7rem 0.9rem";
-      fiftyBtn.style.fontSize = "0.85rem";
-      fiftyBtn.textContent = "50:50 Lifeline";
-
-      const skipBtn = document.createElement("button");
-      skipBtn.type = "button";
-      skipBtn.className = "arena-btn";
-      skipBtn.style.flex = "1 1 140px";
-      skipBtn.style.padding = "0.7rem 0.9rem";
-      skipBtn.style.fontSize = "0.85rem";
-      skipBtn.textContent = "Skip Question";
-
-      bindTap(fiftyBtn, (event) => {
-        event.preventDefault();
-        use5050();
-      });
-
-      bindTap(skipBtn, (event) => {
-        event.preventDefault();
-        skipQuestion();
-      });
-
-      lifelineRow.appendChild(fiftyBtn);
-      lifelineRow.appendChild(skipBtn);
-
-      elements.questionText.parentNode.insertBefore(lifelineRow, elements.questionText);
-      elements.lifelineRow = lifelineRow;
-      elements.fiftyBtn = fiftyBtn;
-      elements.skipBtn = skipBtn;
-    }
-
-    if (!elements.gameOverNote) {
-      const note = document.createElement("div");
-      note.id = "gameOverNote";
-      note.style.marginTop = "12px";
-      note.style.lineHeight = "1.6";
-      elements.finalRank.parentNode.appendChild(note);
-      elements.gameOverNote = note;
-    }
-
-    if (!elements.gameOverQuote) {
-      const quote = document.createElement("div");
-      quote.id = "gameOverQuote";
-      quote.style.marginTop = "10px";
-      quote.style.padding = "12px 14px";
-      quote.style.borderRadius = "14px";
-      quote.style.background = "rgba(255,255,255,0.06)";
-      quote.style.lineHeight = "1.6";
-      elements.gameOverNote.parentNode.appendChild(quote);
-      elements.gameOverQuote = quote;
-    }
-  }
-
-  function bindTap(element, handler) {
-    let touched = false;
-
-    element.addEventListener(
-      "touchend",
-      (event) => {
-        touched = true;
-        handler(event);
-        setTimeout(() => {
-          touched = false;
-        }, 350);
-      },
-      { passive: false }
-    );
-
-    element.addEventListener("click", (event) => {
-      if (touched) return;
-      handler(event);
+    const fiftyBtn = document.createElement("button");
+    fiftyBtn.type = "button";
+    fiftyBtn.id = "lifeline5050";
+    fiftyBtn.className = "lifeline-btn";
+    fiftyBtn.textContent = "50/50";
+    bindTap(fiftyBtn, (event) => {
+      event.preventDefault();
+      useFiftyFifty();
     });
+
+    const skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.id = "lifelineSkip";
+    skipBtn.className = "lifeline-btn";
+    skipBtn.textContent = "Skip Question";
+    bindTap(skipBtn, (event) => {
+      event.preventDefault();
+      useSkip();
+    });
+
+    row.appendChild(fiftyBtn);
+    row.appendChild(skipBtn);
+    elements.fiftyBtn = fiftyBtn;
+    elements.skipBtn = skipBtn;
   }
 
-  function shuffle(array) {
-    const copy = array.slice();
-    for (let i = copy.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
+  function useFiftyFifty() {
+    if (state.locked || state.hasUsed5050 || !state.currentQuestion) return;
+    state.hasUsed5050 = true;
+    elements.fiftyBtn.disabled = true;
+
+    const wrongOnes = state.currentQuestion.choices.filter((c) => c !== state.currentQuestion.answer);
+    const toHide = shuffle(wrongOnes).slice(0, 2);
+    toHide.forEach((choice) => state.hiddenChoices.add(choice));
+    renderChoiceButtons();
   }
 
-  function getRank(score) {
-    const s = parseInt(score, 10) || 0;
-    if (s >= 500) return "☄️ Academic Overlord";
-    if (s >= 490) return "🌌 Cosmos Architect";
-    if (s >= 480) return "🚀 Nebula Sentinel";
-    if (s >= 470) return "🔮 Quantum Wizard";
-    if (s >= 460) return "🦁 Apex Cyber";
-    if (s >= 450) return "👑 Binary King";
-    if (s >= 440) return "🧠 Neural Master";
-    if (s >= 430) return "🌐 Cloud Emperor";
-    if (s >= 420) return "⚡ Kernel Authority";
-    if (s >= 410) return "🛡️ Cyber Commander";
-    if (s >= 400) return "💎 Deep Thinker";
-    if (s >= 390) return "📈 Data Overlord";
-    if (s >= 380) return "🎯 Script Monarch";
-    if (s >= 370) return "🌟 Tech Vanguard";
-    if (s >= 360) return "🧩 Algorithm Guru";
-    if (s >= 350) return "🔥 Logic Maestro";
-    if (s >= 340) return "🎓 Summa Elite";
-    if (s >= 330) return "🎖️ Dean's Lister Plus";
-    if (s >= 320) return "💻 Code Captain";
-    if (s >= 310) return "📚 Book Expert";
-    if (s >= 300) return "🕵️ Lead Bug Hunter";
-    if (s >= 290) return "🎨 Syntax Stylist";
-    if (s >= 280) return "⚙️ System Voyager";
-    if (s >= 270) return "📈 Matrix Analyst";
-    if (s >= 260) return "🛡️ Security Analyst";
-    if (s >= 250) return "🤖 AI Apprentice";
-    if (s >= 240) return "☕ Java Specialist";
-    if (s >= 230) return "🐍 Python Wrangler";
-    if (s >= 220) return "🌐 Web Artisan";
-    if (s >= 210) return "🗄️ Database Seeker";
-    if (s >= 200) return "🧩 Logic Practitioner";
-    if (s >= 190) return "🧠 Brainiac";
-    if (s >= 180) return "📚 Hardcore Reader";
-    if (s >= 170) return "🎖️ Dean's Aspirant";
-    if (s >= 160) return "🌟 Byte Crusader";
-    if (s >= 150) return "💻 Code Cadet";
-    if (s >= 140) return "📝 Quiz Champion";
-    if (s >= 130) return "🎯 Topic Ace";
-    if (s >= 120) return "⚙️ Hardware Explorer";
-    if (s >= 110) return "🕵️ Bug Catcher";
-    if (s >= 100) return "📚 Avid Scholar";
-    if (s >= 90) return "📝 Quiz Cadet";
-    if (s >= 80) return "📈 Score Climber";
-    if (s >= 70) return "🌱 Script Rookie";
-    if (s >= 60) return "⚙️ Tech Starter";
-    if (s >= 40) return "🐣 Hello World";
-    if (s >= 20) return "🥚 Fresh Enrollee";
-    return "🥚 Novice Scholar";
+  function useSkip() {
+    if (state.locked || state.hasUsedSkip || !state.currentQuestion) return;
+    state.hasUsedSkip = true;
+    elements.skipBtn.disabled = true;
+    elements.feedback.textContent = "Skipped. Walang penalty.";
+    elements.feedback.className = "feedback";
+    stopTimer();
+    window.setTimeout(loadNextQuestion, 350);
   }
 
-  function getLivesDisplay(lives) {
-    return lives > 0 ? "&#10084;".repeat(lives) : "0";
-  }
-
+  /* ---------------- View + HUD ---------------- */
   function setView(name) {
-    ["loginView", "gameView", "gameOverView"].forEach((key) => {
-      if (key === name) {
-        elements[key].classList.add("active");
-      } else {
-        elements[key].classList.remove("active");
-      }
+    [elements.loginView, elements.gameView, elements.gameOverView].forEach((view) => {
+      view.classList.remove("active");
     });
+    const map = { loginView: elements.loginView, gameView: elements.gameView, gameOverView: elements.gameOverView };
+    map[name].classList.add("active");
+
+    if (name === "gameView") {
+      document.body.classList.add("arena-playing");
+    } else {
+      document.body.classList.remove("arena-playing", "streak-hot");
+    }
+  }
+
+  function animateScoreTo(target) {
+    if (state.scoreAnimId) cancelAnimationFrame(state.scoreAnimId);
+    const start = state.displayedScore;
+    const diff = target - start;
+    const duration = 420;
+    const startTime = performance.now();
+
+    function step(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      state.displayedScore = Math.round(start + diff * eased);
+      elements.hudScore.textContent = String(state.displayedScore);
+      if (progress < 1) {
+        state.scoreAnimId = requestAnimationFrame(step);
+      } else {
+        state.displayedScore = target;
+        elements.hudScore.textContent = String(target);
+      }
+    }
+    state.scoreAnimId = requestAnimationFrame(step);
   }
 
   function updateHud() {
-    elements.hudUser.textContent = state.username || "-";
+    elements.hudUser.textContent = state.username
+      ? `${state.avatar} ${state.username}`
+      : "-";
     elements.hudRank.textContent = getRank(state.score);
-    elements.hudScore.textContent = String(state.score);
-    elements.hudLives.innerHTML = getLivesDisplay(state.lives);
+    animateScoreTo(state.score);
+    elements.hudLives.textContent = "\u2764\uFE0F".repeat(Math.max(0, state.lives)) +
+      "\u{1F5A4}".repeat(Math.max(0, MAX_LIVES - state.lives));
 
-    if (elements.timerBadge) {
-      const timerText = state.locked && !state.currentQuestion ? "Stopped" : state.timer + "s";
-      elements.timerBadge.textContent = "Timer: " + timerText;
-      elements.timerBadge.style.color = state.timer <= 5 ? "#f87171" : "";
-    }
-
-    if (elements.streakBadge) {
-      elements.streakBadge.textContent =
-        "Streak: " + state.streak + "/" + STREAK_TARGET + (state.streak === STREAK_TARGET - 1 ? " - next hit +1" : "");
-    }
-
-    if (elements.lifelineBadge) {
-      elements.lifelineBadge.textContent =
-        "50:50 " + (state.hasUsed5050 ? "USED" : "READY") +
-        " | Skip " + (state.hasUsedSkip ? "USED" : "READY") +
-        " (tap buttons below or press F / S)";
-    }
-
-    if (elements.timerBarFill) {
-      const pct = Math.max(0, Math.min(100, (state.timer / QUESTION_TIME_LIMIT) * 100));
-      elements.timerBarFill.style.width = pct + "%";
-      elements.timerBarFill.style.background =
-        state.timer <= 5
-          ? "linear-gradient(90deg, rgba(255,114,98,0.9), rgba(255,183,168,0.9))"
-          : "linear-gradient(90deg, rgba(100,255,218,0.9), rgba(0,229,255,0.9))";
-    }
-
-    if (elements.fiftyBtn) {
-      const disabled = state.hasUsed5050 || state.locked || !state.currentQuestion;
-      elements.fiftyBtn.disabled = disabled;
-      elements.fiftyBtn.textContent = state.hasUsed5050 ? "50:50 Used" : "50:50 Lifeline";
-      elements.fiftyBtn.style.opacity = disabled ? "0.5" : "1";
-      elements.fiftyBtn.style.pointerEvents = disabled ? "none" : "auto";
-    }
-
-    if (elements.skipBtn) {
-      const disabled = state.hasUsedSkip || state.locked || !state.currentQuestion;
-      elements.skipBtn.disabled = disabled;
-      elements.skipBtn.textContent = state.hasUsedSkip ? "Skip Used" : "Skip Question";
-      elements.skipBtn.style.opacity = disabled ? "0.5" : "1";
-      elements.skipBtn.style.pointerEvents = disabled ? "none" : "auto";
-    }
+    document.body.classList.toggle("streak-hot", state.streak >= STREAK_TARGET && !state.ending);
   }
 
-  function clearFeedback() {
-    elements.feedback.textContent = "";
-    elements.feedback.classList.remove("is-wrong");
-  }
-
-  function resetArena() {
-    stopTimer();
-    state.score = 0;
-    state.lives = MAX_LIVES;
-    state.currentQuestion = null;
-    state.activePool = shuffle(questionBank);
-    state.currentIndex = 0;
-    state.locked = false;
-    state.streak = 0;
-    state.timer = QUESTION_TIME_LIMIT;
-    state.hasUsed5050 = false;
-    state.hasUsedSkip = false;
-    state.hiddenChoices = new Set();
-    state.ending = false;
-    state.allowBlurPenalty = true;
-    state.victoryAchieved = false;
-    state.lastEndReason = "";
-    elements.choicesWrap.innerHTML = "";
-    clearFeedback();
-    updateHud();
-  }
-
+  /* ---------------- Timer ---------------- */
   function stopTimer() {
     if (state.timerId) {
       clearInterval(state.timerId);
@@ -620,632 +579,576 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
   function startTimer() {
     stopTimer();
     state.timer = QUESTION_TIME_LIMIT;
-    updateHud();
+    renderTimerBar();
 
     state.timerId = setInterval(() => {
-      if (state.locked || state.ending) return;
       state.timer -= 1;
-      updateHud();
-
+      renderTimerBar();
       if (state.timer <= 0) {
         stopTimer();
-        handleTimeExpired();
+        handleTimeout();
       }
     }, 1000);
   }
 
-  function nextQuestion() {
+  function renderTimerBar() {
+    const pct = Math.max(0, (state.timer / QUESTION_TIME_LIMIT) * 100);
+    elements.timerBarFill.style.width = `${pct}%`;
+    elements.timerNum.textContent = String(Math.max(0, state.timer));
+
+    let color = "#64ffda";
+    if (pct <= 60 && pct > 30) color = "#ffe066";
+    if (pct <= 30) color = "#ff6b6b";
+    elements.timerBarFill.style.background = color;
+  }
+
+  function handleTimeout() {
+    if (state.locked || !state.currentQuestion) return;
+    state.mistakes.push({
+      subject: state.currentQuestion.s,
+      q: state.currentQuestion.q,
+      chosen: "(Walang sagot \u2014 naubos ang oras)",
+      correct: state.currentQuestion.answer
+    });
+    disableChoices(state.currentQuestion.answer);
+    state.streak = 0;
+    loseLife("timeout");
+  }
+
+  /* ---------------- Question flow ---------------- */
+  function buildPool() {
+    state.activePool = shuffle(questionBank);
+    state.currentIndex = 0;
+  }
+
+  function loadNextQuestion() {
     if (state.ending || state.sessionLocked) return;
 
-    if (!state.activePool.length || state.currentIndex >= state.activePool.length) {
-      state.activePool = shuffle(questionBank);
-      state.currentIndex = 0;
+    if (state.currentIndex >= state.activePool.length) {
+      buildPool();
     }
 
-    state.currentQuestion = state.activePool[state.currentIndex];
+    const question = state.activePool[state.currentIndex];
     state.currentIndex += 1;
-    renderQuestion();
-  }
-
-  function renderQuestion() {
-    if (!state.currentQuestion) return;
-
-    const shuffledChoices = shuffle(state.currentQuestion.choices);
+    state.currentQuestion = question;
     state.locked = false;
     state.hiddenChoices = new Set();
-    clearFeedback();
+    state.hasUsed5050 = false;
+    state.hasUsedSkip = false;
+    if (elements.fiftyBtn) elements.fiftyBtn.disabled = false;
+    if (elements.skipBtn) elements.skipBtn.disabled = false;
 
-    elements.subjectChip.textContent = state.currentQuestion.s;
-    elements.questionText.textContent = state.currentQuestion.q;
+    elements.subjectChip.textContent = question.s;
+    elements.questionText.textContent = question.q;
+    elements.feedback.textContent = "";
+    elements.feedback.className = "feedback";
+
+    renderChoiceButtons();
+    startTimer();
+  }
+
+  function renderChoiceButtons() {
+    const question = state.currentQuestion;
     elements.choicesWrap.innerHTML = "";
+    const options = shuffle(question.choices);
 
-    shuffledChoices.forEach((choiceText) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "choice";
-      button.textContent = choiceText;
-      button.dataset.choiceValue = choiceText;
+    options.forEach((choice) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "choice";
+      btn.textContent = choice;
 
-      bindTap(button, (event) => {
+      if (state.hiddenChoices.has(choice)) {
+        btn.style.visibility = "hidden";
+        btn.disabled = true;
+      }
+
+      bindTap(btn, (event) => {
         event.preventDefault();
-        handleAnswer(button, choiceText);
+        handleAnswer(choice, btn);
       });
 
-      elements.choicesWrap.appendChild(button);
+      elements.choicesWrap.appendChild(btn);
     });
-
-    startTimer();
-    updateHud();
   }
 
-  function disableChoices(answer) {
+  function disableChoices(correctAnswer) {
     const buttons = elements.choicesWrap.querySelectorAll(".choice");
-    buttons.forEach((button) => {
-      button.disabled = true;
-      if (button.textContent === answer && button.style.display !== "none") {
-        button.classList.add("correct");
+    buttons.forEach((btn) => {
+      btn.disabled = true;
+      if (btn.textContent === correctAnswer) {
+        btn.classList.add("correct");
       }
     });
   }
 
-  function moveToNextStep(delay) {
-    setTimeout(() => {
-      if (state.lives <= 0) {
-        endGame(state.lastEndReason || "lives");
-      } else {
-        nextQuestion();
-      }
-    }, delay);
-  }
-
-  function handleTimeExpired() {
-    if (state.locked || !state.currentQuestion || state.ending) return;
-
-    state.locked = true;
-    state.streak = 0;
-    state.lives -= 1;
-    if (state.lives < 0) state.lives = 0;
-    state.lastEndReason = "timeout";
-
-    disableChoices(state.currentQuestion.answer);
-    elements.feedback.textContent = "Time's up. One heart lost and next question loaded.";
-    elements.feedback.classList.add("is-wrong");
-    updateHud();
-    moveToNextStep(900);
-  }
-
-  function handleAnswer(button, selectedChoice) {
-    if (state.locked || !state.currentQuestion || state.ending) return;
-
+  function handleAnswer(choice, btnEl) {
+    if (state.locked || !state.currentQuestion) return;
     state.locked = true;
     stopTimer();
 
-    const isCorrect = selectedChoice === state.currentQuestion.answer;
-    disableChoices(state.currentQuestion.answer);
+    const correct = choice === state.currentQuestion.answer;
+    const buttons = elements.choicesWrap.querySelectorAll(".choice");
 
-    if (isCorrect) {
+    buttons.forEach((btn) => { btn.disabled = true; });
+
+    if (correct) {
+      btnEl.classList.add("correct");
       state.streak += 1;
-      let earnedPoints = SCORE_PER_CORRECT;
-
-      if (state.streak % STREAK_TARGET === 0) {
-        earnedPoints += STREAK_BONUS;
+      let gained = SCORE_PER_CORRECT;
+      if (state.streak > 0 && state.streak % STREAK_TARGET === 0) {
+        gained += STREAK_BONUS;
       }
-
-      state.score += earnedPoints;
-      button.classList.add("correct");
-      elements.feedback.textContent =
-        earnedPoints > SCORE_PER_CORRECT
-          ? "Correct. +" + earnedPoints + " points with 5-streak bonus."
-          : "Correct. +" + earnedPoints + " points secured.";
-      elements.feedback.classList.remove("is-wrong");
+      state.score += gained;
+      elements.feedback.textContent = `Correct! +${gained} points \u00b7 Streak ${state.streak}`;
+      elements.feedback.className = "feedback";
       updateHud();
 
-      if (state.score >= WIN_SCORE) {
-        setTimeout(() => {
-          handleGraduationWin();
-        }, 850);
+      if (state.score >= WIN_SCORE && !state.victoryAchieved) {
+        handleGraduationWin();
         return;
       }
-    } else {
-      state.streak = 0;
-      state.lives -= 1;
-      if (state.lives < 0) state.lives = 0;
-      state.lastEndReason = "wrong";
-      button.classList.add("wrong");
-      elements.feedback.textContent = "Wrong answer. One heart lost.";
-      elements.feedback.classList.add("is-wrong");
-      updateHud();
-    }
 
-    moveToNextStep(900);
+      window.setTimeout(loadNextQuestion, 550);
+    } else {
+      btnEl.classList.add("wrong");
+      buttons.forEach((btn) => {
+        if (btn.textContent === state.currentQuestion.answer) btn.classList.add("correct");
+      });
+      state.mistakes.push({
+        subject: state.currentQuestion.s,
+        q: state.currentQuestion.q,
+        chosen: choice,
+        correct: state.currentQuestion.answer
+      });
+      state.streak = 0;
+      elements.feedback.textContent = "Mali. Isang heart ang nabawas.";
+      elements.feedback.className = "feedback is-wrong";
+      updateHud();
+      loseLife("wrong");
+    }
+  }
+
+  function loseLife(reason) {
+    state.lives -= 1;
+    updateHud();
+    if (state.lives <= 0) {
+      window.setTimeout(() => endGame(reason), 500);
+    } else {
+      window.setTimeout(loadNextQuestion, 650);
+    }
+  }
+
+  /* ---------------- Blur / focus anti-cheat ---------------- */
+  function handleWindowBlur() {
+    if (!state.allowBlurPenalty) return;
+    if (elements.gameView.classList.contains("active") && !state.locked && !state.ending) {
+      endGame("blur");
+    }
   }
 
   function handleGlobalKeys(event) {
-    if (!elements || state.sessionLocked || state.ending) return;
-    if (!elements.gameView.classList.contains("active")) return;
-
-    const key = String(event.key || "").toLowerCase();
-    if (key === "f") {
-      event.preventDefault();
-      use5050();
-    } else if (key === "s") {
-      event.preventDefault();
-      skipQuestion();
+    if (event.key === "Escape") {
+      const overlay = document.querySelector(".admin-overlay");
+      if (overlay) overlay.remove();
     }
   }
 
-  function use5050() {
-    if (!state.currentQuestion || state.locked || state.ending) return;
-
-    if (state.hasUsed5050) {
-      elements.feedback.textContent = "50:50 lifeline already used.";
-      elements.feedback.classList.add("is-wrong");
-      return;
-    }
-
-    const buttons = Array.from(elements.choicesWrap.querySelectorAll(".choice"));
-    const wrongButtons = buttons.filter(
-      (button) =>
-        button.textContent !== state.currentQuestion.answer &&
-        button.style.display !== "none"
-    );
-
-    const buttonsToHide = shuffle(wrongButtons).slice(0, 2);
-    buttonsToHide.forEach((button) => {
-      button.disabled = true;
-      button.style.display = "none";
-      state.hiddenChoices.add(button.textContent);
-    });
-
-    state.hasUsed5050 = true;
-    elements.feedback.textContent = "50:50 activated. Two wrong choices removed.";
-    elements.feedback.classList.remove("is-wrong");
+  /* ---------------- Start / reboot ---------------- */
+  function resetArena() {
+    state.score = 0;
+    state.lives = MAX_LIVES;
+    state.currentQuestion = null;
+    state.currentIndex = 0;
+    state.locked = false;
+    state.streak = 0;
+    state.hasUsed5050 = false;
+    state.hasUsedSkip = false;
+    state.hiddenChoices = new Set();
+    state.ending = false;
+    state.victoryAchieved = false;
+    state.mistakes = [];
+    state.displayedScore = 0;
+    buildPool();
     updateHud();
   }
 
-  function skipQuestion() {
-    if (!state.currentQuestion || state.locked || state.ending) return;
+  function startGame() {
+    if (state.sessionLocked) return;
+    const raw = elements.usernameInput.value || "";
+    const cleaned = sanitizeUsername(raw);
 
-    if (state.hasUsedSkip) {
-      elements.feedback.textContent = "Skip lifeline already used.";
-      elements.feedback.classList.add("is-wrong");
+    if (!cleaned) {
+      elements.loginStatus.textContent = "Kailangan ng username bago simulan ang challenge.";
+      return;
+    }
+    if (containsBadWord(cleaned)) {
+      elements.loginStatus.textContent = "Gumamit ng angkop na username, walang bastos na salita.";
       return;
     }
 
-    state.hasUsedSkip = true;
-    state.locked = true;
-    state.streak = 0;
+    state.username = cleaned;
+    resetArena();
+    updateHud();
+    setView("gameView");
+    loadNextQuestion();
+  }
+
+  function rebootArena() {
+    if (state.sessionLocked) {
+      window.location.reload();
+      return;
+    }
     stopTimer();
-    elements.feedback.textContent = "Question skipped. No points gained, no life lost.";
-    elements.feedback.classList.remove("is-wrong");
-    updateHud();
-
-    setTimeout(() => {
-      nextQuestion();
-    }, 350);
+    elements.usernameInput.value = "";
+    state.username = "";
+    state.bestScore = 0;
+    resetArena();
+    elements.loginStatus.textContent = "Enter your username to begin the reviewer challenge.";
+    setView("loginView");
+    elements.usernameInput.focus();
   }
 
-  function handleWindowBlur() {
-    if (state.ending || state.sessionLocked || !state.allowBlurPenalty) return;
-    if (!elements || !elements.gameView.classList.contains("active")) return;
-    if (!state.currentQuestion) return;
-
-    state.lives = 0;
-    state.streak = 0;
-    state.lastEndReason = "blur";
-    endGame("blur");
-  }
-
-  function canUseLocalStorage() {
-    try {
-      const testKey = "__bscs1a_test__";
-      localStorage.setItem(testKey, "1");
-      localStorage.removeItem(testKey);
-      return true;
-    } catch (error) {
-      console.warn("[Arena] localStorage not available:", error);
-      return false;
-    }
-  }
-
-  function readLocalLeaderboard() {
-    try {
-      if (!canUseLocalStorage()) {
-        return fallbackScores.slice();
+  /* ---------------- Leaderboard (Firebase + local fallback) ---------------- */
+  async function fetchScores() {
+    if (db) {
+      try {
+        const snap = await get(ref(db, FIREBASE_TABLE));
+        if (snap.exists()) {
+          const val = snap.val();
+          return Object.keys(val).map((key) => ({ id: key, ...val[key] }));
+        }
+        return [];
+      } catch (error) {
+        console.warn("[Arena] Firebase read failed, using local cache:", error);
       }
-      const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      console.warn("[Arena] Failed to read local leaderboard:", error);
-      return fallbackScores.slice();
     }
-  }
-
-  function writeLocalLeaderboard(entries) {
-    if (canUseLocalStorage()) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } else {
-      fallbackScores = entries.slice();
-    }
-  }
-
-  function getUserPathKey(username) {
-    return sanitizeUsername(username)
-      .toLowerCase()
-      .replace(/[.#$[\]/]/g, "_")
-      .replace(/\s+/g, "_");
-  }
-
-  async function readFirebaseLeaderboard() {
-    if (!db) return [];
     try {
-      const snapshot = await get(ref(db, FIREBASE_TABLE));
-      if (!snapshot.exists()) return [];
-      const raw = snapshot.val();
-      return dedupeEntries(Object.keys(raw).map((key) => raw[key]));
-    } catch (error) {
-      console.error("[Arena] Failed to read Firebase leaderboard (check your Realtime Database rules):", error);
-      return [];
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return fallbackScores;
     }
   }
 
-  async function readFirebaseUserScore(username) {
-    if (!db) return null;
+  async function persistScores(list) {
+    fallbackScores = list;
     try {
-      const key = getUserPathKey(username);
-      const snapshot = await get(ref(db, FIREBASE_TABLE + "/" + key));
-      return snapshot.exists() ? snapshot.val() : null;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     } catch (error) {
-      console.error("[Arena] Failed to read Firebase user score (check your Realtime Database rules):", error);
-      return null;
+      console.warn("[Arena] localStorage write failed:", error);
     }
-  }
-
-  async function writeFirebaseScore(entry) {
-    if (!db) return false;
-    try {
-      const key = getUserPathKey(entry.username);
-      const userRef = ref(db, FIREBASE_TABLE + "/" + key);
-      const snapshot = await get(userRef);
-      const existing = snapshot.exists() ? snapshot.val() : null;
-      const existingScore = existing ? Number(existing.score || existing.highScore || 0) : 0;
-
-      if (entry.score <= existingScore) {
-        return false;
-      }
-
-      await set(userRef, {
-        username: entry.username,
-        score: entry.score,
-        highScore: entry.score,
-        badge: entry.badge,
-        updatedAt: Date.now(),
-        createdAt: existing && existing.createdAt ? existing.createdAt : Date.now()
-      });
-
-      return true;
-    } catch (error) {
-      console.error("[Arena] Failed to WRITE score to Firebase (check your Realtime Database rules):", error);
-      return false;
-    }
-  }
-
-  function dedupeEntries(entries) {
-    const byKey = new Map();
-
-    entries.forEach((entry) => {
-      const key = getUserPathKey(entry.username);
-      const existing = byKey.get(key);
-
-      if (!existing) {
-        byKey.set(key, entry);
-        return;
-      }
-
-      const existingScore = Number(existing.score || 0);
-      const incomingScore = Number(entry.score || 0);
-      const existingTime = Number(existing.updatedAt || existing.createdAt || 0);
-      const incomingTime = Number(entry.updatedAt || entry.createdAt || 0);
-
-      if (
-        incomingScore > existingScore ||
-        (incomingScore === existingScore && incomingTime > existingTime)
-      ) {
-        byKey.set(key, entry);
-      }
-    });
-
-    return Array.from(byKey.values());
-  }
-
-  function sortEntries(entries) {
-    return entries.sort((a, b) => {
-      if (Number(b.score) !== Number(a.score)) return Number(b.score) - Number(a.score);
-      return Number(a.updatedAt || a.createdAt || 0) - Number(b.updatedAt || b.createdAt || 0);
-    });
-  }
-
-  function upsertLocalHighScore(entry) {
-    const localEntries = readLocalLeaderboard();
-    const key = getUserPathKey(entry.username);
-    const existingIndex = localEntries.findIndex(
-      (item) => getUserPathKey(item.username) === key
-    );
-
-    if (existingIndex >= 0) {
-      const existingScore = Number(localEntries[existingIndex].score || 0);
-      if (entry.score > existingScore) {
-        localEntries[existingIndex] = entry;
-      }
-    } else {
-      localEntries.push(entry);
-    }
-
-    const sorted = sortEntries(localEntries);
-    writeLocalLeaderboard(sorted.slice(0, 10));
-  }
-
-  async function readLeaderboard() {
-    const firebaseEntries = await readFirebaseLeaderboard();
-    if (firebaseEntries.length) {
-      const sorted = sortEntries(dedupeEntries(firebaseEntries));
-      writeLocalLeaderboard(sorted.slice(0, 10));
-      return sorted.slice(0, 10);
-    }
-
-    const localEntries = dedupeEntries(readLocalLeaderboard());
-    return sortEntries(localEntries).slice(0, 10);
   }
 
   async function saveScore() {
-    if (!state.username) return;
-
     const entry = {
       username: state.username,
       score: state.score,
       badge: getRank(state.score),
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      avatar: state.avatar,
+      ts: Date.now()
     };
 
-    upsertLocalHighScore(entry);
-    await writeFirebaseScore(entry);
+    if (db) {
+      try {
+        const key = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await set(ref(db, `${FIREBASE_TABLE}/${key}`), entry);
+        return;
+      } catch (error) {
+        console.warn("[Arena] Firebase write failed, saving locally instead:", error);
+      }
+    }
+
+    const list = await fetchScores();
+    list.push(entry);
+    await persistScores(list);
   }
 
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+  function medalFor(rankIndex) {
+    if (rankIndex === 0) return { medal: "\u{1F947}", cls: "row-gold" };
+    if (rankIndex === 1) return { medal: "\u{1F948}", cls: "row-silver" };
+    if (rankIndex === 2) return { medal: "\u{1F949}", cls: "row-bronze" };
+    return { medal: "", cls: "" };
   }
 
   async function renderLeaderboard() {
-    const entries = await readLeaderboard();
-    elements.leaderboardBody.innerHTML = "";
+    const all = await fetchScores();
+    const top = all
+      .slice()
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .slice(0, 10);
 
-    if (!entries.length) {
-      elements.leaderboardBody.innerHTML =
-        '<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>';
+    if (!top.length) {
+      elements.leaderboardBody.innerHTML = `<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>`;
       return;
     }
 
-    entries.forEach((entry, index) => {
-      const row = document.createElement("tr");
-      row.innerHTML =
-        "<td>" + (index + 1) + "</td>" +
-        "<td>" + escapeHtml(entry.username) + "</td>" +
-        "<td>" + escapeHtml(entry.badge) + "</td>" +
-        "<td>" + Number(entry.score) + "</td>";
-      elements.leaderboardBody.appendChild(row);
+    elements.leaderboardBody.innerHTML = top
+      .map((entry, index) => {
+        const { medal, cls } = medalFor(index);
+        const avatar = entry.avatar ? `<span class="lb-avatar">${escapeHtml(entry.avatar)}</span>` : "";
+        return `<tr class="${cls}">
+          <td><span class="lb-rank">${medal ? `<span class="lb-medal">${medal}</span>` : ""}${index + 1}</span></td>
+          <td>${avatar}${escapeHtml(entry.username || "Anonymous")}</td>
+          <td>${escapeHtml(entry.badge || getRank(entry.score || 0))}</td>
+          <td>${Number(entry.score || 0)}</td>
+        </tr>`;
+      })
+      .join("");
+  }
+
+  /* ---------------- Leaderboard admin: edit / recalc / reset ---------------- */
+  function initAdminTrigger() {
+    const title = elements.lbTitle;
+    if (!title) return;
+    let taps = 0;
+    let tapTimer = null;
+
+    bindTap(title, (event) => {
+      event.preventDefault();
+      taps += 1;
+      if (tapTimer) clearTimeout(tapTimer);
+      tapTimer = window.setTimeout(() => { taps = 0; }, 1600);
+      if (taps >= 5) {
+        taps = 0;
+        openAdminGate();
+      }
     });
   }
 
-  function sanitizeUsername(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
-  }
-
-  function normalizeWord(value) {
-    return sanitizeUsername(value).toLowerCase();
-  }
-
-  function hasBadWord(username) {
-    const cleanName = normalizeWord(username);
-    return badWords.some((word) => cleanName.includes(normalizeWord(word)));
-  }
-
-  function getRandomQuote() {
-    return motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-  }
-
-  function formatQuote(quote) {
-    return '"' + quote.text + '"' + (quote.author ? " — " + quote.author : "");
-  }
-
-  async function startGame() {
-    if (state.sessionLocked) {
-      elements.loginStatus.textContent =
-        "Locked na ang session na ito. I-reload ang page para sa bagong arena run.";
+  function openAdminGate() {
+    const code = window.prompt("Admin passcode para ma-edit o i-reset ang leaderboard:");
+    if (code === null) return;
+    if (code.trim() !== ADMIN_PASSCODE) {
+      window.alert("Maling passcode.");
       return;
     }
-
-    const username = sanitizeUsername(elements.usernameInput.value);
-
-    if (!username) {
-      elements.loginStatus.textContent =
-        "Maglagay muna ng valid username bago simulan ang arena.";
-      elements.usernameInput.focus();
-      return;
-    }
-
-    if (hasBadWord(username)) {
-      alert("Bawal ang username na may inappropriate o bad words.");
-      elements.loginStatus.textContent = "Pumili ng malinis na username bago magsimula.";
-      elements.usernameInput.focus();
-      return;
-    }
-
-    elements.startBtn.disabled = true;
-    state.username = username.slice(0, 22);
-    elements.usernameInput.value = state.username;
-
-    const existingRecord = await readFirebaseUserScore(state.username);
-    state.bestScore = existingRecord ? Number(existingRecord.score || existingRecord.highScore || 0) : 0;
-
-    elements.loginStatus.textContent = state.bestScore
-      ? "Cloud resume found. Best score: " + state.bestScore + ". Good luck, challenger."
-      : "Arena initialized. Good luck, challenger.";
-
-    resetArena();
-    setView("gameView");
-    nextQuestion();
-    elements.startBtn.disabled = false;
+    openAdminPanel();
   }
 
-  function createOverlayShell() {
+  async function openAdminPanel() {
+    const existing = document.querySelector(".admin-overlay");
+    if (existing) existing.remove();
+
     const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.zIndex = "99999";
-    overlay.style.background = "rgba(2, 6, 23, 0.82)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.padding = "20px";
+    overlay.className = "admin-overlay";
 
     const panel = document.createElement("div");
-    panel.style.width = "min(760px, 92vw)";
-    panel.style.maxHeight = "88vh";
-    panel.style.overflowY = "auto";
-    panel.style.borderRadius = "24px";
-    panel.style.padding = "28px";
-    panel.style.background = "linear-gradient(180deg, #071427, #0b1d36)";
-    panel.style.color = "#ffffff";
-    panel.style.boxShadow = "0 24px 60px rgba(0,0,0,0.4)";
-    panel.style.border = "1px solid rgba(125, 211, 252, 0.2)";
+    panel.className = "admin-panel";
+    panel.innerHTML = `<h3 style="margin:0 0 10px;font-size:1rem;">Leaderboard Admin</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
+        I-edit ang score para ma-recalculate ang rank sa bagong 25-second mechanics, o i-delete ang isang entry.
+        Hindi nasisira ang Firebase structure &mdash; nag-a-update lang ito ng existing records.
+      </p>
+      <div id="adminRows"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="adminClose">Close</button>
+        <button type="button" class="lifeline-btn admin-danger" id="adminResetAll">Reset ALL Scores</button>
+      </div>`;
 
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
-    return { overlay, panel };
-  }
+    const rowsHost = panel.querySelector("#adminRows");
+    const all = await fetchScores();
+    const sorted = all.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
 
-  function playVictoryFanfare() {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
+    if (!sorted.length) {
+      rowsHost.innerHTML = `<p class="lb-empty">Walang records.</p>`;
+    } else {
+      sorted.forEach((entry) => {
+        const row = document.createElement("div");
+        row.className = "admin-row";
+        row.innerHTML = `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(entry.avatar || "")} ${escapeHtml(entry.username || "Anonymous")}</span>
+          <input type="number" value="${Number(entry.score || 0)}" />
+          <button type="button" class="admin-save">Save</button>
+          <button type="button" class="admin-danger admin-delete">Del</button>`;
 
-    const audioCtx = new AudioContextClass();
-    const notes = [523.25, 659.25, 783.99, 1046.5];
+        const input = row.querySelector("input");
+        const saveBtn = row.querySelector(".admin-save");
+        const delBtn = row.querySelector(".admin-delete");
 
-    notes.forEach((note, index) => {
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.type = "triangle";
-      oscillator.frequency.value = note;
-      gainNode.gain.value = 0.0001;
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
+        bindTap(saveBtn, async (event) => {
+          event.preventDefault();
+          const newScore = Math.max(0, parseInt(input.value, 10) || 0);
+          entry.score = newScore;
+          entry.badge = getRank(newScore);
+          await writeEntry(entry);
+          await renderLeaderboard();
+          saveBtn.textContent = "Saved";
+          window.setTimeout(() => { saveBtn.textContent = "Save"; }, 900);
+        });
 
-      const startAt = audioCtx.currentTime + index * 0.18;
-      gainNode.gain.exponentialRampToValueAtTime(0.12, startAt + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.28);
+        bindTap(delBtn, async (event) => {
+          event.preventDefault();
+          if (!window.confirm(`Alisin ang record ni ${entry.username}?`)) return;
+          await deleteEntry(entry);
+          row.remove();
+          await renderLeaderboard();
+        });
 
-      oscillator.start(startAt);
-      oscillator.stop(startAt + 0.32);
+        rowsHost.appendChild(row);
+      });
+    }
+
+    bindTap(panel.querySelector("#adminClose"), (event) => {
+      event.preventDefault();
+      overlay.remove();
+    });
+
+    bindTap(panel.querySelector("#adminResetAll"), async (event) => {
+      event.preventDefault();
+      if (!window.confirm("Sigurado ka bang gusto mong i-reset ang LAHAT ng scores? Hindi na ito maibabalik.")) return;
+      await resetAllScores();
+      overlay.remove();
+      await renderLeaderboard();
+    });
+
+    bindTap(overlay, (event) => {
+      if (event.target === overlay) overlay.remove();
     });
   }
 
+  async function writeEntry(entry) {
+    if (db && entry.id) {
+      try {
+        await set(ref(db, `${FIREBASE_TABLE}/${entry.id}`), {
+          username: entry.username,
+          score: entry.score,
+          badge: entry.badge,
+          avatar: entry.avatar || "",
+          ts: entry.ts || Date.now()
+        });
+        return;
+      } catch (error) {
+        console.warn("[Arena] Firebase edit failed, falling back to local:", error);
+      }
+    }
+    const list = await fetchScores();
+    const idx = list.findIndex((item) => item === entry || (item.username === entry.username && item.ts === entry.ts));
+    if (idx >= 0) list[idx] = entry;
+    await persistScores(list);
+  }
+
+  async function deleteEntry(entry) {
+    if (db && entry.id) {
+      try {
+        await remove(ref(db, `${FIREBASE_TABLE}/${entry.id}`));
+        return;
+      } catch (error) {
+        console.warn("[Arena] Firebase delete failed, falling back to local:", error);
+      }
+    }
+    const list = await fetchScores();
+    const filtered = list.filter((item) => item !== entry && !(item.username === entry.username && item.ts === entry.ts));
+    await persistScores(filtered);
+  }
+
+  async function resetAllScores() {
+    if (db) {
+      try {
+        await remove(ref(db, FIREBASE_TABLE));
+      } catch (error) {
+        console.warn("[Arena] Firebase reset failed, clearing local cache instead:", error);
+      }
+    }
+    await persistScores([]);
+  }
+
+  /* ---------------- Confetti ---------------- */
   function startConfettiEffect() {
-    const canvas = document.createElement("canvas");
+    const canvas = $("confettiCanvas");
+    if (!canvas) return () => {};
+    canvas.hidden = false;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    canvas.style.position = "fixed";
-    canvas.style.inset = "0";
-    canvas.style.width = "100vw";
-    canvas.style.height = "100vh";
-    canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "99990";
-    document.body.appendChild(canvas);
-
     const ctx = canvas.getContext("2d");
-    const colors = ["#38bdf8", "#22c55e", "#f59e0b", "#f472b6", "#a78bfa", "#ffffff"];
-    const pieces = Array.from({ length: 160 }, () => ({
+    const colors = ["#64ffda", "#00e5ff", "#ffd27d", "#ff6b6b", "#eaf5ff"];
+    const particles = Array.from({ length: 140 }, () => ({
       x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height - canvas.height,
-      w: 6 + Math.random() * 8,
-      h: 10 + Math.random() * 10,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      speedX: -2 + Math.random() * 4,
-      speedY: 2 + Math.random() * 5,
-      rotate: Math.random() * Math.PI * 2,
-      rotateSpeed: -0.2 + Math.random() * 0.4
+      y: -20 - Math.random() * canvas.height,
+      r: 4 + Math.random() * 5,
+      c: colors[Math.floor(Math.random() * colors.length)],
+      vy: 2 + Math.random() * 3,
+      vx: -1.5 + Math.random() * 3,
+      rot: Math.random() * Math.PI,
+      vr: -0.1 + Math.random() * 0.2
     }));
 
     let running = true;
-    let frameId = null;
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
-
-    function render() {
+    function tick() {
       if (!running) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      pieces.forEach((piece) => {
-        piece.x += piece.speedX;
-        piece.y += piece.speedY;
-        piece.rotate += piece.rotateSpeed;
-
-        if (piece.y > canvas.height + 30) {
-          piece.y = -20;
-          piece.x = Math.random() * canvas.width;
-        }
-
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.vr;
+        if (p.y > canvas.height + 20) p.y = -20;
         ctx.save();
-        ctx.translate(piece.x, piece.y);
-        ctx.rotate(piece.rotate);
-        ctx.fillStyle = piece.color;
-        ctx.fillRect(-piece.w / 2, -piece.h / 2, piece.w, piece.h);
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.c;
+        ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6);
         ctx.restore();
       });
-
-      frameId = requestAnimationFrame(render);
+      requestAnimationFrame(tick);
     }
+    tick();
 
-    window.addEventListener("resize", resizeCanvas);
-    render();
-
-    return function stopConfetti() {
+    return () => {
       running = false;
-      if (frameId) cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", resizeCanvas);
-      canvas.remove();
+      canvas.hidden = true;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
+  }
+
+  function playVictoryFanfare() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        gain.gain.value = 0.06;
+        osc.connect(gain).connect(ctx.destination);
+        const startAt = ctx.currentTime + i * 0.15;
+        osc.start(startAt);
+        osc.stop(startAt + 0.18);
+      });
+    } catch (error) {
+      console.warn("[Arena] Audio fanfare skipped:", error);
+    }
+  }
+
+  /* ---------------- Overlay helper for graduation / session lock ---------------- */
+  function createOverlayShell() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    const panel = document.createElement("div");
+    panel.className = "modal-panel";
+    panel.style.textAlign = "left";
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    return { overlay, panel };
   }
 
   function showGraduationModal() {
     return new Promise((resolve) => {
       const { overlay, panel } = createOverlayShell();
-
+      panel.style.textAlign = "center";
       panel.innerHTML =
-        "<h2 style='margin:0 0 12px;font-size:32px;'>🎓 CONGRATULATIONS, GRADUATE! 🎓</h2>" +
-        "<p style='line-height:1.7;margin:0 0 10px;'>You have officially conquered the BSCS 1-A Academic Reviewer Arena with a Perfect Master Score of 500+! You are now certified as the ultimate <strong>Academic Overlord</strong> of the section. Good luck on your actual exams, Scholar!</p>" +
+        "<h2 style='margin:0 0 12px;font-size:1.5rem;'>\u{1F393} CONGRATULATIONS, GRADUATE! \u{1F393}</h2>" +
+        "<p style='line-height:1.7;margin:0 0 10px;font-size:0.9rem;color:rgba(230,241,255,0.88);'>You have officially conquered the BSCS 1-A Academic Reviewer Arena with a Perfect Master Score of 500+! You are now certified as the ultimate <strong>Academic Overlord</strong> of the section. Good luck on your actual exams, Scholar!</p>" +
         "<p style='margin:0 0 8px;'><strong>Final Score:</strong> " + state.score + "</p>" +
         "<p style='margin:0 0 18px;'><strong>Rank:</strong> " + escapeHtml(getRank(state.score)) + "</p>";
 
       const button = document.createElement("button");
       button.type = "button";
+      button.className = "modal-enter";
       button.textContent = "Close Graduation Modal";
-      button.style.padding = "12px 18px";
-      button.style.border = "0";
-      button.style.borderRadius = "14px";
-      button.style.cursor = "pointer";
-      button.style.fontWeight = "700";
-      button.style.background = "#34d399";
-      button.style.color = "#062033";
 
       bindTap(button, (event) => {
         event.preventDefault();
@@ -1260,19 +1163,13 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
   function showSessionLockScreen() {
     const { panel } = createOverlayShell();
     panel.innerHTML =
-      "<h2 style='margin:0 0 12px;font-size:28px;'>Session Locked</h2>" +
-      "<p style='line-height:1.7;margin:0 0 16px;'>Na-save na ang iyong graduation score sa cloud. Para maiwasan ang abuse, naka-lock na ang current session. I-reload ang page para sa bagong arena run.</p>";
+      "<h2 style='margin:0 0 12px;font-size:1.3rem;'>Session Locked</h2>" +
+      "<p style='line-height:1.7;margin:0 0 16px;font-size:0.88rem;color:rgba(230,241,255,0.88);'>Na-save na ang iyong graduation score sa cloud. Para maiwasan ang abuse, naka-lock na ang current session. I-reload ang page para sa bagong arena run.</p>";
 
     const reloadButton = document.createElement("button");
     reloadButton.type = "button";
+    reloadButton.className = "modal-enter";
     reloadButton.textContent = "Reload Page";
-    reloadButton.style.padding = "12px 18px";
-    reloadButton.style.border = "0";
-    reloadButton.style.borderRadius = "14px";
-    reloadButton.style.cursor = "pointer";
-    reloadButton.style.fontWeight = "700";
-    reloadButton.style.background = "#38bdf8";
-    reloadButton.style.color = "#062033";
     bindTap(reloadButton, (event) => {
       event.preventDefault();
       window.location.reload();
@@ -1282,7 +1179,6 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
 
   async function handleGraduationWin() {
     if (state.ending) return;
-
     state.ending = true;
     state.victoryAchieved = true;
     state.locked = true;
@@ -1313,9 +1209,22 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
     setView("loginView");
     elements.startBtn.disabled = true;
     elements.usernameInput.disabled = true;
-    elements.loginStatus.textContent =
-      "Graduation complete. Session locked to prevent score abuse.";
+    elements.loginStatus.textContent = "Graduation complete. Session locked to prevent score abuse.";
     showSessionLockScreen();
+  }
+
+  function renderReviewPanel() {
+    if (!state.mistakes.length) {
+      elements.reviewList.innerHTML = `<p class="review-empty">Walang mistakes this run &mdash; perfect recall!</p>`;
+      return;
+    }
+    elements.reviewList.innerHTML = state.mistakes
+      .map((m) => `<div class="review-item">
+          <span class="rq">[${escapeHtml(m.subject)}] ${escapeHtml(m.q)}</span>
+          <span class="ra">Sagot mo: ${escapeHtml(m.chosen)}</span>
+          <span class="ra">Tamang sagot: <b>${escapeHtml(m.correct)}</b></span>
+        </div>`)
+      .join("");
   }
 
   function updateGameOverDisplay(reason) {
@@ -1327,14 +1236,13 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
       blur: "Auto game over ito dahil lumipat ka ng browser tab habang active ang game."
     };
 
-    elements.gameOverNote.innerHTML =
-      "<strong>Status:</strong> " + escapeHtml(messageMap[reason] || messageMap.lives);
+    elements.gameOverNote.innerHTML = "<strong>Status:</strong> " + escapeHtml(messageMap[reason] || messageMap.lives);
     elements.gameOverQuote.textContent = formatQuote(quote);
+    renderReviewPanel();
   }
 
   async function endGame(reason = "lives") {
     if (state.ending) return;
-
     state.ending = true;
     state.locked = true;
     state.lastEndReason = reason;
@@ -1350,23 +1258,6 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
     setView("gameOverView");
 
     state.allowBlurPenalty = true;
-  }
-
-  function rebootArena() {
-    if (state.sessionLocked) {
-      window.location.reload();
-      return;
-    }
-
-    stopTimer();
-    elements.usernameInput.value = "";
-    state.username = "";
-    state.bestScore = 0;
-    resetArena();
-    elements.loginStatus.textContent =
-      "Enter your username to begin the reviewer challenge.";
-    setView("loginView");
-    elements.usernameInput.focus();
   }
 
   if (document.readyState === "loading") {
