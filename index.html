@@ -408,6 +408,11 @@ table { width: 100%; border-collapse: collapse; }
 body.arena-playing {
   overflow: hidden; height: 100dvh;
 }
+/* Belt-and-suspenders: some mobile browsers let iframes bleed through
+   position:fixed overlays regardless of z-index. Fully removing the Padlet
+   Freedom Wall from the render tree while the quiz is active guarantees it
+   can never visually intrude on the question/answer screen. */
+body.arena-playing #freedom-wall { display: none !important; }
 body.arena-playing #gameView.active {
   position: fixed; inset: 0; z-index: 200;
   background: linear-gradient(180deg, #050a14 0%, #071120 100%);
@@ -496,14 +501,6 @@ body.arena-playing.streak-hot #gameView.active {
 .crash-score, .crash-rank { margin: 0.55rem 0 0; font-size: 0.98rem; font-weight: 800; }
 .crash-rank { color: var(--accent); }
 .crash-quote { margin: 0.7rem 0 0; font-size: 0.85rem; color: var(--muted); font-style: italic; }
-.crash .leaderboard-title { text-align: left; margin-top: 1.1rem; }
-.crash .table-shell { text-align: left; margin-top: 0.6rem; }
-
-.protocol-reopen-btn {
-  display: block; margin: 0.75rem auto 0; padding: 0.5rem 0.9rem; border-radius: 999px;
-  background: transparent; border: 1px solid rgba(100,255,218,0.24);
-  color: rgba(100,255,218,0.9); font-size: 0.78rem; font-weight: 700; cursor: pointer;
-}
 
 .review-panel { margin-top: 0.9rem; text-align: left; }
 .review-item {
@@ -567,14 +564,35 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; text-align: center;
 }
 .modal-panel::before { pointer-events: none; }
-.modal-protocol {
-  text-align: left; margin-top: 0.9rem; padding-top: 0.9rem;
-  border-top: 1px dashed rgba(100,255,218,0.22); position: relative; z-index: 1;
+
+/* Info-style modals (Game Protocol / Leaderboard): left-aligned body copy,
+   with a dedicated close (x) button pinned to the top-right corner. */
+.modal-panel--info { text-align: left; padding-top: 2.6rem; }
+.modal-panel--info h3 { margin: 0 0 0.5rem; font-size: 1.05rem; color: #f2fffb; }
+.modal-panel--info .sysline { margin: 0 0 0.7rem; }
+.modal-panel--info p { margin: 0 0 0.7rem; color: rgba(230,241,255,0.86); font-size: 0.88rem; line-height: 1.6; }
+.modal-panel--info p:last-child { margin-bottom: 0; }
+.modal-close-btn {
+  position: absolute; top: 0.7rem; right: 0.7rem; z-index: 2;
+  width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid rgba(100,255,218,0.28); background: rgba(255,255,255,0.05);
+  color: var(--text); font-size: 1.3rem; line-height: 1; cursor: pointer;
 }
-.modal-protocol h3 { margin: 0 0 0.4rem; font-size: 0.98rem; color: #f2fffb; }
-.modal-protocol p { margin: 0 0 0.6rem; color: rgba(230,241,255,0.85); font-size: 0.85rem; line-height: 1.56; }
-.modal-protocol p:last-child { margin-bottom: 0; }
-.modal-protocol .sysline { margin: 0 0 0.6rem; font-size: 0.76rem; }
+.modal-close-btn:hover, .modal-close-btn:focus-visible { border-color: rgba(100,255,218,0.5); outline: none; }
+
+/* Two pop-up trigger buttons on the login screen ("View Game Protocol" /
+   "View Leaderboard"), side by side and wrapping cleanly on tiny screens. */
+.login-modal-actions {
+  display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.9rem; position: relative; z-index: 1;
+}
+.login-modal-btn {
+  flex: 1 1 9rem; padding: 0.75rem 0.8rem; border-radius: 12px; text-align: center;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(100,255,218,0.22);
+  color: rgba(230,241,255,0.92); font-size: 0.82rem; font-weight: 800; cursor: pointer;
+}
+.login-modal-btn:hover, .login-modal-btn:focus-visible {
+  border-color: rgba(100,255,218,0.44); background: rgba(100,255,218,0.06); outline: none;
+}
 .modal-panel::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(400px 200px at 50% -10%, rgba(100,255,218,0.16), transparent 60%);
@@ -670,41 +688,73 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   <div class="grid-bg" aria-hidden="true"></div>
   <div class="topline" aria-hidden="true"></div>
 
-  <!-- ============ WELCOME + GAME PROTOCOL MODAL ============ -->
-  <!-- Single clean pop-up shown once at boot. Closing it hides this whole
-       overlay (display:none) for good -- it never sits under the login
-       screen and never re-appears once the arena session starts. -->
+  <!-- ============ INTRO MODAL ============ -->
+  <!-- The ONLY thing visible at boot: the cyberpunk quote + signature and
+       one "Enter Reviewer Arena" button. Closing it hides this whole
+       overlay (display:none) for good -- it never re-appears once the
+       session starts. -->
   <div class="modal-overlay" id="welcomeModal">
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeQuote">
       <span class="modal-tag">SYSTEM_BOOT :: BSCS_1A</span>
       <p class="modal-quote" id="welcomeQuote">Loading quote...</p>
       <p class="modal-signature">&mdash; Developed by RST</p>
+      <button class="modal-enter" id="welcomeEnterBtn" type="button">Enter Reviewer Arena</button>
+    </div>
+  </div>
 
-      <div class="modal-protocol">
-        <h3>Game Protocol</h3>
-        <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Top 10 leaderboard</p>
-        <p>
-          Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
-          <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
-          ay may <strong>+1 bonus point</strong>. Bawat maling sagot o pag-expire ng
-          <strong>25-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
-          hearts, magti-trigger ang game over system.
-        </p>
-        <p>
-          Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
-          GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
-        </p>
-        <p>
-          May dalawang lifelines na pwedeng gamitin isang beses bawat session:
-          <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
-          (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
-          tumataas ang score mo. Kapag naubos ang buong question cycle, automatic na
-          magre-reshuffle ang arena para tuloy-tuloy ang review. Ang top 10 leaderboard
-          ay makikita sa Game Over screen pagkatapos ng bawat run.
-        </p>
+  <!-- ============ GAME PROTOCOL MODAL (on-demand pop-up) ============ -->
+  <div class="modal-overlay" id="protocolModal" hidden>
+    <div class="modal-panel modal-panel--info" role="dialog" aria-modal="true" aria-labelledby="protocolModalTitle">
+      <button type="button" class="modal-close-btn" data-close-modal="protocolModal" aria-label="Close Game Protocol">&times;</button>
+      <h3 id="protocolModalTitle">Game Protocol</h3>
+      <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Top 10 leaderboard</p>
+      <p>
+        Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
+        <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
+        ay may <strong>+1 bonus point</strong>. Bawat maling sagot o pag-expire ng
+        <strong>25-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
+        hearts, magti-trigger ang game over system.
+      </p>
+      <p>
+        Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
+        GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
+      </p>
+      <p>
+        May dalawang lifelines na pwedeng gamitin isang beses bawat session:
+        <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
+        (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
+        tumataas ang score mo. Kapag naubos ang buong question cycle, automatic na
+        magre-reshuffle ang arena para tuloy-tuloy ang review.
+      </p>
+    </div>
+  </div>
+
+  <!-- ============ LEADERBOARD MODAL (on-demand pop-up) ============ -->
+  <div class="modal-overlay" id="leaderboardModal" hidden>
+    <div class="modal-panel modal-panel--info" role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+      <button type="button" class="modal-close-btn" data-close-modal="leaderboardModal" aria-label="Close Leaderboard">&times;</button>
+      <div class="leaderboard-title">
+        <h3 class="lb-title-tap" id="lbTitle" title="">Top Arena Challengers</h3>
+        <span class="lb-note">Top 10 highest scores, synced live</span>
       </div>
-
-      <button class="modal-enter" id="welcomeEnterBtn" type="button">Enter the Hub</button>
+      <div class="table-shell">
+        <table class="lb" aria-label="Top Arena Challengers">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Player</th>
+              <th>Badge</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <tr>
+              <td colspan="4" class="lb-empty">No challenger records yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cloud-note">Scores are securely synced live to RST Cloud via Firebase</p>
     </div>
   </div>
 
@@ -1103,9 +1153,14 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
                   <p id="loginStatus" class="arena-note">
                     Scores are saved to the cloud (Firebase) and also cached on this device.
                   </p>
-                  <button type="button" id="protocolReopenBtn" class="protocol-reopen-btn">
-                    View Game Protocol
-                  </button>
+                  <div class="login-modal-actions">
+                    <button type="button" class="login-modal-btn" data-open-modal="protocolModal">
+                      View Game Protocol
+                    </button>
+                    <button type="button" class="login-modal-btn" data-open-modal="leaderboardModal">
+                      View Leaderboard
+                    </button>
+                  </div>
                 </div>
 
                 <div id="gameView" class="view">
@@ -1134,7 +1189,7 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
                     </div>
                   </div>
 
-                  <div class="game-center">
+                  <div class="game-center" id="question-container">
                     <div class="question-meta">
                       <span id="subjectChip" class="subject-chip">ITEC 101</span>
                       <span class="stream-chip">STREAM: INFINITE_RANDOMIZED &middot; <span id="timerNum">25</span>s</span>
@@ -1166,32 +1221,9 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
                       <button id="restartBtn" class="arena-btn" type="button">Reboot Arena</button>
                     </div>
 
-                    <!-- Leaderboard only ever appears here, on the Game Over
-                         screen, so it can never sit on top of live gameplay. -->
-                    <div class="leaderboard-title">
-                      <h3 class="lb-title-tap" id="lbTitle" title="">Top Arena Challengers</h3>
-                      <span class="lb-note">Top 10 highest scores, synced live</span>
-                    </div>
-
-                    <div class="table-shell">
-                      <table class="lb" aria-label="Top Arena Challengers">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Player</th>
-                            <th>Badge</th>
-                            <th>Score</th>
-                          </tr>
-                        </thead>
-                        <tbody id="leaderboardBody">
-                          <tr>
-                            <td colspan="4" class="lb-empty">No challenger records yet.</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <p class="cloud-note">Scores are securely synced live to RST Cloud via Firebase</p>
+                    <button type="button" class="login-modal-btn" style="margin: 0.9rem auto 0;" data-open-modal="leaderboardModal">
+                      View Leaderboard
+                    </button>
                   </div>
                 </div>
               </div>
