@@ -349,6 +349,72 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
       elements.lifelineBadge = lifeBadge;
     }
 
+    if (!elements.timerBarTrack) {
+      const timerBarTrack = document.createElement("div");
+      timerBarTrack.setAttribute("aria-hidden", "true");
+      timerBarTrack.style.width = "100%";
+      timerBarTrack.style.height = "6px";
+      timerBarTrack.style.borderRadius = "999px";
+      timerBarTrack.style.background = "rgba(255,255,255,0.08)";
+      timerBarTrack.style.overflow = "hidden";
+      timerBarTrack.style.marginBottom = "12px";
+
+      const timerBarFill = document.createElement("div");
+      timerBarFill.style.height = "100%";
+      timerBarFill.style.width = "100%";
+      timerBarFill.style.borderRadius = "999px";
+      timerBarFill.style.background =
+        "linear-gradient(90deg, rgba(100,255,218,0.9), rgba(0,229,255,0.9))";
+      timerBarFill.style.transition = "width 1s linear, background 0.3s ease";
+
+      timerBarTrack.appendChild(timerBarFill);
+      elements.questionText.parentNode.insertBefore(timerBarTrack, elements.questionText);
+      elements.timerBarTrack = timerBarTrack;
+      elements.timerBarFill = timerBarFill;
+    }
+
+    if (!elements.lifelineRow) {
+      const lifelineRow = document.createElement("div");
+      lifelineRow.style.display = "flex";
+      lifelineRow.style.flexWrap = "wrap";
+      lifelineRow.style.gap = "8px";
+      lifelineRow.style.margin = "0 0 12px";
+
+      const fiftyBtn = document.createElement("button");
+      fiftyBtn.type = "button";
+      fiftyBtn.className = "arena-btn";
+      fiftyBtn.style.flex = "1 1 140px";
+      fiftyBtn.style.padding = "0.7rem 0.9rem";
+      fiftyBtn.style.fontSize = "0.85rem";
+      fiftyBtn.textContent = "50:50 Lifeline";
+
+      const skipBtn = document.createElement("button");
+      skipBtn.type = "button";
+      skipBtn.className = "arena-btn";
+      skipBtn.style.flex = "1 1 140px";
+      skipBtn.style.padding = "0.7rem 0.9rem";
+      skipBtn.style.fontSize = "0.85rem";
+      skipBtn.textContent = "Skip Question";
+
+      bindTap(fiftyBtn, (event) => {
+        event.preventDefault();
+        use5050();
+      });
+
+      bindTap(skipBtn, (event) => {
+        event.preventDefault();
+        skipQuestion();
+      });
+
+      lifelineRow.appendChild(fiftyBtn);
+      lifelineRow.appendChild(skipBtn);
+
+      elements.questionText.parentNode.insertBefore(lifelineRow, elements.questionText);
+      elements.lifelineRow = lifelineRow;
+      elements.fiftyBtn = fiftyBtn;
+      elements.skipBtn = skipBtn;
+    }
+
     if (!elements.gameOverNote) {
       const note = document.createElement("div");
       note.id = "gameOverNote";
@@ -486,8 +552,34 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
 
     if (elements.lifelineBadge) {
       elements.lifelineBadge.textContent =
-        "F 50:50 " + (state.hasUsed5050 ? "USED" : "READY") +
-        " | S Skip " + (state.hasUsedSkip ? "USED" : "READY");
+        "50:50 " + (state.hasUsed5050 ? "USED" : "READY") +
+        " | Skip " + (state.hasUsedSkip ? "USED" : "READY") +
+        " (tap buttons below or press F / S)";
+    }
+
+    if (elements.timerBarFill) {
+      const pct = Math.max(0, Math.min(100, (state.timer / QUESTION_TIME_LIMIT) * 100));
+      elements.timerBarFill.style.width = pct + "%";
+      elements.timerBarFill.style.background =
+        state.timer <= 5
+          ? "linear-gradient(90deg, rgba(255,114,98,0.9), rgba(255,183,168,0.9))"
+          : "linear-gradient(90deg, rgba(100,255,218,0.9), rgba(0,229,255,0.9))";
+    }
+
+    if (elements.fiftyBtn) {
+      const disabled = state.hasUsed5050 || state.locked || !state.currentQuestion;
+      elements.fiftyBtn.disabled = disabled;
+      elements.fiftyBtn.textContent = state.hasUsed5050 ? "50:50 Used" : "50:50 Lifeline";
+      elements.fiftyBtn.style.opacity = disabled ? "0.5" : "1";
+      elements.fiftyBtn.style.pointerEvents = disabled ? "none" : "auto";
+    }
+
+    if (elements.skipBtn) {
+      const disabled = state.hasUsedSkip || state.locked || !state.currentQuestion;
+      elements.skipBtn.disabled = disabled;
+      elements.skipBtn.textContent = state.hasUsedSkip ? "Skip Used" : "Skip Question";
+      elements.skipBtn.style.opacity = disabled ? "0.5" : "1";
+      elements.skipBtn.style.pointerEvents = disabled ? "none" : "auto";
     }
   }
 
@@ -790,7 +882,7 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
       const snapshot = await get(ref(db, FIREBASE_TABLE));
       if (!snapshot.exists()) return [];
       const raw = snapshot.val();
-      return Object.keys(raw).map((key) => raw[key]);
+      return dedupeEntries(Object.keys(raw).map((key) => raw[key]));
     } catch (error) {
       console.error("[Arena] Failed to read Firebase leaderboard (check your Realtime Database rules):", error);
       return [];
@@ -838,6 +930,34 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
     }
   }
 
+  function dedupeEntries(entries) {
+    const byKey = new Map();
+
+    entries.forEach((entry) => {
+      const key = getUserPathKey(entry.username);
+      const existing = byKey.get(key);
+
+      if (!existing) {
+        byKey.set(key, entry);
+        return;
+      }
+
+      const existingScore = Number(existing.score || 0);
+      const incomingScore = Number(entry.score || 0);
+      const existingTime = Number(existing.updatedAt || existing.createdAt || 0);
+      const incomingTime = Number(entry.updatedAt || entry.createdAt || 0);
+
+      if (
+        incomingScore > existingScore ||
+        (incomingScore === existingScore && incomingTime > existingTime)
+      ) {
+        byKey.set(key, entry);
+      }
+    });
+
+    return Array.from(byKey.values());
+  }
+
   function sortEntries(entries) {
     return entries.sort((a, b) => {
       if (Number(b.score) !== Number(a.score)) return Number(b.score) - Number(a.score);
@@ -868,12 +988,12 @@ import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/1
   async function readLeaderboard() {
     const firebaseEntries = await readFirebaseLeaderboard();
     if (firebaseEntries.length) {
-      const sorted = sortEntries(firebaseEntries);
+      const sorted = sortEntries(dedupeEntries(firebaseEntries));
       writeLocalLeaderboard(sorted.slice(0, 10));
       return sorted.slice(0, 10);
     }
 
-    const localEntries = readLocalLeaderboard();
+    const localEntries = dedupeEntries(readLocalLeaderboard());
     return sortEntries(localEntries).slice(0, 10);
   }
 
