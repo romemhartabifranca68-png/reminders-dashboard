@@ -260,7 +260,7 @@ img { display: block; max-width: 100%; }
   color: rgba(230, 241, 255, 0.82); font-size: 0.82rem; font-weight: 700;
 }
 
-.note-card, .statbox, .padlet-box, .arena-panel, .hud-card, .question-box, .crash {
+.note-card, .statbox, .padlet-box, .arena-panel, .hud-card, .crash {
   border-radius: 16px; padding: 0.9rem; background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(100, 255, 218, 0.12); position: relative; z-index: 1;
 }
@@ -364,6 +364,11 @@ table { width: 100%; border-collapse: collapse; }
 .arena-content { position: relative; z-index: 1; padding: 0.9rem; }
 .arena-grid { display: grid; gap: 0.9rem; grid-template-columns: 1fr; }
 
+/* The panel hosting login/game/game-over views must always win the stacking
+   order on this page (including over the nav bar) so the fullscreen quiz
+   can never be visually intruded on by any sibling section. */
+#arenaMainPanel { position: relative; z-index: 300; }
+
 .sysline { margin: 0.2rem 0 0.85rem; color: rgba(100,255,218,0.88); font-size: 0.82rem; }
 .arena-input {
   flex: 1 1 220px; min-width: 0; padding: 0.9rem 1rem; border-radius: 13px;
@@ -379,9 +384,12 @@ table { width: 100%; border-collapse: collapse; }
 }
 
 /* Avatar picker */
-.avatar-grid { gap: 0.5rem; margin: 0.7rem 0; }
+.avatar-grid {
+  gap: 0.6rem; margin: 0.8rem 0; justify-content: center; align-items: center;
+  width: 100%;
+}
 .avatar-opt {
-  width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center;
+  width: 3.4rem; height: 3.4rem; flex: 0 0 auto; border-radius: 14px; display: grid; place-items: center;
   font-size: 1.5rem; background: rgba(255,255,255,0.03);
   border: 1px solid rgba(100,255,218,0.16); cursor: pointer;
 }
@@ -405,20 +413,24 @@ body.arena-playing #gameView.active {
   background: linear-gradient(180deg, #050a14 0%, #071120 100%);
   padding: calc(var(--safe-t) + 0.6rem) 0.75rem calc(var(--safe-b) + 0.75rem);
   height: 100dvh;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  overflow: hidden;
 }
+
+/* ---- TOP BAR: player/badge/score/hearts + timer, pinned to the top ---- */
+.game-topbar { flex: 0 0 auto; display: flex; flex-direction: column; gap: 0.6rem; }
 
 .hud {
-  grid-template-columns: repeat(2, 1fr); margin-bottom: 0.7rem; gap: 0.55rem;
-  flex: 0 0 auto;
+  grid-template-columns: repeat(2, 1fr); gap: 0.55rem;
 }
-.hud-card { padding: 0.65rem 0.75rem; }
-.hud-label { display: block; margin-bottom: 0.22rem; font-size: 0.66rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
-.hud-value { display: block; font-size: 0.94rem; line-height: 1.2; font-weight: 900; color: #f4fbff; }
-.lives { letter-spacing: 0.1rem; font-size: 1.05rem; }
+.hud-card { padding: 0.6rem 0.7rem; }
+.hud-label { display: block; margin-bottom: 0.2rem; font-size: 0.62rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+.hud-value { display: block; font-size: 0.9rem; line-height: 1.2; font-weight: 900; color: #f4fbff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lives { letter-spacing: 0.1rem; font-size: 1rem; }
 
 .timer-bar-track {
-  width: 100%; height: 7px; border-radius: 999px; background: rgba(255,255,255,0.08);
-  overflow: hidden; margin-bottom: 0.75rem; flex: 0 0 auto;
+  width: 100%; height: 0.45rem; border-radius: 999px; background: rgba(255,255,255,0.08);
+  overflow: hidden;
 }
 .timer-bar-fill {
   height: 100%; width: 100%; border-radius: 999px;
@@ -426,30 +438,36 @@ body.arena-playing #gameView.active {
   transition: width 1s linear, background-color 0.3s ease;
 }
 
-.question-box {
+/* ---- CENTER: the question itself gets its own breathing room ---- */
+.game-center {
   flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center;
-  min-height: 0; padding: 0.9rem; gap: 0.6rem;
+  align-items: stretch; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  gap: 0.55rem; padding: 0.4rem 0.1rem; text-align: center;
 }
-.question-meta { flex: 0 0 auto; }
+.question-meta { flex: 0 0 auto; justify-content: center; }
 .subject-chip {
   padding: 0.28rem 0.6rem; background: rgba(100,255,218,0.08);
   border: 1px solid rgba(100,255,218,0.18); color: rgba(100,255,218,0.94); font-size: 0.72rem;
 }
 .question-text {
-  margin: 0; font-size: clamp(1rem, 3.6vw, 1.3rem); line-height: 1.45; color: #eef6ff; font-weight: 700;
+  margin: 0; font-size: clamp(1rem, 4.6vw, 1.35rem); line-height: 1.45; color: #eef6ff; font-weight: 700;
 }
 
-.choices { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin-top: 0.4rem; flex: 0 0 auto; }
+/* ---- BOTTOM GRID: lifelines, then the 4 answer tiles ---- */
+.game-bottom { flex: 0 0 auto; display: flex; flex-direction: column; gap: 0.55rem; }
+
+.choices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.55rem; }
 .choice {
-  width: 100%; text-align: left; padding: 0.95rem 1.05rem; border-radius: 15px;
-  background: rgba(255,255,255,0.03); color: #eaf5ff; font-weight: 700; line-height: 1.4;
-  font-size: 0.94rem; min-height: 3.1rem; touch-action: manipulation;
+  width: 100%; text-align: left; padding: 0.85rem 0.9rem; border-radius: 15px;
+  background: rgba(255,255,255,0.03); color: #eaf5ff; font-weight: 700; line-height: 1.35;
+  font-size: clamp(0.78rem, 3vw, 0.94rem); min-height: 3.6rem;
+  display: flex; align-items: center; touch-action: manipulation;
 }
 .choice.correct { border-color: rgba(100,255,218,0.55); background: rgba(100,255,218,0.12); box-shadow: 0 0 0 1px rgba(100,255,218,0.18) inset; }
 .choice.wrong { border-color: rgba(255,107,107,0.54); background: rgba(255,107,107,0.1); }
 .choice:disabled { cursor: default; }
 
-.feedback { min-height: 1.3rem; margin-top: 0.6rem; font-weight: 800; color: rgba(100,255,218,0.9); font-size: 0.88rem; flex: 0 0 auto; }
+.feedback { min-height: 1.2rem; font-weight: 800; color: rgba(100,255,218,0.9); font-size: 0.84rem; flex: 0 0 auto; text-align: center; }
 .feedback.is-wrong { color: #ffb7a8; }
 
 /* streak glow pulse on the fullscreen arena */
@@ -462,11 +480,12 @@ body.arena-playing.streak-hot #gameView.active {
 }
 
 /* Lifelines */
-.lifeline-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; flex: 0 0 auto; }
+.lifeline-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; flex: 0 0 auto; }
 .lifeline-btn {
   padding: 0.55rem 0.85rem; border-radius: 999px; font-size: 0.8rem; font-weight: 800;
   border: 1px solid rgba(100,255,218,0.3); background: rgba(100,255,218,0.08); color: var(--text);
-  box-shadow: 0 0 10px rgba(100,255,218,0.18); cursor: pointer;
+  box-shadow: 0 0 10px rgba(100,255,218,0.18); cursor: pointer; flex: 1 1 8rem; max-width: 12rem;
+  text-align: center;
 }
 .lifeline-btn:disabled {
   opacity: 0.32; filter: grayscale(1); box-shadow: none; cursor: default;
@@ -477,6 +496,14 @@ body.arena-playing.streak-hot #gameView.active {
 .crash-score, .crash-rank { margin: 0.55rem 0 0; font-size: 0.98rem; font-weight: 800; }
 .crash-rank { color: var(--accent); }
 .crash-quote { margin: 0.7rem 0 0; font-size: 0.85rem; color: var(--muted); font-style: italic; }
+.crash .leaderboard-title { text-align: left; margin-top: 1.1rem; }
+.crash .table-shell { text-align: left; margin-top: 0.6rem; }
+
+.protocol-reopen-btn {
+  display: block; margin: 0.75rem auto 0; padding: 0.5rem 0.9rem; border-radius: 999px;
+  background: transparent; border: 1px solid rgba(100,255,218,0.24);
+  color: rgba(100,255,218,0.9); font-size: 0.78rem; font-weight: 700; cursor: pointer;
+}
 
 .review-panel { margin-top: 0.9rem; text-align: left; }
 .review-item {
@@ -533,12 +560,21 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
 }
 .modal-overlay[hidden] { display: none; }
 .modal-panel {
-  width: min(480px, 100%); border-radius: 22px; padding: 1.4rem 1.2rem 1.2rem;
+  width: min(30rem, 100%); max-height: 88dvh; border-radius: 22px; padding: 1.4rem 1.2rem 1.2rem;
   background: linear-gradient(180deg, rgba(14, 26, 46, 0.92), rgba(8, 16, 30, 0.96));
   border: 1px solid rgba(100,255,218,0.28);
   box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 40px rgba(100,255,218,0.12);
-  position: relative; overflow: hidden; text-align: center;
+  position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; text-align: center;
 }
+.modal-panel::before { pointer-events: none; }
+.modal-protocol {
+  text-align: left; margin-top: 0.9rem; padding-top: 0.9rem;
+  border-top: 1px dashed rgba(100,255,218,0.22); position: relative; z-index: 1;
+}
+.modal-protocol h3 { margin: 0 0 0.4rem; font-size: 0.98rem; color: #f2fffb; }
+.modal-protocol p { margin: 0 0 0.6rem; color: rgba(230,241,255,0.85); font-size: 0.85rem; line-height: 1.56; }
+.modal-protocol p:last-child { margin-bottom: 0; }
+.modal-protocol .sysline { margin: 0 0 0.6rem; font-size: 0.76rem; }
 .modal-panel::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(400px 200px at 50% -10%, rgba(100,255,218,0.16), transparent 60%);
@@ -603,7 +639,7 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   .quick-grid { grid-template-columns: repeat(2, 1fr); }
   .choices { grid-template-columns: 1fr 1fr; }
   .hud { grid-template-columns: repeat(4, 1fr); }
-  .avatar-opt { width: 58px; height: 58px; font-size: 1.7rem; }
+  .avatar-opt { width: 3.8rem; height: 3.8rem; font-size: 1.7rem; }
 }
 
 @media (min-width: 860px) {
@@ -617,7 +653,6 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   .officer-grid { grid-template-columns: repeat(4, 1fr); }
   .freshmen-grid { grid-template-columns: repeat(3, 1fr); }
   .quick-grid { grid-template-columns: repeat(3, 1fr); }
-  .arena-grid { grid-template-columns: 1.15fr 0.85fr; }
   .hero-main, .hero-side, .pad, .arena-content { padding: 1.4rem; }
 }
 
@@ -635,12 +670,40 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   <div class="grid-bg" aria-hidden="true"></div>
   <div class="topline" aria-hidden="true"></div>
 
-  <!-- ============ WELCOME / GREETING MODAL ============ -->
+  <!-- ============ WELCOME + GAME PROTOCOL MODAL ============ -->
+  <!-- Single clean pop-up shown once at boot. Closing it hides this whole
+       overlay (display:none) for good -- it never sits under the login
+       screen and never re-appears once the arena session starts. -->
   <div class="modal-overlay" id="welcomeModal">
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeQuote">
       <span class="modal-tag">SYSTEM_BOOT :: BSCS_1A</span>
       <p class="modal-quote" id="welcomeQuote">Loading quote...</p>
       <p class="modal-signature">&mdash; Developed by RST</p>
+
+      <div class="modal-protocol">
+        <h3>Game Protocol</h3>
+        <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Top 10 leaderboard</p>
+        <p>
+          Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
+          <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
+          ay may <strong>+1 bonus point</strong>. Bawat maling sagot o pag-expire ng
+          <strong>25-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
+          hearts, magti-trigger ang game over system.
+        </p>
+        <p>
+          Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
+          GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
+        </p>
+        <p>
+          May dalawang lifelines na pwedeng gamitin isang beses bawat session:
+          <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
+          (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
+          tumataas ang score mo. Kapag naubos ang buong question cycle, automatic na
+          magre-reshuffle ang arena para tuloy-tuloy ang review. Ang top 10 leaderboard
+          ay makikita sa Game Over screen pagkatapos ng bawat run.
+        </p>
+      </div>
+
       <button class="modal-enter" id="welcomeEnterBtn" type="button">Enter the Hub</button>
     </div>
   </div>
@@ -1012,7 +1075,11 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
 
           <div class="arena-content">
             <div class="arena-grid">
-              <div class="arena-panel">
+              <!-- id="arenaMainPanel" wins the stacking order on this page
+                   (see #arenaMainPanel z-index rule) so the fullscreen quiz
+                   below is never covered by anything else while a player
+                   is answering. -->
+              <div class="arena-panel" id="arenaMainPanel">
                 <div id="loginView" class="view active">
                   <h3>Initialize Arena Session</h3>
                   <p class="sysline">[SYSTEM READY] Enter your codename and pick an avatar to begin.</p>
@@ -1036,40 +1103,47 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
                   <p id="loginStatus" class="arena-note">
                     Scores are saved to the cloud (Firebase) and also cached on this device.
                   </p>
+                  <button type="button" id="protocolReopenBtn" class="protocol-reopen-btn">
+                    View Game Protocol
+                  </button>
                 </div>
 
                 <div id="gameView" class="view">
-                  <div class="hud">
-                    <div class="hud-card">
-                      <span class="hud-label">Player</span>
-                      <span id="hudUser" class="hud-value">-</span>
+                  <div class="game-topbar">
+                    <div class="hud">
+                      <div class="hud-card">
+                        <span class="hud-label">Player</span>
+                        <span id="hudUser" class="hud-value">-</span>
+                      </div>
+                      <div class="hud-card">
+                        <span class="hud-label">Badge Title</span>
+                        <span id="hudRank" class="hud-value">Warrior Fresh</span>
+                      </div>
+                      <div class="hud-card">
+                        <span class="hud-label">Live Score</span>
+                        <span id="hudScore" class="hud-value">0</span>
+                      </div>
+                      <div class="hud-card">
+                        <span class="hud-label">Hearts</span>
+                        <span id="hudLives" class="hud-value lives">&#10084;&#10084;&#10084;</span>
+                      </div>
                     </div>
-                    <div class="hud-card">
-                      <span class="hud-label">Badge Title</span>
-                      <span id="hudRank" class="hud-value">Warrior Fresh</span>
-                    </div>
-                    <div class="hud-card">
-                      <span class="hud-label">Live Score</span>
-                      <span id="hudScore" class="hud-value">0</span>
-                    </div>
-                    <div class="hud-card">
-                      <span class="hud-label">Hearts</span>
-                      <span id="hudLives" class="hud-value lives">&#10084;&#10084;&#10084;</span>
+
+                    <div class="timer-bar-track" aria-hidden="true">
+                      <div id="timerBarFill" class="timer-bar-fill"></div>
                     </div>
                   </div>
 
-                  <div class="timer-bar-track" aria-hidden="true">
-                    <div id="timerBarFill" class="timer-bar-fill"></div>
-                  </div>
-
-                  <div id="lifelineRow" class="lifeline-row"></div>
-
-                  <div class="question-box">
+                  <div class="game-center">
                     <div class="question-meta">
                       <span id="subjectChip" class="subject-chip">ITEC 101</span>
                       <span class="stream-chip">STREAM: INFINITE_RANDOMIZED &middot; <span id="timerNum">25</span>s</span>
                     </div>
                     <p id="questionText" class="question-text">Loading question...</p>
+                  </div>
+
+                  <div class="game-bottom">
+                    <div id="lifelineRow" class="lifeline-row"></div>
                     <div id="choicesWrap" class="choices"></div>
                     <div id="feedback" class="feedback" aria-live="polite"></div>
                   </div>
@@ -1091,56 +1165,35 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
                     <div class="input-wrap" style="margin-top: 0.9rem; justify-content: center;">
                       <button id="restartBtn" class="arena-btn" type="button">Reboot Arena</button>
                     </div>
+
+                    <!-- Leaderboard only ever appears here, on the Game Over
+                         screen, so it can never sit on top of live gameplay. -->
+                    <div class="leaderboard-title">
+                      <h3 class="lb-title-tap" id="lbTitle" title="">Top Arena Challengers</h3>
+                      <span class="lb-note">Top 10 highest scores, synced live</span>
+                    </div>
+
+                    <div class="table-shell">
+                      <table class="lb" aria-label="Top Arena Challengers">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Player</th>
+                            <th>Badge</th>
+                            <th>Score</th>
+                          </tr>
+                        </thead>
+                        <tbody id="leaderboardBody">
+                          <tr>
+                            <td colspan="4" class="lb-empty">No challenger records yet.</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <p class="cloud-note">Scores are securely synced live to RST Cloud via Firebase</p>
                   </div>
                 </div>
-              </div>
-
-              <div class="arena-panel">
-                <h3>Game Protocol</h3>
-                <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Top 10 leaderboard</p>
-                <p>
-                  Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
-                  <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
-                  ay may <strong>+1 bonus point</strong>. Bawat maling sagot o pag-expire ng
-                  <strong>25-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
-                  hearts, magti-trigger ang game over system.
-                </p>
-                <p>
-                  Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
-                  GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
-                </p>
-                <p>
-                  May dalawang lifelines na pwedeng gamitin isang beses bawat session:
-                  <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
-                  (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
-                  tumataas ang score mo. Kapag naubos ang buong question cycle, automatic na
-                  magre-reshuffle ang arena para tuloy-tuloy ang review.
-                </p>
-
-                <div class="leaderboard-title">
-                  <h3 class="lb-title-tap" id="lbTitle" title="">Top Arena Challengers</h3>
-                  <span class="lb-note">Top 10 highest scores, synced live</span>
-                </div>
-
-                <div class="table-shell">
-                  <table class="lb" aria-label="Top Arena Challengers">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Player</th>
-                        <th>Badge</th>
-                        <th>Score</th>
-                      </tr>
-                    </thead>
-                    <tbody id="leaderboardBody">
-                      <tr>
-                        <td colspan="4" class="lb-empty">No challenger records yet.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <p class="cloud-note">Scores are securely synced live to RST Cloud via Firebase</p>
               </div>
             </div>
           </div>
