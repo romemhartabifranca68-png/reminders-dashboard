@@ -416,7 +416,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       gameOverNote: $("gameOverNote"),
       gameOverQuote: $("gameOverQuote"),
       reviewList: $("reviewList"),
-      lbTitle: $("lbTitle")
+      lbTitle: $("lbTitle"),
+      protocolReopenBtn: $("protocolReopenBtn")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
@@ -448,6 +449,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     bindTap(elements.restartBtn, (event) => {
       event.preventDefault();
       rebootArena();
+    });
+
+    bindTap(elements.protocolReopenBtn, (event) => {
+      event.preventDefault();
+      const modal = $("welcomeModal");
+      if (!modal) return;
+      modal.removeAttribute("hidden");
+      document.body.classList.add("no-scroll");
     });
 
     elements.usernameInput.addEventListener("keydown", (event) => {
