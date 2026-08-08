@@ -409,10 +409,27 @@ body.arena-playing {
   overflow: hidden; height: 100dvh;
 }
 /* Belt-and-suspenders: some mobile browsers let iframes bleed through
-   position:fixed overlays regardless of z-index. Fully removing the Padlet
-   Freedom Wall from the render tree while the quiz is active guarantees it
-   can never visually intrude on the question/answer screen. */
-body.arena-playing #freedom-wall { display: none !important; }
+   position:fixed overlays regardless of z-index, and nested stacking
+   contexts (.arena-content has its own z-index:1) mean #arenaMainPanel's
+   z-index:300 does NOT actually out-rank later same-level siblings like
+   <footer> in the global paint order. Rather than fight z-index math,
+   we fully remove every non-arena chrome element from the render tree
+   the moment gameplay starts. display:none guarantees zero visual
+   overlap AND zero accidental taps on hidden elements, on every browser. */
+body.arena-playing > nav.nav,
+body.arena-playing > header.hero,
+body.arena-playing > footer,
+body.arena-playing main#main > .wrap > section:not(#reviewer-arena) {
+  display: none !important;
+}
+/* Within the reviewer-arena section itself, only the live game screen
+   (#gameView, rendered fullscreen via the rule below) should be visible —
+   the section title and terminal chrome are hidden so nothing but Player
+   Stats, Timer, Question, Lifelines, and the 4 Answer Buttons show. */
+body.arena-playing #reviewer-arena > .section-title,
+body.arena-playing .terminal-top {
+  display: none !important;
+}
 body.arena-playing #gameView.active {
   position: fixed; inset: 0; z-index: 200;
   background: linear-gradient(180deg, #050a14 0%, #071120 100%);
