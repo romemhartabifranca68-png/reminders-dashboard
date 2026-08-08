@@ -44,6 +44,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const MAX_LIVES = 3;
   const QUESTION_TIME_LIMIT = 25;
   const WIN_SCORE = 500;
+  /* Older deployments of the arena awarded 5 points per correct answer with
+     no streak bonus. The current formula awards 2 (+1 every 5-streak), so
+     any leaderboard entry saved under the old rules reads roughly 2.5x too
+     high. SCORE_MIGRATION_VERSION lets us convert each legacy entry exactly
+     once -- entries already tagged with this version (or higher) are left
+     untouched on every later load. */
+  const SCORE_MIGRATION_VERSION = 2;
+  const LEGACY_POINTS_PER_CORRECT = 5;
+  const LEGACY_TO_CURRENT_RATIO = SCORE_PER_CORRECT / LEGACY_POINTS_PER_CORRECT;
   const AVATARS = ["\u{1F916}", "\u{1F4BB}", "\u{1F680}", "\u{1F47E}", "\u{1F3AF}", "\u{1F575}\uFE0F\u200D\u2642\uFE0F"];
 
   const badWords = [
@@ -309,6 +318,44 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     });
   }
 
+  /* ---------------- Generic on-demand pop-up modals ---------------- */
+  /* Powers the "View Game Protocol" and "View Leaderboard" buttons: any
+     element with [data-open-modal="someId"] opens #someId, and any element
+     with [data-close-modal="someId"] (or the generic .modal-close-btn)
+     closes it. Both modals default to hidden and only ever appear as a
+     clean pop-up on top of everything -- never inline in the page flow. */
+  function openModal(id) {
+    const modal = $(id);
+    if (!modal) return;
+    modal.removeAttribute("hidden");
+    document.body.classList.add("no-scroll");
+    if (id === "leaderboardModal") {
+      renderLeaderboard();
+    }
+  }
+
+  function closeModal(id) {
+    const modal = $(id);
+    if (!modal) return;
+    modal.setAttribute("hidden", "hidden");
+    document.body.classList.remove("no-scroll");
+  }
+
+  function initModalTriggers() {
+    document.querySelectorAll("[data-open-modal]").forEach((btn) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        openModal(btn.getAttribute("data-open-modal"));
+      });
+    });
+    document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        closeModal(btn.getAttribute("data-close-modal"));
+      });
+    });
+  }
+
   /* ---------------- Binary matrix ambient background ---------------- */
   function initMatrixBackground() {
     const host = $("matrixBg");
@@ -416,8 +463,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       gameOverNote: $("gameOverNote"),
       gameOverQuote: $("gameOverQuote"),
       reviewList: $("reviewList"),
-      lbTitle: $("lbTitle"),
-      protocolReopenBtn: $("protocolReopenBtn")
+      lbTitle: $("lbTitle")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
@@ -451,13 +497,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       rebootArena();
     });
 
-    bindTap(elements.protocolReopenBtn, (event) => {
-      event.preventDefault();
-      const modal = $("welcomeModal");
-      if (!modal) return;
-      modal.removeAttribute("hidden");
-      document.body.classList.add("no-scroll");
-    });
+    initModalTriggers();
 
     elements.usernameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -469,7 +509,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     document.addEventListener("keydown", handleGlobalKeys);
     window.addEventListener("blur", handleWindowBlur);
 
-    renderLeaderboard();
+    migrateLegacyScores().then(() => renderLeaderboard());
     updateHud();
     setView("loginView");
     initialized = true;
@@ -848,13 +888,61 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
+  /* ---------------- One-time legacy score conversion ---------------- */
+  async function migrateLegacyScores() {
+    let all;
+    try {
+      all = await fetchScores();
+    } catch (error) {
+      console.warn("[Arena] Could not load scores for migration:", error);
+      return;
+    }
+    if (!all.length) return;
+
+    const legacyEntries = all.filter(
+      (entry) => !entry.scoreVersion || entry.scoreVersion < SCORE_MIGRATION_VERSION
+    );
+    if (!legacyEntries.length) return;
+
+    const migrated = all.map((entry) => {
+      if (entry.scoreVersion && entry.scoreVersion >= SCORE_MIGRATION_VERSION) return entry;
+      const oldScore = Number(entry.score || 0);
+      const newScore = Math.max(0, Math.round(oldScore * LEGACY_TO_CURRENT_RATIO));
+      return {
+        ...entry,
+        score: newScore,
+        badge: getRank(newScore),
+        scoreVersion: SCORE_MIGRATION_VERSION
+      };
+    });
+
+    if (db) {
+      try {
+        await Promise.all(
+          migrated
+            .filter((entry) => entry.id)
+            .map((entry) => {
+              const { id, ...rest } = entry;
+              return set(ref(db, `${FIREBASE_TABLE}/${id}`), rest);
+            })
+        );
+      } catch (error) {
+        console.warn("[Arena] Firebase score migration failed, keeping local cache only:", error);
+      }
+    }
+
+    await persistScores(migrated);
+    console.log(`[Arena] Migrated ${legacyEntries.length} legacy score(s) to the current formula.`);
+  }
+
   async function saveScore() {
     const entry = {
       username: state.username,
       score: state.score,
       badge: getRank(state.score),
       avatar: state.avatar,
-      ts: Date.now()
+      ts: Date.now(),
+      scoreVersion: SCORE_MIGRATION_VERSION
     };
 
     if (db) {
@@ -981,6 +1069,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           const newScore = Math.max(0, parseInt(input.value, 10) || 0);
           entry.score = newScore;
           entry.badge = getRank(newScore);
+          entry.scoreVersion = SCORE_MIGRATION_VERSION;
           await writeEntry(entry);
           await renderLeaderboard();
           saveBtn.textContent = "Saved";
@@ -1025,7 +1114,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           score: entry.score,
           badge: entry.badge,
           avatar: entry.avatar || "",
-          ts: entry.ts || Date.now()
+          ts: entry.ts || Date.now(),
+          scoreVersion: entry.scoreVersion || SCORE_MIGRATION_VERSION
         });
         return;
       } catch (error) {
