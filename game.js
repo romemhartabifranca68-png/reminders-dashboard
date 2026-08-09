@@ -37,7 +37,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v5";
   const FIREBASE_TABLE = "arena_scores";
-  const ADMIN_PASSCODE = "RST-ADMIN-2026";
+  /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
+     Score writes go straight to Firebase; write validation (correct data
+     shape, no overwriting/deleting other players' entries) is enforced
+     server-side by the Firebase Realtime Database Rules instead. */
   const SCORE_PER_CORRECT = 2;
   const STREAK_TARGET = 5;
   const STREAK_BONUS = 1;
@@ -221,8 +224,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     lastEndReason: "",
     mistakes: [],
     displayedScore: 0,
-    scoreAnimId: null
+    scoreAnimId: null,
+    milestonesHit: new Set()
   };
+
+  // Short terminal-style lines shown on each 25-point milestone overlay.
+  const milestoneLines = [
+    "SYSTEM CHECKPOINT SAVED",
+    "COMPILE SUCCESSFUL",
+    "BUFFER UPGRADED",
+    "ACHIEVEMENT UNLOCKED",
+    "PROCESS BOOSTED",
+    "LEVEL UP DETECTED",
+    "CACHE OPTIMIZED",
+    "PATCH APPLIED"
+  ];
 
   let elements = null;
   let initialized = false;
@@ -578,8 +594,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     if (name === "gameView") {
       document.body.classList.add("arena-playing");
-    } else {
+      document.body.classList.remove("arena-gameover");
+    } else if (name === "gameOverView") {
+      document.body.classList.add("arena-gameover");
       document.body.classList.remove("arena-playing", "streak-hot");
+      // Mobile UX fix: auto-focus/scroll straight to the crash panel so the
+      // player never has to manually scroll down to see their result.
+      window.requestAnimationFrame(() => {
+        elements.gameOverView.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    } else {
+      document.body.classList.remove("arena-playing", "arena-gameover", "streak-hot");
     }
   }
 
@@ -748,6 +773,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       if (state.streak > 0 && state.streak % STREAK_TARGET === 0) {
         gained += STREAK_BONUS;
       }
+      const oldScore = state.score;
       state.score += gained;
       elements.feedback.textContent = `Correct! +${gained} points \u00b7 Streak ${state.streak}`;
       elements.feedback.className = "feedback";
@@ -755,6 +781,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
       if (state.score >= WIN_SCORE && !state.victoryAchieved) {
         handleGraduationWin();
+        return;
+      }
+
+      const milestone = getCrossedMilestone(oldScore, state.score);
+      if (milestone) {
+        state.milestonesHit.add(milestone);
+        state.lives += 2;
+        updateHud();
+        stopTimer();
+        showMilestoneOverlay(milestone, () => {
+          window.setTimeout(loadNextQuestion, 250);
+        });
         return;
       }
 
@@ -788,6 +826,36 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
+  /* ---------------- 25-point milestones ---------------- */
+  function getCrossedMilestone(oldScore, newScore) {
+    const milestone = Math.floor(newScore / 25) * 25;
+    if (milestone > 0 && milestone < WIN_SCORE && milestone > oldScore && !state.milestonesHit.has(milestone)) {
+      return milestone;
+    }
+    return null;
+  }
+
+  function showMilestoneOverlay(milestone, onDone) {
+    const overlay = document.createElement("div");
+    overlay.className = "milestone-overlay";
+    const line = milestoneLines[Math.floor(Math.random() * milestoneLines.length)];
+    overlay.innerHTML =
+      '<div class="milestone-box">' +
+        '<p class="milestone-tag">[CHECKPOINT :: SCORE ' + milestone + ']</p>' +
+        '<p class="milestone-line">' + escapeHtml(line) + '</p>' +
+        '<p class="milestone-reward">+2 \u2764\uFE0F HEARTS AWARDED</p>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    window.setTimeout(() => {
+      overlay.classList.add("fade-out");
+      window.setTimeout(() => {
+        overlay.remove();
+        if (typeof onDone === "function") onDone();
+      }, 260);
+    }, 1200);
+  }
+
   /* ---------------- Blur / focus anti-cheat ---------------- */
   function handleWindowBlur() {
     if (!state.allowBlurPenalty) return;
@@ -818,6 +886,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.victoryAchieved = false;
     state.mistakes = [];
     state.displayedScore = 0;
+    state.milestonesHit = new Set();
     buildPool();
     updateHud();
   }
@@ -1013,12 +1082,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function openAdminGate() {
-    const code = window.prompt("Admin passcode para ma-edit o i-reset ang leaderboard:");
-    if (code === null) return;
-    if (code.trim() !== ADMIN_PASSCODE) {
-      window.alert("Maling passcode.");
-      return;
-    }
+    /* SECURITY: the frontend passcode gate is gone. The panel can open,
+       but Firebase Rules now reject any attempt (from here or anywhere
+       else) to overwrite or delete an existing leaderboard entry, so
+       there is no real admin power left to protect client-side. */
     openAdminPanel();
   }
 
