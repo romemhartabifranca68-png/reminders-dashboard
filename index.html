@@ -725,6 +725,107 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
 /* Confetti canvas */
 #confettiCanvas { position: fixed; inset: 0; z-index: 600; pointer-events: none; }
 
+/* =====================================================================
+   NEW FEATURE 1: Dynamic rank badge — titles are longer now, so let the
+   HUD value wrap onto two lines instead of clipping with an ellipsis.
+===================================================================== */
+#hudRank {
+  white-space: normal;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  overflow: visible;
+  text-overflow: unset;
+}
+.rank-tier {
+  display: inline-block;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin-right: 0.25rem;
+}
+
+/* =====================================================================
+   NEW FEATURE 2: Retro Web Audio FX — mute toggle button.
+   Fixed, thumb-reachable, always >= 44px tap target on phones.
+===================================================================== */
+.mute-toggle-btn {
+  position: fixed;
+  right: 0.75rem;
+  bottom: calc(0.75rem + var(--safe-b));
+  z-index: 650;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  border: 1px solid rgba(100, 255, 218, 0.34);
+  background: rgba(9, 16, 30, 0.86);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow), var(--glow);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.mute-toggle-btn.is-muted {
+  border-color: rgba(255, 107, 107, 0.4);
+  box-shadow: var(--shadow);
+  opacity: 0.85;
+}
+
+/* =====================================================================
+   NEW FEATURE 3: Boss Question subject-hack mechanic.
+===================================================================== */
+.boss-flash-overlay {
+  position: fixed; inset: 0; z-index: 640; pointer-events: none;
+  background: rgba(255, 30, 30, 0.28);
+  animation: bossFlashPulse 0.22s steps(2, jump-none) infinite;
+}
+@keyframes bossFlashPulse {
+  0% { opacity: 0.35; filter: hue-rotate(0deg); }
+  50% { opacity: 0.85; filter: hue-rotate(8deg); }
+  100% { opacity: 0.35; filter: hue-rotate(0deg); }
+}
+.boss-flash-text {
+  position: fixed; inset: 0; z-index: 641; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; gap: 0.3rem;
+  pointer-events: none; padding: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.boss-flash-text span {
+  font-size: clamp(1.3rem, 7vw, 2.1rem); font-weight: 900; color: #fff;
+  text-shadow: 0 0 18px rgba(255, 40, 40, 0.9), 0 0 4px #000;
+  letter-spacing: 0.04em;
+  animation: bossGlitchShake 0.18s linear infinite;
+}
+.boss-flash-text small {
+  font-size: 0.8rem; color: #ffe3e3; font-weight: 700;
+}
+@keyframes bossGlitchShake {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2px, 1px); }
+  50% { transform: translate(2px, -1px); }
+  75% { transform: translate(-1px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+body.boss-active #gameView.active {
+  animation: bossBorderPulse 0.5s ease-in-out infinite;
+}
+@keyframes bossBorderPulse {
+  0%, 100% { box-shadow: inset 0 0 40px rgba(255,60,60,0.18), inset 0 0 0 2px rgba(255,60,60,0.3); }
+  50% { box-shadow: inset 0 0 70px rgba(255,60,60,0.32), inset 0 0 0 2px rgba(255,60,60,0.55); }
+}
+.subject-chip.boss-chip {
+  background: rgba(255, 60, 60, 0.14);
+  border-color: rgba(255, 100, 100, 0.4);
+  color: #ffb3b3;
+  font-weight: 900;
+}
+.stream-chip.boss-stream { color: #ffb3b3; }
+.feedback.is-boss-win { color: #ffd27d; }
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -787,7 +888,7 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
     <div class="modal-panel modal-panel--info" role="dialog" aria-modal="true" aria-labelledby="protocolModalTitle">
       <button type="button" class="modal-close-btn" data-close-modal="protocolModal" aria-label="Close Game Protocol">&times;</button>
       <h3 id="protocolModalTitle">Game Protocol</h3>
-      <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Top 10 leaderboard</p>
+      <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Boss Q @ 15s | Top 10 leaderboard</p>
       <p>
         Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
         <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
@@ -816,6 +917,26 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
         pangalan sa leaderboard (hal. "RST" at "rst" ay iisa lang), kaya isang
         record lang bawat player. Ang lumang score ay mapapalitan lamang kapag
         mas mataas ang bagong score — kung mas mababa, hindi ito isasave.
+      </p>
+      <p>
+        <strong>🏅 Academic Rank Badges:</strong> nagbabago ang iyong badge title
+        kada <strong>10 points</strong>, mula "Hello World Installer" bilang
+        FRESHMAN pataas hanggang "BSCS 1-A Valedictorian" bilang LEGEND sa
+        score 500. Nakikita ito live sa tabi ng iyong score sa HUD.
+      </p>
+      <p>
+        <strong>🔊 Retro Sound FX:</strong> may 8-bit na tunog ang bawat tamang
+        sagot, maling sagot, at 25-score milestone — puro generated sa browser
+        (walang audio file na kailangang i-download). May Mute button
+        (🔊/🔇) sa ibabang-kanang bahagi ng screen kung gusto mong patahimikin.
+      </p>
+      <p>
+        <strong>⚔️ Boss Question Warning:</strong> sa scores na <strong>50,
+        150, 250, 350, at 450</strong>, magti-trigger ang isang "BOSS LEVEL"
+        na may red flash warning. Ang susunod na tanong ay galing sa
+        pinakamahirap na subject pool (ITEC 102) at bababa lang ang timer sa
+        <strong>15 seconds</strong>. Kung tama, +4 points (double) — kung
+        mali, normal na -1 heart lang.
       </p>
     </div>
   </div>
@@ -1346,7 +1467,7 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
         </div>
 
         <div class="quick-grid">
-          <a class="linkcard" href="https://drive.google.com" target="_blank" rel="noopener noreferrer">
+          <a class="linkcard" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">
             <strong>Google Drive Link</strong>
             <p>Open your shared reviewer files, modules, and section resources.</p>
           </a>
@@ -1376,6 +1497,9 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   </footer>
 
   <canvas id="confettiCanvas" hidden></canvas>
+
+  <!-- NEW FEATURE 2: Retro Web Audio FX mute toggle (site-wide, thumb-reachable) -->
+  <button type="button" id="muteToggleBtn" class="mute-toggle-btn" aria-label="Toggle sound effects" aria-pressed="false">🔊</button>
 
   <script type="module" src="game.js"></script>
 </body>
