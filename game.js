@@ -47,6 +47,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const MAX_LIVES = 3;
   const QUESTION_TIME_LIMIT = 25;
   const WIN_SCORE = 500;
+
+  /* ============ NEW FEATURE: ⚔️ Boss Question subject-hack ============
+     At these exact score checkpoints, the next question is force-pulled
+     from the hardest subject pool and the timer is slashed. */
+  const BOSS_THRESHOLDS = [50, 150, 250, 350, 450];
+  const BOSS_SUBJECT = "ITEC 102";
+  const BOSS_TIME_LIMIT = 15;
+  const BOSS_SCORE_PER_CORRECT = 4;
+  const BOSS_FLASH_DURATION_MS = 1500;
+
+  /* ============ NEW FEATURE: 🔊 Retro Web Audio FX ============
+     Pure OscillatorNode chiptune blips — zero external audio files,
+     zero mobile-data loading delay. */
+  const SOUND_MUTE_KEY = "bscs1a_arena_sound_muted_v1";
+  const MILESTONE_FANFARE_SCORE_STEP = 25;
   /* Older deployments of the arena awarded 5 points per correct answer with
      no streak bonus. The current formula awards 2 (+1 every 5-streak), so
      any leaderboard entry saved under the old rules reads roughly 2.5x too
@@ -225,7 +240,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     mistakes: [],
     displayedScore: 0,
     scoreAnimId: null,
-    milestonesHit: new Set()
+    milestonesHit: new Set(),
+    /* NEW FEATURE: Boss Question state */
+    bossQuestionActive: false,
+    bossHit: new Set(),
+    activeTimeLimit: QUESTION_TIME_LIMIT,
+    /* NEW FEATURE: sound mute toggle */
+    muted: false
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -297,14 +318,158 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return quote.author ? `"${quote.text}" \u2014 ${quote.author}` : `"${quote.text}"`;
   }
 
+  /* ============ NEW FEATURE: 🏅 Dynamic Academic Badges / Ranks ============
+     Rank title changes every 10 points, all the way up to the 500-point
+     Valedictorian cap. Checked top-down via .find() — no lag, no switch
+     statement needed. */
+  const RANK_TABLE = [
+    { min: 500, tier: "LEGEND", title: "BSCS 1-A Valedictorian \u{1F393}" },
+    { min: 450, tier: "GOD MODE", title: "Cyber Dean's Lister \u{1F451}" },
+    { min: 400, tier: "EXPERT", title: "Full-Stack Wizard \u{1F52E}" },
+    { min: 300, tier: "EXPERT", title: "AI Prompt Engineer \u{1F9D9}\u200D\u2642\uFE0F" },
+    { min: 250, tier: "SENIOR", title: "Database Manipulator \u{1F5C4}\uFE0F" },
+    { min: 200, tier: "SENIOR", title: "Spaghetti Code Chef \u{1F35D}" },
+    { min: 150, tier: "JUNIOR", title: "Pointer Survivor \u{1F4CD}" },
+    { min: 100, tier: "JUNIOR", title: "OOP Architect \u{1F3DB}\uFE0F" },
+    { min: 50, tier: "JUNIOR", title: "Array Master \u{1F522}" },
+    { min: 40, tier: "SOPHOMORE", title: "StackOverflow Plagiarist \u{1F4DA}" },
+    { min: 30, tier: "SOPHOMORE", title: "Git Commit Spammer \u{1F680}" },
+    { min: 20, tier: "FRESHMAN", title: "Compiler Bully \u{1F916}" },
+    { min: 10, tier: "FRESHMAN", title: "Syntax Error Enjoyer \u{1F41B}" },
+    { min: 0, tier: "FRESHMAN", title: "Hello World Installer \u{1F9D1}\u200D\u{1F4BB}" }
+  ];
+
+  function getRankEntry(score) {
+    const safeScore = Math.max(0, Number(score) || 0);
+    return RANK_TABLE.find((entry) => safeScore >= entry.min) || RANK_TABLE[RANK_TABLE.length - 1];
+  }
+
   function getRank(score) {
-    if (score >= WIN_SCORE) return "Academic Overlord";
-    if (score >= 300) return "Systems Architect";
-    if (score >= 200) return "Senior Debugger";
-    if (score >= 120) return "Code Specialist";
-    if (score >= 60) return "Junior Scholar";
-    if (score >= 20) return "Warrior Fresh";
-    return "Rookie Freshman";
+    const entry = getRankEntry(score);
+    return `[${entry.tier}] ${entry.title}`;
+  }
+
+  /* ============ NEW FEATURE: 🔊 Retro Web Audio FX (no MP3s) ============
+     One shared AudioContext, three tiny OscillatorNode-based chiptune FX.
+     Everything routes through playTone()/isSoundBlocked() so the mute
+     toggle silences all of it instantly with zero extra checks elsewhere. */
+  let sharedAudioCtx = null;
+
+  function getAudioCtx() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+      if (sharedAudioCtx.state === "suspended") sharedAudioCtx.resume();
+      return sharedAudioCtx;
+    } catch (error) {
+      console.warn("[Arena] Web Audio unavailable:", error);
+      return null;
+    }
+  }
+
+  function isSoundBlocked() {
+    return state.muted;
+  }
+
+  function playTone(ctx, freq, startAt, duration, type, gainLevel) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || "square";
+    osc.frequency.setValueAtTime(freq, startAt);
+    gain.gain.setValueAtTime(gainLevel != null ? gainLevel : 0.07, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(startAt);
+    osc.stop(startAt + duration + 0.02);
+    return osc;
+  }
+
+  // Quick high 8-bit "beep" — correct answer.
+  function playCorrectBeep() {
+    if (isSoundBlocked()) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      playTone(ctx, 880, now, 0.09, "square", 0.06);
+      playTone(ctx, 1320, now + 0.08, 0.12, "square", 0.06);
+    } catch (error) {
+      console.warn("[Arena] Correct-beep skipped:", error);
+    }
+  }
+
+  // Short descending glitch/buzz — wrong answer or timeout.
+  function playWrongBuzz() {
+    if (isSoundBlocked()) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.28);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.32);
+    } catch (error) {
+      console.warn("[Arena] Wrong-buzz skipped:", error);
+    }
+  }
+
+  // Short digital victory fanfare — every 25-score milestone (and graduation win).
+  function playFanfare(big) {
+    if (isSoundBlocked()) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    try {
+      const now = ctx.currentTime;
+      const notes = big
+        ? [523.25, 659.25, 783.99, 1046.5]
+        : [659.25, 830.61, 987.77];
+      notes.forEach((freq, i) => {
+        playTone(ctx, freq, now + i * 0.12, 0.16, "triangle", 0.065);
+      });
+    } catch (error) {
+      console.warn("[Arena] Fanfare skipped:", error);
+    }
+  }
+
+  function loadMutePreference() {
+    try {
+      return window.localStorage.getItem(SOUND_MUTE_KEY) === "1";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function saveMutePreference(muted) {
+    try {
+      window.localStorage.setItem(SOUND_MUTE_KEY, muted ? "1" : "0");
+    } catch (error) {
+      /* ignore — storage may be unavailable (private mode, etc.) */
+    }
+  }
+
+  function applyMuteButtonState() {
+    if (!elements || !elements.muteToggleBtn) return;
+    elements.muteToggleBtn.textContent = state.muted ? "\u{1F507}" : "\u{1F50A}";
+    elements.muteToggleBtn.classList.toggle("is-muted", state.muted);
+    elements.muteToggleBtn.setAttribute("aria-pressed", state.muted ? "true" : "false");
+  }
+
+  function toggleMute() {
+    state.muted = !state.muted;
+    saveMutePreference(state.muted);
+    applyMuteButtonState();
+    if (!state.muted) {
+      // Little confirmation blip so the player knows sound is back on.
+      playCorrectBeep();
+    }
   }
 
   /* ---------------- Bind helper: click + touch without double-fire ---------------- */
@@ -493,7 +658,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       gameOverNote: $("gameOverNote"),
       gameOverQuote: $("gameOverQuote"),
       reviewList: $("reviewList"),
-      lbTitle: $("lbTitle")
+      lbTitle: $("lbTitle"),
+      muteToggleBtn: $("muteToggleBtn")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
@@ -516,6 +682,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     initAvatarGrid();
     initLifelineButtons();
     initAdminTrigger();
+
+    state.muted = loadMutePreference();
+    applyMuteButtonState();
+    bindTap(elements.muteToggleBtn, (event) => {
+      event.preventDefault();
+      toggleMute();
+    });
 
     bindTap(elements.startBtn, (event) => {
       event.preventDefault();
@@ -604,6 +777,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (state.locked || state.hasUsedSkip || !state.currentQuestion) return;
     state.hasUsedSkip = true;
     elements.skipBtn.disabled = true;
+    // Skipping a Boss Question ends that encounter — no free re-roll of it.
+    state.bossQuestionActive = false;
+    setBossVisuals(false);
     elements.feedback.textContent = "Skipped. Walang penalty.";
     elements.feedback.className = "feedback";
     stopTimer();
@@ -678,7 +854,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   function startTimer() {
     stopTimer();
-    state.timer = QUESTION_TIME_LIMIT;
+    // NEW FEATURE: Boss Questions run on a slashed 15s clock instead of 25s.
+    state.activeTimeLimit = state.bossQuestionActive ? BOSS_TIME_LIMIT : QUESTION_TIME_LIMIT;
+    state.timer = state.activeTimeLimit;
     renderTimerBar();
 
     state.timerId = setInterval(() => {
@@ -692,7 +870,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function renderTimerBar() {
-    const pct = Math.max(0, (state.timer / QUESTION_TIME_LIMIT) * 100);
+    const limit = state.activeTimeLimit || QUESTION_TIME_LIMIT;
+    const pct = Math.max(0, (state.timer / limit) * 100);
     elements.timerBarFill.style.width = `${pct}%`;
     elements.timerNum.textContent = String(Math.max(0, state.timer));
 
@@ -704,6 +883,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   function handleTimeout() {
     if (state.locked || !state.currentQuestion) return;
+    playWrongBuzz();
     state.mistakes.push({
       subject: state.currentQuestion.s,
       q: state.currentQuestion.q,
@@ -712,6 +892,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     });
     disableChoices(state.currentQuestion.answer);
     state.streak = 0;
+    // Boss Question timing out still counts as a normal miss (no bonus/penalty change).
+    state.bossQuestionActive = false;
+    setBossVisuals(false);
     loseLife("timeout");
   }
 
@@ -721,15 +904,43 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.currentIndex = 0;
   }
 
+  // NEW FEATURE: Boss Question pool — hardest subject only (ITEC 102).
+  const bossQuestionPool = questionBank.filter((item) => item.s === BOSS_SUBJECT);
+
+  function getBossQuestion() {
+    if (!bossQuestionPool.length) return null;
+    return bossQuestionPool[Math.floor(Math.random() * bossQuestionPool.length)];
+  }
+
+  // Toggles the red boss-mode visuals on the subject chip, stream label, and arena border.
+  function setBossVisuals(active) {
+    document.body.classList.toggle("boss-active", !!active);
+    if (elements.subjectChip) elements.subjectChip.classList.toggle("boss-chip", !!active);
+    const streamChip = document.querySelector(".stream-chip");
+    if (streamChip) streamChip.classList.toggle("boss-stream", !!active);
+  }
+
   function loadNextQuestion() {
     if (state.ending || state.sessionLocked) return;
 
-    if (state.currentIndex >= state.activePool.length) {
-      buildPool();
+    let question = null;
+
+    // NEW FEATURE: if a Boss Question was just triggered, force-pull it
+    // from the hardest subject pool instead of the normal shuffled pool.
+    if (state.bossQuestionActive) {
+      question = getBossQuestion();
     }
 
-    const question = state.activePool[state.currentIndex];
-    state.currentIndex += 1;
+    if (!question) {
+      state.bossQuestionActive = false;
+      setBossVisuals(false);
+      if (state.currentIndex >= state.activePool.length) {
+        buildPool();
+      }
+      question = state.activePool[state.currentIndex];
+      state.currentIndex += 1;
+    }
+
     state.currentQuestion = question;
     state.locked = false;
     state.hiddenChoices = new Set();
@@ -738,7 +949,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (elements.fiftyBtn) elements.fiftyBtn.disabled = false;
     if (elements.skipBtn) elements.skipBtn.disabled = false;
 
-    elements.subjectChip.textContent = question.s;
+    setBossVisuals(state.bossQuestionActive);
+    elements.subjectChip.textContent = state.bossQuestionActive
+      ? `\u2694\uFE0F BOSS: ${question.s}`
+      : question.s;
     elements.questionText.textContent = question.q;
     elements.feedback.textContent = "";
     elements.feedback.className = "feedback";
@@ -792,17 +1006,36 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     buttons.forEach((btn) => { btn.disabled = true; });
 
+    // NEW FEATURE: Boss Questions were flagged when this question loaded —
+    // capture that now, before any state gets reset below.
+    const wasBossQuestion = state.bossQuestionActive;
+
     if (correct) {
       btnEl.classList.add("correct");
       state.streak += 1;
-      let gained = SCORE_PER_CORRECT;
-      if (state.streak > 0 && state.streak % STREAK_TARGET === 0) {
-        gained += STREAK_BONUS;
+      let gained;
+      if (wasBossQuestion) {
+        // Boss Question correct answer: flat DOUBLE points, no streak stacking.
+        gained = BOSS_SCORE_PER_CORRECT;
+      } else {
+        gained = SCORE_PER_CORRECT;
+        if (state.streak > 0 && state.streak % STREAK_TARGET === 0) {
+          gained += STREAK_BONUS;
+        }
       }
       const oldScore = state.score;
       state.score += gained;
-      elements.feedback.textContent = `Correct! +${gained} points \u00b7 Streak ${state.streak}`;
-      elements.feedback.className = "feedback";
+      playCorrectBeep();
+
+      if (wasBossQuestion) {
+        state.bossQuestionActive = false;
+        setBossVisuals(false);
+        elements.feedback.textContent = `\u2694\uFE0F BOSS DEFEATED! +${gained} points (DOUBLE) \u00b7 Keep going, Scholar!`;
+        elements.feedback.className = "feedback is-boss-win";
+      } else {
+        elements.feedback.textContent = `Correct! +${gained} points \u00b7 Streak ${state.streak}`;
+        elements.feedback.className = "feedback";
+      }
       updateHud();
 
       if (state.score >= WIN_SCORE && !state.victoryAchieved) {
@@ -816,8 +1049,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         state.lives += 2;
         updateHud();
         stopTimer();
+        playFanfare(false);
         showMilestoneOverlay(milestone, () => {
-          window.setTimeout(loadNextQuestion, 250);
+          // NEW FEATURE: some checkpoints are also Boss Question triggers.
+          if (BOSS_THRESHOLDS.includes(milestone) && !state.bossHit.has(milestone)) {
+            state.bossHit.add(milestone);
+            window.setTimeout(() => triggerBossSequence(), 200);
+          } else {
+            window.setTimeout(loadNextQuestion, 250);
+          }
         });
         return;
       }
@@ -835,7 +1075,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         correct: state.currentQuestion.answer
       });
       state.streak = 0;
-      elements.feedback.textContent = "Mali. Isang heart ang nabawas.";
+      playWrongBuzz();
+      // Boss Question wrong answer: normal -1 heart, no extra penalty.
+      state.bossQuestionActive = false;
+      setBossVisuals(false);
+      elements.feedback.textContent = wasBossQuestion
+        ? "Boss question \u2014 mali. Isang heart lang ang nabawas."
+        : "Mali. Isang heart ang nabawas.";
       elements.feedback.className = "feedback is-wrong";
       updateHud();
       loseLife("wrong");
@@ -882,6 +1128,29 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }, 1200);
   }
 
+  /* ---------------- ⚔️ NEW FEATURE: Boss Question subject-hack ---------------- */
+  function triggerBossSequence() {
+    if (state.ending || state.sessionLocked) return;
+    playWrongBuzz();
+
+    const flashOverlay = document.createElement("div");
+    flashOverlay.className = "boss-flash-overlay";
+    const flashText = document.createElement("div");
+    flashText.className = "boss-flash-text";
+    flashText.innerHTML =
+      "<span>\u26A0\uFE0F BOSS LEVEL WARNING! \u26A0\uFE0F</span>" +
+      "<small>SUBJECT HACK DETECTED \u2014 ITEC 102 INCOMING \u2014 15s CLOCK</small>";
+    document.body.appendChild(flashOverlay);
+    document.body.appendChild(flashText);
+
+    window.setTimeout(() => {
+      flashOverlay.remove();
+      flashText.remove();
+      state.bossQuestionActive = true;
+      loadNextQuestion();
+    }, BOSS_FLASH_DURATION_MS);
+  }
+
   /* ---------------- Blur / focus anti-cheat ---------------- */
   function handleWindowBlur() {
     if (!state.allowBlurPenalty) return;
@@ -913,6 +1182,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.mistakes = [];
     state.displayedScore = 0;
     state.milestonesHit = new Set();
+    // NEW FEATURE: reset Boss Question state for a fresh run.
+    state.bossQuestionActive = false;
+    state.bossHit = new Set();
+    state.activeTimeLimit = QUESTION_TIME_LIMIT;
+    setBossVisuals(false);
     buildPool();
     updateHud();
   }
@@ -1304,26 +1578,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     };
   }
 
+  // Graduation win (500) reuses the shared retro sound engine's big fanfare,
+  // and correctly respects the mute toggle.
   function playVictoryFanfare() {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        gain.gain.value = 0.06;
-        osc.connect(gain).connect(ctx.destination);
-        const startAt = ctx.currentTime + i * 0.15;
-        osc.start(startAt);
-        osc.stop(startAt + 0.18);
-      });
-    } catch (error) {
-      console.warn("[Arena] Audio fanfare skipped:", error);
-    }
+    playFanfare(true);
   }
 
   /* ---------------- Overlay helper for graduation / session lock ---------------- */
@@ -1384,6 +1642,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (state.ending) return;
     state.ending = true;
     state.victoryAchieved = true;
+    state.bossQuestionActive = false;
+    setBossVisuals(false);
     state.locked = true;
     state.allowBlurPenalty = false;
     stopTimer();
@@ -1448,6 +1708,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (state.ending) return;
     state.ending = true;
     state.locked = true;
+    state.bossQuestionActive = false;
+    setBossVisuals(false);
     state.lastEndReason = reason;
     stopTimer();
     state.allowBlurPenalty = false;
