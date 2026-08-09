@@ -263,7 +263,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function sanitizeUsername(raw) {
-    return raw.replace(/[<>]/g, "").trim().slice(0, 22);
+    // Strict validation: letters and spaces only — no numbers, symbols, or emojis.
+    return raw
+      .replace(/[^a-zA-Z ]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 22);
+  }
+
+  function usernameKey(name) {
+    return String(name || "")
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z_]/g, "")
+      .slice(0, 22);
   }
 
   function shuffle(arr) {
@@ -519,6 +533,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       if (event.key === "Enter") {
         event.preventDefault();
         startGame();
+      }
+    });
+
+    // Live-clean the field as the user types: letters and spaces only.
+    elements.usernameInput.addEventListener("input", () => {
+      const cursorAtEnd = elements.usernameInput.selectionEnd === elements.usernameInput.value.length;
+      const cleaned = elements.usernameInput.value.replace(/[^a-zA-Z ]/g, "").slice(0, 22);
+      if (cleaned !== elements.usernameInput.value) {
+        elements.usernameInput.value = cleaned;
+        if (cursorAtEnd) {
+          elements.usernameInput.setSelectionRange(cleaned.length, cleaned.length);
+        }
       }
     });
 
@@ -1005,6 +1031,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   async function saveScore() {
+    const key = usernameKey(state.username);
     const entry = {
       username: state.username,
       score: state.score,
@@ -1014,10 +1041,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       scoreVersion: SCORE_MIGRATION_VERSION
     };
 
-    if (db) {
+    if (db && key) {
       try {
-        const key = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        await set(ref(db, `${FIREBASE_TABLE}/${key}`), entry);
+        const entryRef = ref(db, `${FIREBASE_TABLE}/${key}`);
+        const snap = await get(entryRef);
+        if (snap.exists() && Number(snap.val().score || 0) >= state.score) {
+          // Existing high score is already equal or better — don't overwrite it.
+          return;
+        }
+        await set(entryRef, entry);
         return;
       } catch (error) {
         console.warn("[Arena] Firebase write failed, saving locally instead:", error);
@@ -1025,7 +1057,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     const list = await fetchScores();
-    list.push(entry);
+    const idx = list.findIndex((item) => usernameKey(item.username) === key);
+    if (idx >= 0) {
+      if (Number(list[idx].score || 0) < state.score) list[idx] = entry;
+    } else {
+      list.push(entry);
+    }
     await persistScores(list);
   }
 
