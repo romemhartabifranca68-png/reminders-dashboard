@@ -1277,6 +1277,26 @@ body:not(.authed) #welcomeModal { display: none !important; }
 body.arena-playing .guest-banner,
 body.arena-gameover .guest-banner { display: none !important; }
 
+
+.run-type-card.is-study.selected {
+  border-color: rgba(143, 255, 227, 0.5);
+  background: rgba(100, 255, 218, 0.1);
+}
+body.role-guest .run-type-grid,
+body.role-guest #startBtn {
+  opacity: 0.55;
+}
+body.role-guest.guest-play-ok .run-type-grid,
+body.role-guest.guest-play-ok #startBtn {
+  opacity: 1;
+}
+.admin-hub-note {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--gold);
+  font-weight: 700;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -1335,28 +1355,37 @@ body.arena-gameover .guest-banner { display: none !important; }
       <h2 id="authTitle">Section Access</h2>
       <p class="auth-lead">
         Classmates: sign in with your assigned username &amp; password.
-        Visitors from the FB page may continue as <strong>Guest</strong> with limited arena access.
+        Powered by <strong>RST</strong> · Classmates sign in with assigned credentials.
+        Guests may <strong>browse only</strong> unless the Admin issues a Guest Pass.
       </p>
       <div class="auth-field">
         <label for="authUsername">Username</label>
-        <input id="authUsername" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. oclarino" maxlength="24" />
+        <input id="authUsername" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. tabifranca" maxlength="24" />
       </div>
       <div class="auth-field">
         <label for="authPassword">Password</label>
         <input id="authPassword" type="password" autocomplete="current-password" placeholder="Assigned section password" maxlength="40" />
+      </div>
+      <div class="auth-field" id="adminCodeField" hidden>
+        <label for="authAdminCode">Admin secret code (RST only)</label>
+        <input id="authAdminCode" type="password" autocomplete="off" placeholder="Admin code" maxlength="40" />
       </div>
       <p class="auth-error" id="authError" aria-live="polite"></p>
       <div class="auth-actions">
         <button type="button" class="btn btn-primary" id="authLoginBtn">Sign in as Classmate</button>
       </div>
       <div class="auth-divider">OR</div>
+      <div class="auth-field">
+        <label for="authGuestPass">Guest Pass (optional — from Admin)</label>
+        <input id="authGuestPass" type="text" autocomplete="off" autocapitalize="characters" placeholder="Guest pass code" maxlength="24" />
+      </div>
       <div class="auth-actions">
         <button type="button" class="btn btn-secondary" id="authGuestBtn">Continue as Guest</button>
       </div>
       <p class="auth-note">
-        Classmate perks: Ranked + Daily leaderboards, full directory, section tools.
-        Guest: Practice mode only — scores are not saved to competitive boards.
-        Client-side gate for section privacy (not a bank-grade login).
+        <strong>Classmate:</strong> full hub + Ranked / Practice / Daily.<br/>
+        <strong>Guest:</strong> browse only by default. Arena play requires a Guest Pass from Admin (RST).<br/>
+        <strong>Admin:</strong> username <code>tabifranca</code> + password + secret admin code.
       </p>
     </div>
   </div>
@@ -1370,7 +1399,7 @@ body.arena-gameover .guest-banner { display: none !important; }
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeQuote">
       <span class="modal-tag">SYSTEM_BOOT :: BSCS_1A</span>
       <p class="modal-quote" id="welcomeQuote">Loading quote...</p>
-      <p class="modal-signature">&mdash; Developed by RST</p>
+      <p class="modal-signature">&mdash; RST · Rome Mhar S. Tabifranca</p>
       <button class="modal-enter" id="welcomeEnterBtn" type="button">Enter Reviewer Arena</button>
     </div>
   </div>
@@ -1449,8 +1478,7 @@ body.arena-gameover .guest-banner { display: none !important; }
   </nav>
 
   <div class="guest-banner" id="guestBanner" hidden>
-    Guest mode: you can browse the hub and use <strong>Practice</strong> in the Arena.
-    Ranked / Daily leaderboards are for verified BSCS 1-A classmates only.
+    Guest mode: browse-only access. Arena play is locked unless Admin (RST) issued you a valid Guest Pass.
   </div>
 
   <header class="hero">
@@ -1842,6 +1870,11 @@ body.arena-gameover .guest-banner { display: none !important; }
                       <span class="run-type-title">Daily</span>
                       <span class="run-type-desc">12 fixed Qs · shared set today</span>
                     </button>
+                    <button type="button" class="run-type-card is-study" data-run-type="study" role="radio" aria-checked="false" id="runTypeStudy">
+                      <span class="run-type-icon" aria-hidden="true">&#128161;</span>
+                      <span class="run-type-title">Study Plan</span>
+                      <span class="run-type-desc">10 Qs from weak mastery + mistakes</span>
+                    </button>
                   </div>
                   <p class="daily-meta" id="dailyMeta" hidden>Daily Challenge · resets in --</p>
 
@@ -1863,7 +1896,11 @@ body.arena-gameover .guest-banner { display: none !important; }
                     <button type="button" class="login-modal-btn" data-open-modal="leaderboardModal">
                       View Leaderboard
                     </button>
+                    <button type="button" class="login-modal-btn" id="openAdminHubBtn" hidden>
+                      RST Admin Panel
+                    </button>
                   </div>
+                  <div id="scholarProfileCard" class="mastery-panel" style="margin-top:0.75rem;" hidden></div>
                 </div>
 
                 <div id="gameView" class="view">
@@ -1984,7 +2021,7 @@ body.arena-gameover .guest-banner { display: none !important; }
           Official digital welcome page of <span>BSCS 1-A</span> built with a premium mobile-first
           cyberpunk theme for a modern Computer Science identity.
         </p>
-        <p>Designed and coded by the | Technical Manager &mdash; Developed by RST</p>
+        <p>Designed and coded by Technical Manager <span>Rome Mhar S. Tabifranca</span> &mdash; <span>RST</span></p>
       </div>
     </div>
   </footer>
