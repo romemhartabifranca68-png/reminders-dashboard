@@ -4,23 +4,30 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#060c18" />
+  <meta name="application-name" content="BSCS 1-A · RST Hub" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BSCS 1-A RST" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
   <meta
     name="description"
-    content="Official Section Hub ng BS Computer Science 1-A (LSPU Siniloan Campus) para sa announcements, schedule, officers, freshmen directory, reviewer arena, at freedom wall."
+    content="BSCS 1-A Official Section Hub by RST — LSPU Siniloan. Reviewer Arena, schedule, officers, and section tools."
   />
-  <meta property="og:title" content="BSCS 1-A | Official Section Hub" />
+  <meta property="og:title" content="BSCS 1-A · RST Section Hub" />
   <meta
     property="og:description"
-    content="Welcome page ng BSCS 1-A na may premium dark UI, reviewer arena, section directory, at school quick links."
+    content="Premium mobile-first hub ng BSCS 1-A (RST). Reviewer Arena, Daily Challenge, Study Plan, and class resources."
   />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="BSCS 1-A | Official Section Hub" />
+  <meta name="twitter:title" content="BSCS 1-A · RST Section Hub" />
   <meta
     name="twitter:description"
-    content="Premium section website ng BSCS 1-A, LSPU Siniloan Campus."
+    content="Official section website ng BSCS 1-A, LSPU Siniloan — built by RST."
   />
-  <title>BSCS 1-A | Official Section Hub</title>
+  <title>BSCS 1-A · RST Section Hub</title>
   <style>
 /* ===================================================================
    BSCS 1-A SECTION HUB — MOBILE-FIRST CYBERPUNK GLASSMORPHIC THEME
@@ -1297,6 +1304,107 @@ body.role-guest.guest-play-ok #startBtn {
   font-weight: 700;
 }
 
+
+/* ===== Command Center + cinematic results + PWA tip ===== */
+.command-center {
+  display: grid;
+  gap: 0.65rem;
+}
+.cmd-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+@media (min-width: 420px) {
+  .cmd-grid { grid-template-columns: 1fr 1fr; }
+}
+.cmd-tile {
+  border-radius: 14px;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(100,255,218,0.16);
+  background: rgba(255,255,255,0.03);
+}
+.cmd-tile .cmd-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.25rem;
+}
+.cmd-tile .cmd-value {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #f2fffb;
+  line-height: 1.35;
+}
+.cmd-tile .cmd-sub {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: rgba(230,241,255,0.7);
+}
+.pwa-tip {
+  margin-top: 0.55rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.result-hero {
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+.result-score-big {
+  margin: 0.35rem 0 0;
+  font-size: clamp(2.2rem, 10vw, 3.2rem);
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-shadow: 0 0 24px rgba(100,255,218,0.35);
+}
+.result-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+  margin: 0.75rem 0 0.35rem;
+}
+.result-stat {
+  border-radius: 12px;
+  padding: 0.55rem 0.35rem;
+  border: 1px solid rgba(100,255,218,0.14);
+  background: rgba(255,255,255,0.03);
+}
+.result-stat b {
+  display: block;
+  font-size: 0.95rem;
+  color: #f2fffb;
+}
+.result-stat span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.answer-hint {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: rgba(255, 210, 125, 0.95);
+  font-weight: 700;
+  line-height: 1.4;
+}
+.hub-version {
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -1510,9 +1618,10 @@ body.role-guest.guest-play-ok #startBtn {
         </div>
 
         <div class="hero-actions">
-          <a class="btn btn-primary" href="dashboard.html">Tingnan ang Class Dashboard</a>
-          <a class="btn btn-secondary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
+          <a class="btn btn-primary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
+          <a class="btn btn-secondary" href="dashboard.html">Class Dashboard</a>
         </div>
+        <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
           <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
@@ -1948,9 +2057,16 @@ body.role-guest.guest-play-ok #startBtn {
 
                 <div id="gameOverView" class="view">
                   <div class="crash">
-                    <h3 class="crash-title">[SYSTEM CRASH] REVIEWER OVER</h3>
-                    <p class="crash-score">Final Score: <span id="finalScore">0</span></p>
-                    <p class="crash-rank">Final Badge: <span id="finalRank">Warrior Fresh</span></p>
+                    <div class="result-hero">
+                      <h3 class="crash-title">[SYSTEM CRASH] REVIEWER OVER</h3>
+                      <p class="result-score-big" id="finalScore">0</p>
+                      <p class="crash-rank">Final Badge: <span id="finalRank">Warrior Fresh</span></p>
+                      <div class="result-stats" aria-label="Run stats">
+                        <div class="result-stat"><b id="statAccuracy">—</b><span>Accuracy</span></div>
+                        <div class="result-stat"><b id="statStreak">—</b><span>Best streak</span></div>
+                        <div class="result-stat"><b id="statMode">—</b><span>Mode</span></div>
+                      </div>
+                    </div>
                     <p id="gameOverNote" class="arena-note"></p>
                     <p id="gameOverQuote" class="crash-quote"></p>
 
@@ -1982,6 +2098,9 @@ body.role-guest.guest-play-ok #startBtn {
         </div>
 
         <div class="card pad">
+          <p class="arena-note" style="margin:0 0 0.75rem;">
+            <strong>Wall rules:</strong> respect classmates · no doxxing · keep it academic/section-related · Admin (RST) may moderate.
+          </p>
           <div class="padlet-box">
             <div class="padlet-embed" style="border:1px solid rgba(0,0,0,0.1);border-radius:2px;box-sizing:border-box;overflow:hidden;position:relative;width:100%;background:#F4F4F4">
               <iframe src="https://padlet.com/embed/dbsy286cnt50z3om" frameborder="0" allow="camera;microphone;geolocation;display-capture;clipboard-write" style="width:100%;height:70dvh;min-height:420px;display:block;padding:0;margin:0"></iframe>
@@ -2022,6 +2141,7 @@ body.role-guest.guest-play-ok #startBtn {
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed and coded by Technical Manager <span>Rome Mhar S. Tabifranca</span> &mdash; <span>RST</span></p>
+        <p class="hub-version">RST Hub v2.0 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
