@@ -1158,6 +1158,125 @@ body.boss-active #gameView.active {
 .stream-chip.boss-stream { color: #ffb3b3; }
 .feedback.is-boss-win { color: #ffd27d; }
 
+
+/* ===== Access Gate / Session (classmate vs guest) ===== */
+.auth-gate {
+  position: fixed; inset: 0; z-index: 900;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  padding-top: calc(1rem + var(--safe-t));
+  padding-bottom: calc(1rem + var(--safe-b));
+  background:
+    radial-gradient(600px 400px at 20% 0%, rgba(100,255,218,0.12), transparent 55%),
+    radial-gradient(500px 380px at 100% 100%, rgba(0,229,255,0.1), transparent 50%),
+    rgba(4, 8, 16, 0.92);
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.auth-gate[hidden] { display: none !important; }
+.auth-panel {
+  width: min(26rem, 100%);
+  border-radius: 22px;
+  padding: 1.35rem 1.15rem 1.2rem;
+  background: linear-gradient(180deg, rgba(14, 26, 46, 0.96), rgba(8, 16, 30, 0.98));
+  border: 1px solid rgba(100,255,218,0.28);
+  box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 40px rgba(100,255,218,0.12);
+  text-align: left;
+}
+.auth-brand {
+  display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.9rem;
+}
+.auth-brand img {
+  width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
+  box-shadow: 0 0 12px rgba(100,255,218,0.35);
+}
+.auth-brand strong { display: block; font-size: 0.95rem; }
+.auth-brand span { display: block; font-size: 0.75rem; color: var(--muted); }
+.auth-tag {
+  display: inline-flex; margin-bottom: 0.65rem; padding: 0.3rem 0.65rem;
+  border-radius: 999px; border: 1px solid rgba(100,255,218,0.28);
+  background: rgba(100,255,218,0.08); color: var(--accent);
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.auth-panel h2 {
+  margin: 0 0 0.4rem; font-size: 1.25rem; color: #f2fffb;
+}
+.auth-panel .auth-lead {
+  margin: 0 0 1rem; font-size: 0.88rem; line-height: 1.55; color: rgba(230,241,255,0.82);
+}
+.auth-field { margin-bottom: 0.7rem; }
+.auth-field label {
+  display: block; margin-bottom: 0.3rem; font-size: 0.72rem; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.auth-field input {
+  width: 100%; padding: 0.9rem 1rem; min-height: 48px; border-radius: 13px;
+  border: 1px solid rgba(100,255,218,0.2); background: rgba(0,0,0,0.32);
+  color: var(--text); font-size: 1rem;
+}
+.auth-field input:focus {
+  outline: none; border-color: rgba(100,255,218,0.45);
+  box-shadow: 0 0 0 3px rgba(100,255,218,0.12);
+}
+.auth-error {
+  min-height: 1.2rem; margin: 0 0 0.55rem; font-size: 0.82rem; font-weight: 700;
+  color: #ffb7a8;
+}
+.auth-actions { display: grid; gap: 0.55rem; }
+.auth-actions .btn { width: 100%; min-height: 48px; }
+.auth-divider {
+  display: flex; align-items: center; gap: 0.6rem; margin: 0.85rem 0;
+  color: var(--muted); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ""; flex: 1; height: 1px; background: rgba(100,255,218,0.14);
+}
+.auth-note {
+  margin: 0.75rem 0 0; font-size: 0.72rem; line-height: 1.45; color: var(--muted);
+}
+
+.session-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.72rem; font-weight: 800;
+  border: 1px solid rgba(100,255,218,0.22); background: rgba(100,255,218,0.08);
+  color: rgba(230,241,255,0.92); max-width: 11rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.session-chip.is-guest {
+  border-color: rgba(255,210,125,0.35); background: rgba(255,210,125,0.1); color: #ffe6b0;
+}
+.session-chip is-classmate, .session-chip.is-classmate {
+  border-color: rgba(100,255,218,0.4); color: #eafffb;
+}
+.guest-banner {
+  position: relative; z-index: 1; margin: 0.75rem auto 0;
+  width: min(var(--max), calc(100% - 1.25rem));
+  padding: 0.75rem 0.9rem; border-radius: 14px;
+  border: 1px solid rgba(255,210,125,0.28);
+  background: rgba(255, 196, 94, 0.08);
+  color: #ffe6b0; font-size: 0.84rem; line-height: 1.45; font-weight: 700;
+}
+.guest-banner[hidden] { display: none !important; }
+body.role-guest .classmate-only { opacity: 0.55; }
+body.role-guest .run-type-card[data-run-type="ranked"],
+body.role-guest .run-type-card[data-run-type="daily"] {
+  opacity: 0.45; position: relative;
+}
+body:not(.authed) > nav.nav,
+body:not(.authed) > header.hero,
+body:not(.authed) > main#main,
+body:not(.authed) > footer,
+body:not(.authed) > .guest-banner,
+body:not(.authed) > .mute-toggle-btn {
+  visibility: hidden; pointer-events: none;
+}
+body:not(.authed) #welcomeModal { display: none !important; }
+
+body.arena-playing .guest-banner,
+body.arena-gameover .guest-banner { display: none !important; }
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -1201,6 +1320,46 @@ body.boss-active #gameView.active {
   <div class="matrix-bg" id="matrixBg" aria-hidden="true"></div>
   <div class="grid-bg" aria-hidden="true"></div>
   <div class="topline" aria-hidden="true"></div>
+
+  <!-- ============ ACCESS GATE (classmate login / guest) ============ -->
+  <div class="auth-gate" id="authGate" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="auth-panel">
+      <span class="auth-tag">SECURE_ACCESS :: BSCS_1A_OS</span>
+      <div class="auth-brand">
+        <img src="logo.png" alt="BSCS 1-A logo" width="42" height="42" />
+        <div>
+          <strong>BSCS 1-A Section Hub</strong>
+          <span>LSPU Siniloan · Batch 2026</span>
+        </div>
+      </div>
+      <h2 id="authTitle">Section Access</h2>
+      <p class="auth-lead">
+        Classmates: sign in with your assigned username &amp; password.
+        Visitors from the FB page may continue as <strong>Guest</strong> with limited arena access.
+      </p>
+      <div class="auth-field">
+        <label for="authUsername">Username</label>
+        <input id="authUsername" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="e.g. oclarino" maxlength="24" />
+      </div>
+      <div class="auth-field">
+        <label for="authPassword">Password</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Assigned section password" maxlength="40" />
+      </div>
+      <p class="auth-error" id="authError" aria-live="polite"></p>
+      <div class="auth-actions">
+        <button type="button" class="btn btn-primary" id="authLoginBtn">Sign in as Classmate</button>
+      </div>
+      <div class="auth-divider">OR</div>
+      <div class="auth-actions">
+        <button type="button" class="btn btn-secondary" id="authGuestBtn">Continue as Guest</button>
+      </div>
+      <p class="auth-note">
+        Classmate perks: Ranked + Daily leaderboards, full directory, section tools.
+        Guest: Practice mode only — scores are not saved to competitive boards.
+        Client-side gate for section privacy (not a bank-grade login).
+      </p>
+    </div>
+  </div>
 
   <!-- ============ INTRO MODAL ============ -->
   <!-- The ONLY thing visible at boot: the cyberpunk quote + signature and
@@ -1270,6 +1429,9 @@ body.boss-active #gameView.active {
         </div>
       </a>
 
+      <span class="session-chip" id="sessionChip" hidden title="Signed-in session">Guest</span>
+      <button type="button" class="nav-toggle" id="logoutBtn" hidden aria-label="Sign out" title="Sign out" style="width:auto;padding:0 0.65rem;font-size:0.72rem;font-weight:800;">Exit</button>
+
       <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="navLinks" aria-label="Toggle navigation">
         &#9776;
       </button>
@@ -1285,6 +1447,11 @@ body.boss-active #gameView.active {
       </div>
     </div>
   </nav>
+
+  <div class="guest-banner" id="guestBanner" hidden>
+    Guest mode: you can browse the hub and use <strong>Practice</strong> in the Arena.
+    Ranked / Daily leaderboards are for verified BSCS 1-A classmates only.
+  </div>
 
   <header class="hero">
     <div class="wrap hero-shell">
