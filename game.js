@@ -50,6 +50,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
      the client bundle; still treat the private password list as confidential.
   ===================================================================== */
   const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
+  const ADMIN_USERNAME = "tabifranca";
+  const ADMIN_CODE_HASH = "0468c056fcc1b0b733d4df0731d0bbb2180ff90e764f4972b5c423e8642b406a"; // RST-ADMIN-HUB-2026
+  const HUB_CONFIG_PATH = "hub_config";
+  const GUEST_PASSES_PATH = "hub_config/guest_passes";
+  const COMPANY_NAME = "RST";
+  const STUDY_PLAN_COUNT = 10;
+  const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
+
   const CLASSMATE_ROSTER = [
     { username: "anggay", displayName: "ANGGAY, SHEIKH HASSAN G.", hash: "bb7aca0584643d8638d0a3fb543469293e1b24b3d6380a24030853c62a8c6641" },
     { username: "astrera", displayName: "ASTRERA, MARK ANGELO F.", hash: "75e1ecf8a0e7562f3abe8e3d0685f6b6dc33cd2319fc490be7c0687ec7d5f032" },
@@ -74,10 +82,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   ];
 
   const authState = {
-    role: null, // "classmate" | "guest"
+    role: null, // "classmate" | "guest" | "admin"
     username: "",
     displayName: "",
-    ready: false
+    ready: false,
+    isAdmin: false,
+    guestPlayAllowed: false, // true if guest has valid pass or global enable
+    guestPassCode: ""
   };
 
   async function sha256Hex(textValue) {
@@ -119,17 +130,30 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function isClassmate() {
-    return authState.role === "classmate";
+    return authState.role === "classmate" || authState.role === "admin";
   }
 
   function isGuest() {
     return authState.role === "guest";
   }
 
+  function isAdmin() {
+    return !!authState.isAdmin || authState.role === "admin";
+  }
+
+  function canPlayArena() {
+    if (isClassmate() || isAdmin()) return true;
+    if (isGuest() && authState.guestPlayAllowed) return true;
+    return false;
+  }
+
+
   function applyAuthUI() {
     document.body.classList.toggle("authed", !!authState.role);
-    document.body.classList.toggle("role-classmate", authState.role === "classmate");
+    document.body.classList.toggle("role-classmate", authState.role === "classmate" || authState.role === "admin");
     document.body.classList.toggle("role-guest", authState.role === "guest");
+    document.body.classList.toggle("role-admin", isAdmin());
+    document.body.classList.toggle("guest-play-ok", !!(isGuest() && authState.guestPlayAllowed));
 
     const gate = $("authGate");
     if (gate) gate.hidden = !!authState.role;
@@ -141,13 +165,19 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       } else {
         chip.hidden = false;
         chip.classList.toggle("is-guest", authState.role === "guest");
-        chip.classList.toggle("is-classmate", authState.role === "classmate");
-        chip.textContent = authState.role === "guest"
-          ? "Guest"
-          : (authState.displayName.split(",")[0] || authState.username);
-        chip.title = authState.role === "guest"
-          ? "Guest session — limited arena access"
-          : `Classmate · ${authState.displayName}`;
+        chip.classList.toggle("is-classmate", authState.role === "classmate" || authState.role === "admin");
+        if (isAdmin()) {
+          chip.textContent = "RST Admin";
+          chip.title = `Admin · ${authState.displayName} · ${COMPANY_NAME}`;
+        } else if (authState.role === "guest") {
+          chip.textContent = authState.guestPlayAllowed ? "Guest · Pass OK" : "Guest · Browse";
+          chip.title = authState.guestPlayAllowed
+            ? "Guest with play permission"
+            : "Guest browse-only — no arena play";
+        } else {
+          chip.textContent = authState.displayName.split(",")[0] || authState.username;
+          chip.title = `Classmate · ${authState.displayName}`;
+        }
       }
     }
 
@@ -155,17 +185,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (logoutBtn) logoutBtn.hidden = !authState.role;
 
     const guestBanner = $("guestBanner");
-    if (guestBanner) guestBanner.hidden = authState.role !== "guest";
+    if (guestBanner) {
+      guestBanner.hidden = authState.role !== "guest";
+      if (authState.role === "guest") {
+        guestBanner.innerHTML = authState.guestPlayAllowed
+          ? "Guest Pass active: you may use <strong>Practice</strong> / <strong>Study Plan</strong> only. Ranked &amp; Daily stay classmate-only."
+          : "Guest mode: <strong>browse only</strong>. Arena is locked until Admin (RST) issues a Guest Pass.";
+      }
+    }
 
-    // Guests default to Practice; classmates keep current selection
-    if (authState.role === "guest" && typeof selectRunType === "function") {
+    const adminBtn = $("openAdminHubBtn");
+    if (adminBtn) adminBtn.hidden = !isAdmin();
+
+    // Show admin code field when username is tabifranca
+    const adminField = $("adminCodeField");
+    const userInput = $("authUsername");
+    if (adminField && userInput && !authState.role) {
+      const u = String(userInput.value || "").trim().toLowerCase();
+      adminField.hidden = u !== ADMIN_USERNAME;
+    }
+
+    if (typeof renderScholarProfile === "function") renderScholarProfile();
+
+    // Guests with play permission default to Practice; locked guests stay out of run types
+    if (authState.role === "guest" && authState.guestPlayAllowed && typeof selectRunType === "function") {
       selectRunType("practice");
     }
   }
 
-  async function tryClassmateLogin(usernameRaw, passwordRaw) {
+  async function tryClassmateLogin(usernameRaw, passwordRaw, adminCodeRaw) {
     const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z]/g, "");
     const password = String(passwordRaw || "");
+    const adminCode = String(adminCodeRaw || "");
     if (!username || !password) {
       return { ok: false, message: "Ilagay ang username at password na assigned sa'yo." };
     }
@@ -175,28 +226,102 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     const hash = await sha256Hex(password);
     if (hash !== entry.hash) {
-      return { ok: false, message: "Maling password. I-check ulit ang credentials from your Tech Manager." };
+      return { ok: false, message: "Maling password. I-check ulit ang credentials from RST / Tech Manager." };
     }
-    authState.role = "classmate";
+
+    let elevatedAdmin = false;
+    if (username === ADMIN_USERNAME && adminCode) {
+      const adminHash = await sha256Hex(adminCode);
+      if (adminHash === ADMIN_CODE_HASH) {
+        elevatedAdmin = true;
+      } else {
+        return { ok: false, message: "Admin secret code is incorrect." };
+      }
+    }
+
+    authState.role = elevatedAdmin ? "admin" : "classmate";
+    authState.isAdmin = elevatedAdmin;
     authState.username = entry.username;
     authState.displayName = entry.displayName;
     authState.ready = true;
+    authState.guestPlayAllowed = true; // classmates always can play
     saveAuthSession({
-      role: "classmate",
+      role: authState.role,
+      isAdmin: elevatedAdmin,
       username: entry.username,
       displayName: entry.displayName,
+      guestPlayAllowed: true,
       ts: Date.now()
     });
-    return { ok: true };
+    return { ok: true, admin: elevatedAdmin };
   }
 
-  function enterAsGuest() {
+  async function verifyGuestPass(passRaw) {
+    const code = String(passRaw || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    if (!code) return { ok: false, allowed: false };
+
+    // Local fallback passes issued offline by admin panel (same device)
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+      if (local[code] && local[code].active) {
+        return { ok: true, allowed: true, code, source: "local" };
+      }
+    } catch (error) {
+      /* ignore */
+    }
+
+    if (db) {
+      try {
+        // Global toggle
+        const cfgSnap = await get(ref(db, HUB_CONFIG_PATH));
+        if (cfgSnap.exists() && cfgSnap.val() && cfgSnap.val().guestPlayEnabled === true) {
+          return { ok: true, allowed: true, code: "GLOBAL", source: "global" };
+        }
+        const passSnap = await get(ref(db, `${GUEST_PASSES_PATH}/${code}`));
+        if (passSnap.exists()) {
+          const val = passSnap.val();
+          if (val && val.active !== false) {
+            return { ok: true, allowed: true, code, source: "firebase" };
+          }
+        }
+      } catch (error) {
+        console.warn("[Auth] guest pass check failed:", error);
+      }
+    }
+    return { ok: false, allowed: false, message: "Invalid or expired Guest Pass." };
+  }
+
+  async function enterAsGuest(passRaw) {
+    const pass = String(passRaw || "").trim();
+    let allowed = false;
+    let code = "";
+    if (pass) {
+      const checked = await verifyGuestPass(pass);
+      allowed = !!checked.allowed;
+      code = checked.code || pass.toUpperCase();
+      if (pass && !allowed) {
+        return { ok: false, message: checked.message || "Invalid Guest Pass. Browse-only kung walang valid pass." };
+      }
+    }
     authState.role = "guest";
+    authState.isAdmin = false;
     authState.username = "guest";
     authState.displayName = "Guest Visitor";
     authState.ready = true;
-    saveAuthSession({ role: "guest", username: "guest", displayName: "Guest Visitor", ts: Date.now() });
+    authState.guestPlayAllowed = allowed;
+    authState.guestPassCode = code;
+    saveAuthSession({
+      role: "guest",
+      isAdmin: false,
+      username: "guest",
+      displayName: "Guest Visitor",
+      guestPlayAllowed: allowed,
+      guestPassCode: code,
+      ts: Date.now()
+    });
+    return { ok: true, allowed };
   }
+
 
   function signOutHub() {
     clearAuthSession();
@@ -204,6 +329,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     authState.username = "";
     authState.displayName = "";
     authState.ready = false;
+    authState.isAdmin = false;
+    authState.guestPlayAllowed = false;
+    authState.guestPassCode = "";
     applyAuthUI();
     // Soft reset arena UI if mid-flow
     try {
@@ -225,6 +353,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       authState.role = existing.role;
       authState.username = existing.username || "";
       authState.displayName = existing.displayName || "";
+      authState.isAdmin = !!existing.isAdmin || existing.role === "admin";
+      authState.guestPlayAllowed = !!existing.guestPlayAllowed || authState.role === "classmate" || authState.role === "admin";
+      authState.guestPassCode = existing.guestPassCode || "";
       authState.ready = true;
       applyAuthUI();
     } else {
@@ -235,10 +366,23 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const guestBtn = $("authGuestBtn");
     const userInput = $("authUsername");
     const passInput = $("authPassword");
+    const adminInput = $("authAdminCode");
+    const guestPassInput = $("authGuestPass");
     const errEl = $("authError");
     const logoutBtn = $("logoutBtn");
+    const adminHubBtn = $("openAdminHubBtn");
 
     const showErr = (msg) => { if (errEl) errEl.textContent = msg || ""; };
+
+    if (userInput) {
+      userInput.addEventListener("input", () => {
+        const adminField = $("adminCodeField");
+        if (adminField) {
+          const u = String(userInput.value || "").trim().toLowerCase();
+          adminField.hidden = u !== ADMIN_USERNAME;
+        }
+      });
+    }
 
     if (loginBtn) {
       bindTap(loginBtn, async (event) => {
@@ -247,16 +391,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         loginBtn.disabled = true;
         loginBtn.textContent = "Verifying…";
         try {
-          const result = await tryClassmateLogin(userInput && userInput.value, passInput && passInput.value);
+          const result = await tryClassmateLogin(
+            userInput && userInput.value,
+            passInput && passInput.value,
+            adminInput && adminInput.value
+          );
           if (!result.ok) {
             showErr(result.message);
             return;
           }
           applyAuthUI();
-          // Show welcome quote modal only after successful auth if still visible
-          const welcome = $("welcomeModal");
-          if (welcome && !welcome.hasAttribute("hidden")) {
-            /* keep welcome flow */
+          if (result.admin) {
+            showShareToast && showShareToast("RST Admin session active");
           }
         } finally {
           loginBtn.disabled = false;
@@ -266,10 +412,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     if (guestBtn) {
-      bindTap(guestBtn, (event) => {
+      bindTap(guestBtn, async (event) => {
         event.preventDefault();
-        enterAsGuest();
-        applyAuthUI();
+        showErr("");
+        guestBtn.disabled = true;
+        try {
+          const result = await enterAsGuest(guestPassInput && guestPassInput.value);
+          if (!result.ok) {
+            showErr(result.message);
+            return;
+          }
+          applyAuthUI();
+        } finally {
+          guestBtn.disabled = false;
+        }
       });
     }
 
@@ -298,7 +454,140 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         }
       });
     }
+
+    if (adminHubBtn) {
+      bindTap(adminHubBtn, (event) => {
+        event.preventDefault();
+        openRstAdminPanel();
+      });
+    }
   }
+
+  /* ---------------- RST Admin Panel: guest play control ---------------- */
+  function openRstAdminPanel() {
+    if (!isAdmin()) {
+      showShareToast && showShareToast("Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
+        Rome Mhar S. Tabifranca · ${COMPANY_NAME}. Control guest arena access for FB visitors.
+      </p>
+      <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;margin-bottom:0.75rem;">
+        <input type="checkbox" id="adminGuestGlobal" /> Enable guest play globally (all guests)
+      </label>
+      <div class="auth-field">
+        <label for="adminNewPass">Issue Guest Pass code</label>
+        <input id="adminNewPass" type="text" maxlength="16" placeholder="e.g. RST-GUEST-01" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(0,0,0,0.3);color:var(--text);" />
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        <button type="button" class="lifeline-btn" id="adminIssuePass">Issue Pass</button>
+        <button type="button" class="lifeline-btn" id="adminSaveGlobal">Save Global Toggle</button>
+        <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
+      </div>
+      <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Passes are stored in Firebase when online, and mirrored locally on this device.</p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    const status = panel.querySelector("#adminHubStatus");
+    const globalBox = panel.querySelector("#adminGuestGlobal");
+    const passInput = panel.querySelector("#adminNewPass");
+
+    // Load global flag
+    (async () => {
+      if (!db) return;
+      try {
+        const snap = await get(ref(db, HUB_CONFIG_PATH));
+        if (snap.exists() && snap.val()) {
+          globalBox.checked = snap.val().guestPlayEnabled === true;
+        }
+      } catch (error) {
+        status.textContent = "Could not load hub_config (check Firebase rules).";
+      }
+    })();
+
+    bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+
+    bindTap(panel.querySelector("#adminSaveGlobal"), async (e) => {
+      e.preventDefault();
+      const enabled = !!globalBox.checked;
+      try {
+        if (db) {
+          await set(ref(db, `${HUB_CONFIG_PATH}/guestPlayEnabled`), enabled);
+        }
+        // local mirror
+        localStorage.setItem("bscs1a_guest_global_v1", enabled ? "1" : "0");
+        status.textContent = enabled ? "Global guest play ENABLED." : "Global guest play DISABLED.";
+      } catch (error) {
+        status.textContent = "Save failed — update Firebase rules for hub_config writes (admin only is client-enforced).";
+        console.warn(error);
+      }
+    });
+
+    bindTap(panel.querySelector("#adminIssuePass"), async (e) => {
+      e.preventDefault();
+      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+      if (!code) {
+        code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        passInput.value = code;
+      }
+      const payload = { active: true, createdBy: ADMIN_USERNAME, company: COMPANY_NAME, ts: Date.now() };
+      try {
+        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+        local[code] = payload;
+        localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+      } catch (error) {
+        /* ignore */
+      }
+      try {
+        if (db) {
+          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), payload);
+        }
+        status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
+      } catch (error) {
+        status.textContent = `Local pass saved: ${code} (Firebase write failed — still works on this device).`;
+        console.warn(error);
+      }
+    });
+  }
+
+  function renderScholarProfile() {
+    const host = $("scholarProfileCard");
+    if (!host) return;
+    if (!authState.role || authState.role === "guest" && !authState.guestPlayAllowed) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    const mastery = loadMastery();
+    const subjects = Object.keys(mastery);
+    let avg = 0;
+    if (subjects.length) {
+      avg = Math.round(subjects.reduce((sum, s) => {
+        const e = mastery[s];
+        return sum + (e.total ? (e.correct / e.total) * 100 : 0);
+      }, 0) / subjects.length);
+    }
+    const roleLabel = isAdmin() ? "RST Admin" : isGuest() ? "Guest (Pass)" : "Classmate";
+    host.innerHTML = `<h4>Scholar Profile · ${COMPANY_NAME}</h4>
+      <p style="margin:0;font-size:0.84rem;line-height:1.5;color:rgba(230,241,255,0.88);">
+        <strong>${escapeHtml(authState.displayName || authState.username)}</strong><br/>
+        Role: ${roleLabel}<br/>
+        Mastery coverage: ${subjects.length} subject(s) · avg ${avg}%
+      </p>`;
+  }
+
 
   /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
      Score writes go straight to Firebase; write validation (correct data
@@ -1407,6 +1696,66 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return seededShuffle(questionBank, seed).slice(0, Math.min(DAILY_QUESTION_COUNT, questionBank.length));
   }
 
+  function loadRecentMistakes() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MISTAKES_STORAGE_KEY) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveRecentMistake(question) {
+    if (!question) return;
+    try {
+      const list = loadRecentMistakes().filter((m) => !(m.s === question.s && m.q === question.q));
+      list.unshift({ s: question.s, q: question.q, ts: Date.now() });
+      localStorage.setItem(MISTAKES_STORAGE_KEY, JSON.stringify(list.slice(0, 40)));
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function buildStudyPlanPool() {
+    const mastery = loadMastery();
+    const recent = loadRecentMistakes();
+    const picked = [];
+    const seen = new Set();
+
+    const pushQ = (q) => {
+      if (!q) return;
+      const key = q.s + "||" + q.q;
+      if (seen.has(key)) return;
+      seen.add(key);
+      picked.push(q);
+    };
+
+    // 1) Recent mistakes resolved against question bank
+    recent.forEach((m) => {
+      const found = questionBank.find((q) => q.s === m.s && q.q === m.q);
+      pushQ(found);
+    });
+
+    // 2) Weak subjects by mastery ratio
+    const rankedSubjects = AVAILABLE_SUBJECTS.slice().sort((a, b) => {
+      const ea = mastery[a] || { correct: 0, total: 0 };
+      const eb = mastery[b] || { correct: 0, total: 0 };
+      const ra = ea.total ? ea.correct / ea.total : 0;
+      const rb = eb.total ? eb.correct / eb.total : 0;
+      return ra - rb;
+    });
+    rankedSubjects.forEach((subject) => {
+      const pool = (subjectPoolMap.get(subject) || []).slice();
+      shuffle(pool).forEach(pushQ);
+    });
+
+    // 3) Fill from full bank if needed
+    shuffle(questionBank).forEach(pushQ);
+
+    return picked.slice(0, Math.min(STUDY_PLAN_COUNT, picked.length));
+  }
+
+
   function msUntilNextLocalMidnight() {
     const now = new Date();
     const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
@@ -1453,24 +1802,24 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     // Back-compat: old boolean callers
     if (runType === true) runType = "practice";
     if (runType === false || runType == null) runType = "ranked";
-    if (runType !== "ranked" && runType !== "practice" && runType !== "daily") {
+    if (runType !== "ranked" && runType !== "practice" && runType !== "daily" && runType !== "study") {
       runType = "ranked";
     }
-    // Access policy: guests cannot select competitive run types
-    if (authState.role === "guest" && runType !== "practice") {
-      runType = "practice";
+    // Access policy: guests (even with pass) only Practice / Study Plan
+    if (authState.role === "guest") {
+      if (runType === "ranked" || runType === "daily") runType = "practice";
     }
 
     state.runType = runType;
-    state.isPractice = runType === "practice";
     state.isDaily = runType === "daily";
-    if (runType !== "practice") {
-      // Daily is competitive; only pure practice disables hearts.
+    // Practice + Study Plan are non-competitive (no leaderboard write, no heart loss)
+    state.isPractice = runType === "practice" || runType === "study";
+    if (runType === "daily") {
       state.isPractice = false;
     }
-    if (runType === "practice") {
+    if (runType === "ranked") {
+      state.isPractice = false;
       state.isDaily = false;
-      state.isPractice = true;
     }
 
     const grid = elements.runTypeGrid || $("runTypeGrid");
@@ -1498,12 +1847,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (elements.startBtn) {
       elements.startBtn.textContent =
         state.runType === "practice" ? "START PRACTICE" :
+        state.runType === "study" ? "START STUDY PLAN" :
         state.runType === "daily" ? "START DAILY CHALLENGE" :
         "INITIALIZE";
     }
     if (elements.loginStatus) {
-      if (state.runType === "practice") {
+      if (!canPlayArena()) {
+        elements.loginStatus.textContent = "Arena locked for browse-only guests. Ask RST Admin for a Guest Pass.";
+      } else if (state.runType === "practice") {
         elements.loginStatus.textContent = "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard.";
+      } else if (state.runType === "study") {
+        elements.loginStatus.textContent = `Study Plan: ${STUDY_PLAN_COUNT} questions focused on weak mastery + recent mistakes. Hindi competitive.`;
       } else if (state.runType === "daily") {
         elements.loginStatus.textContent = `Daily Challenge: ${DAILY_QUESTION_COUNT} fixed questions shared by the whole section. Score saves to today's Daily board only.`;
       } else {
@@ -2014,6 +2368,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     playWrongBuzz();
     if (state.currentQuestion && state.currentQuestion.s) {
       recordMastery(state.currentQuestion.s, false);
+      saveRecentMistake(state.currentQuestion);
     }
     state.mistakes.push({
       subject: state.currentQuestion.s,
@@ -2057,6 +2412,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (state.isDaily) {
       state.dailyDateKey = getLocalDateKey();
       state.activePool = buildDailyPool();
+      state.currentIndex = 0;
+      return;
+    }
+
+    // Study Plan: prioritize low mastery subjects + recent mistakes
+    if (state.runType === "study") {
+      state.activePool = buildStudyPlanPool();
       state.currentIndex = 0;
       return;
     }
@@ -2128,6 +2490,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         // PHASE 2: Daily Challenge is a finite 12-question set.
         if (state.isDaily) {
           window.setTimeout(() => endGame("daily_complete"), 200);
+          return;
+        }
+        if (state.runType === "study") {
+          window.setTimeout(() => endGame("study_complete"), 200);
           return;
         }
         buildPool();
@@ -2272,6 +2638,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       playWrongBuzz();
       if (state.currentQuestion && state.currentQuestion.s) {
         recordMastery(state.currentQuestion.s, false);
+        saveRecentMistake(state.currentQuestion);
       }
       // Boss Question wrong answer: normal -1 heart, no extra penalty.
       state.bossQuestionActive = false;
@@ -2412,10 +2779,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       elements.loginStatus.textContent = "Sign in muna sa Section Access gate.";
       return;
     }
-    // Guests may only use Practice (and Retry Mistakes stays practice-scoped).
-    if (isGuest() && state.runType !== "practice") {
+    if (!canPlayArena()) {
+      elements.loginStatus.textContent = "Guest browse-only: Arena locked. Request a Guest Pass from RST Admin (Tabifranca).";
+      return;
+    }
+    // Guests with pass: Practice / Study only
+    if (isGuest() && state.runType !== "practice" && state.runType !== "study") {
       selectRunType("practice");
-      elements.loginStatus.textContent = "Guest access: Practice mode only. Sign in as classmate for Ranked/Daily.";
+      elements.loginStatus.textContent = "Guest Pass: Practice / Study Plan only. Ranked & Daily are classmate-only.";
       return;
     }
 
@@ -2447,6 +2818,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (elements.streamModeLabel) {
       if (state.isDaily) {
         elements.streamModeLabel.textContent = `DAILY_${getLocalDateKey()}`;
+      } else if (state.runType === "study") {
+        elements.streamModeLabel.textContent = "STUDY_PLAN";
       } else {
         const base = getModeConfig(state.selectedMode).streamLabel;
         elements.streamModeLabel.textContent = state.isPractice ? `PRACTICE_${base}` : base;
@@ -3115,7 +3488,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       blur: "Auto game over ito dahil lumipat ka ng browser tab habang active ang game.",
       practice_end: "Practice session ended. Walang score na na-save — pure review lang ito.",
       retry_done: "Naubos ang retry set mo. Review ulit o bumalik sa Ranked mode.",
-      daily_complete: "Natapos mo ang Daily Challenge set ngayong araw. Score is saved to today's Daily board."
+      daily_complete: "Natapos mo ang Daily Challenge set ngayong araw. Score is saved to today's Daily board.",
+      study_complete: "Study Plan complete. Review the mistakes list, then try Ranked when ready."
     };
 
     if (elements.crashTitle) {
