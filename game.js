@@ -42,6 +42,264 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const DAILY_QUESTION_COUNT = 12;
   const DAILY_LEADERBOARD_PREFIX = "daily_";
   const LEADERBOARD_DAILY_ID = "__daily__";
+
+  /* =====================================================================
+     ACCESS CONTROL — Classmate roster (hashed passwords) vs Guest
+     Note: GitHub Pages is static. This is a section privacy gate + UX split,
+     not cryptographic server auth. Passwords are SHA-256 hashed at rest in
+     the client bundle; still treat the private password list as confidential.
+  ===================================================================== */
+  const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
+  const CLASSMATE_ROSTER = [
+    { username: "anggay", displayName: "ANGGAY, SHEIKH HASSAN G.", hash: "bb7aca0584643d8638d0a3fb543469293e1b24b3d6380a24030853c62a8c6641" },
+    { username: "astrera", displayName: "ASTRERA, MARK ANGELO F.", hash: "75e1ecf8a0e7562f3abe8e3d0685f6b6dc33cd2319fc490be7c0687ec7d5f032" },
+    { username: "bacero", displayName: "BACERO, TROY V.", hash: "5a6b36640c45b80f23991a2f7739453106fadecb93622ae754d20f0cd1becb0a" },
+    { username: "baldemor", displayName: "BALDEMOR, ERNEST JOHN REU M.", hash: "6225ad79fe8378fe4df4b572d3f9edb5226c73d030ecf091ae5aa51cfbc2bbd2" },
+    { username: "cainto", displayName: "CAINTO, MARIANNE ABBY V.", hash: "e9c774bff8675a035fecf103b8d06264e7046f0ea21b4f6639933dc6030ba4df" },
+    { username: "calamba", displayName: "CALAMBA, ASHLEY NICOLE F.", hash: "297988abdcf28a79ef46e5817369d010fda9de1cd65b5d74696b42420e8b1923" },
+    { username: "cinena", displayName: "CINENA, NASH RAEL M.", hash: "20b1b7a365525acd43c77a0e2b36b1c9285fea07a195e8e6443a7b065d50ac09" },
+    { username: "coronacion", displayName: "CORONACION, LEENARD G.", hash: "2e7b82dbf72df3726e94307b1fb3e3d08d63eb87005025e13422cdb3b1ad78fe" },
+    { username: "dolar", displayName: "DOLAR, NAZ LOUIE GONZALES", hash: "5001595800056b42769495572f23f261b996dfbb02ef906ea6434d21704d4ec9" },
+    { username: "enciso", displayName: "ENCISO, PRINCE JAMES F.", hash: "83e03cc1487fac975e98636d235b599398a89b444a0e8e501bbb7fd523fd8c61" },
+    { username: "flores", displayName: "FLORES, DEKADA A.", hash: "762117c1e0c0df468076b7ddd13d1146b15f78e4c8cfc5ab00e0b696b0fe7cc3" },
+    { username: "gamayon", displayName: "GAMAYON, MATT LOUIS F.", hash: "d8b3c44085142731cc01dfd201ab7d8d637d082c139020ea7afc993422fa28e7" },
+    { username: "guia", displayName: "GUIA, JOHN CHRISTIAN C.", hash: "58965dd229699d9dc790fca76fd56f3dbaa05e4179ef0f0b49d62c9e1053de1c" },
+    { username: "lumacad", displayName: "LUMACAD, LORIEJANE V.", hash: "d1feebfda5c035a387529bc1622907a74edafb65d58f97577c61cf6de64f2ac8" },
+    { username: "millarez", displayName: "MILLAREZ, RHYLIE B.", hash: "f047c40d5eeada8881d27fd985934197c7edcedc23c259c31573770c86f34361" },
+    { username: "navarro", displayName: "NAVARRO, CEE JAY B.", hash: "cad9f32c631e3b4843532d3ad4e399f16dc416c612271fe09f72f3e80bd4db79" },
+    { username: "oclarino", displayName: "OCLARINO, CHRAIST ALBERT D.", hash: "1a4b167f4119af6e5380b743f3d7ea1528f9a439de5ebec442fa036fb80d04f4" },
+    { username: "persincula", displayName: "PERSINCULA, JOSIAH LEONEL J.", hash: "08d217fb1ce812e647f0506b1aeed24bdb3ac7171c69878cde0f441b4c9ad6b7" },
+    { username: "recomo", displayName: "RECOMO, JOHN MARK", hash: "cbee362013d4ab4c6b3108aa453c602dfad73bddcc1f2d3b6ee2629ca71f6081" },
+    { username: "tabifranca", displayName: "TABIFRANCA, ROME MHAR S.", hash: "cc264853858cc71334cdb4ad9b16b09fe73a38758a60f0b89b413876d1012f64" }
+  ];
+
+  const authState = {
+    role: null, // "classmate" | "guest"
+    username: "",
+    displayName: "",
+    ready: false
+  };
+
+  async function sha256Hex(textValue) {
+    const data = new TextEncoder().encode(String(textValue));
+    if (window.crypto && window.crypto.subtle) {
+      const buf = await window.crypto.subtle.digest("SHA-256", data);
+      return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    // Extremely old browser fallback — not expected on modern phones
+    return String(textValue);
+  }
+
+  function saveAuthSession(session) {
+    try {
+      sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    } catch (error) {
+      console.warn("[Auth] session persist failed:", error);
+    }
+  }
+
+  function loadAuthSession() {
+    try {
+      const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || (parsed.role !== "classmate" && parsed.role !== "guest")) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearAuthSession() {
+    try {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function isClassmate() {
+    return authState.role === "classmate";
+  }
+
+  function isGuest() {
+    return authState.role === "guest";
+  }
+
+  function applyAuthUI() {
+    document.body.classList.toggle("authed", !!authState.role);
+    document.body.classList.toggle("role-classmate", authState.role === "classmate");
+    document.body.classList.toggle("role-guest", authState.role === "guest");
+
+    const gate = $("authGate");
+    if (gate) gate.hidden = !!authState.role;
+
+    const chip = $("sessionChip");
+    if (chip) {
+      if (!authState.role) {
+        chip.hidden = true;
+      } else {
+        chip.hidden = false;
+        chip.classList.toggle("is-guest", authState.role === "guest");
+        chip.classList.toggle("is-classmate", authState.role === "classmate");
+        chip.textContent = authState.role === "guest"
+          ? "Guest"
+          : (authState.displayName.split(",")[0] || authState.username);
+        chip.title = authState.role === "guest"
+          ? "Guest session — limited arena access"
+          : `Classmate · ${authState.displayName}`;
+      }
+    }
+
+    const logoutBtn = $("logoutBtn");
+    if (logoutBtn) logoutBtn.hidden = !authState.role;
+
+    const guestBanner = $("guestBanner");
+    if (guestBanner) guestBanner.hidden = authState.role !== "guest";
+
+    // Guests default to Practice; classmates keep current selection
+    if (authState.role === "guest" && typeof selectRunType === "function") {
+      selectRunType("practice");
+    }
+  }
+
+  async function tryClassmateLogin(usernameRaw, passwordRaw) {
+    const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    const password = String(passwordRaw || "");
+    if (!username || !password) {
+      return { ok: false, message: "Ilagay ang username at password na assigned sa'yo." };
+    }
+    const entry = CLASSMATE_ROSTER.find((row) => row.username === username);
+    if (!entry) {
+      return { ok: false, message: "Hindi makita ang username sa classmate roster." };
+    }
+    const hash = await sha256Hex(password);
+    if (hash !== entry.hash) {
+      return { ok: false, message: "Maling password. I-check ulit ang credentials from your Tech Manager." };
+    }
+    authState.role = "classmate";
+    authState.username = entry.username;
+    authState.displayName = entry.displayName;
+    authState.ready = true;
+    saveAuthSession({
+      role: "classmate",
+      username: entry.username,
+      displayName: entry.displayName,
+      ts: Date.now()
+    });
+    return { ok: true };
+  }
+
+  function enterAsGuest() {
+    authState.role = "guest";
+    authState.username = "guest";
+    authState.displayName = "Guest Visitor";
+    authState.ready = true;
+    saveAuthSession({ role: "guest", username: "guest", displayName: "Guest Visitor", ts: Date.now() });
+  }
+
+  function signOutHub() {
+    clearAuthSession();
+    authState.role = null;
+    authState.username = "";
+    authState.displayName = "";
+    authState.ready = false;
+    applyAuthUI();
+    // Soft reset arena UI if mid-flow
+    try {
+      if (typeof stopTimer === "function") stopTimer();
+      if (typeof setView === "function") setView("loginView");
+    } catch (error) {
+      /* ignore */
+    }
+    const gate = $("authGate");
+    if (gate) {
+      gate.hidden = false;
+      document.body.classList.remove("authed", "role-guest", "role-classmate");
+    }
+  }
+
+  function initAuthGate() {
+    const existing = loadAuthSession();
+    if (existing) {
+      authState.role = existing.role;
+      authState.username = existing.username || "";
+      authState.displayName = existing.displayName || "";
+      authState.ready = true;
+      applyAuthUI();
+    } else {
+      applyAuthUI();
+    }
+
+    const loginBtn = $("authLoginBtn");
+    const guestBtn = $("authGuestBtn");
+    const userInput = $("authUsername");
+    const passInput = $("authPassword");
+    const errEl = $("authError");
+    const logoutBtn = $("logoutBtn");
+
+    const showErr = (msg) => { if (errEl) errEl.textContent = msg || ""; };
+
+    if (loginBtn) {
+      bindTap(loginBtn, async (event) => {
+        event.preventDefault();
+        showErr("");
+        loginBtn.disabled = true;
+        loginBtn.textContent = "Verifying…";
+        try {
+          const result = await tryClassmateLogin(userInput && userInput.value, passInput && passInput.value);
+          if (!result.ok) {
+            showErr(result.message);
+            return;
+          }
+          applyAuthUI();
+          // Show welcome quote modal only after successful auth if still visible
+          const welcome = $("welcomeModal");
+          if (welcome && !welcome.hasAttribute("hidden")) {
+            /* keep welcome flow */
+          }
+        } finally {
+          loginBtn.disabled = false;
+          loginBtn.textContent = "Sign in as Classmate";
+        }
+      });
+    }
+
+    if (guestBtn) {
+      bindTap(guestBtn, (event) => {
+        event.preventDefault();
+        enterAsGuest();
+        applyAuthUI();
+      });
+    }
+
+    if (passInput) {
+      passInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (loginBtn) loginBtn.click();
+        }
+      });
+    }
+    if (userInput) {
+      userInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          if (passInput) passInput.focus();
+        }
+      });
+    }
+
+    if (logoutBtn) {
+      bindTap(logoutBtn, (event) => {
+        event.preventDefault();
+        if (window.confirm("Sign out of the Section Hub?")) {
+          signOutHub();
+        }
+      });
+    }
+  }
+
   /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
      Score writes go straight to Firebase; write validation (correct data
      shape, no overwriting/deleting other players' entries) is enforced
@@ -1198,6 +1456,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (runType !== "ranked" && runType !== "practice" && runType !== "daily") {
       runType = "ranked";
     }
+    // Access policy: guests cannot select competitive run types
+    if (authState.role === "guest" && runType !== "practice") {
+      runType = "practice";
+    }
 
     state.runType = runType;
     state.isPractice = runType === "practice";
@@ -1492,6 +1754,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       return;
     }
 
+    initAuthGate();
     initWelcomeModal();
     initMatrixBackground();
     initNav();
@@ -2145,6 +2408,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   function startGame() {
     if (state.sessionLocked) return;
+    if (!authState.role) {
+      elements.loginStatus.textContent = "Sign in muna sa Section Access gate.";
+      return;
+    }
+    // Guests may only use Practice (and Retry Mistakes stays practice-scoped).
+    if (isGuest() && state.runType !== "practice") {
+      selectRunType("practice");
+      elements.loginStatus.textContent = "Guest access: Practice mode only. Sign in as classmate for Ranked/Daily.";
+      return;
+    }
+
     const raw = elements.usernameInput.value || "";
     const cleaned = sanitizeUsername(raw);
 
@@ -2339,6 +2613,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     // PHASE 1: Practice / Retry Mistakes never write to the competitive leaderboard.
     if ((state.isPractice && !state.isDaily) || state.isRetryMistakes) {
       console.log("[Arena] Practice/Retry run — score not saved to leaderboard.");
+      return;
+    }
+    // Access policy: only verified classmates may write competitive boards.
+    if (!isClassmate()) {
+      console.log("[Arena] Guest session — competitive score write blocked.");
       return;
     }
     const key = usernameKey(state.username);
