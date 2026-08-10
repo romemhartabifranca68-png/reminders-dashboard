@@ -490,6 +490,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
         <button type="button" class="lifeline-btn" id="adminIssuePass">Issue Pass</button>
+        <button type="button" class="lifeline-btn admin-danger" id="adminRevokePass">Revoke Pass</button>
         <button type="button" class="lifeline-btn" id="adminSaveGlobal">Save Global Toggle</button>
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
@@ -557,6 +558,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
       } catch (error) {
         status.textContent = `Local pass saved: ${code} (Firebase write failed — still works on this device).`;
+        console.warn(error);
+      }
+    });
+
+    bindTap(panel.querySelector("#adminRevokePass"), async (e) => {
+      e.preventDefault();
+      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+      if (!code) {
+        status.textContent = "Type the Guest Pass code to revoke.";
+        return;
+      }
+      try {
+        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+        if (local[code]) {
+          local[code].active = false;
+          localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+        }
+      } catch (error) {
+        /* ignore */
+      }
+      try {
+        if (db) {
+          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), {
+            active: false,
+            revokedBy: ADMIN_USERNAME,
+            company: COMPANY_NAME,
+            ts: Date.now()
+          });
+        }
+        status.textContent = `Guest Pass revoked: ${code}`;
+      } catch (error) {
+        status.textContent = `Revoked locally: ${code} (Firebase update failed).`;
         console.warn(error);
       }
     });
@@ -1204,7 +1237,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     isRetryMistakes: false,
     retryQuestionPool: [],
     dailyDateKey: "",
-    runType: "ranked"
+    runType: "ranked",
+    bestStreak: 0,
+    answeredCount: 0,
+    correctCount: 0
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -1933,6 +1969,82 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
   const NEXT_EXAM_DATE = "2026-09-15";
 
+  /* Weekly schedule snapshot for Command Center "next class" */
+  const WEEKLY_SCHEDULE = {
+    1: [ // Monday
+      { time: "8:30–10:00 AM", subj: "GEC 102 · Philippine History", tag: "Online" },
+      { time: "10:00–11:30 AM", subj: "P.I. 100 · Rizal", tag: "Online" },
+      { time: "1:00–2:30 PM", subj: "GEC 101 · Understanding the Self", tag: "Online" },
+      { time: "2:30–4:00 PM", subj: "KOMFIL", tag: "Online" }
+    ],
+    2: [ // Tuesday
+      { time: "10:00 AM–12:00 PM", subj: "ITEC 102 · Programming", tag: "F2F · Room 100" },
+      { time: "2:30–4:00 PM", subj: "KOMFIL", tag: "F2F" }
+    ],
+    3: [ // Wednesday
+      { time: "8:30–10:00 AM", subj: "GEC 102", tag: "F2F · VoAg 101" },
+      { time: "10:00–11:30 AM", subj: "P.I. 100", tag: "F2F · Acad 208" },
+      { time: "1:00–2:30 PM", subj: "GEC 101", tag: "F2F · VoAg 100" },
+      { time: "3:00–4:30 PM", subj: "PATHFIT 1", tag: "GYM" }
+    ],
+    4: [ // Thursday
+      { time: "7:00–10:00 AM", subj: "ITEC 102 · Programming", tag: "F2F · VoAg 207" },
+      { time: "2:00–4:00 PM", subj: "ITEC 101 · Intro to Computing", tag: "F2F · VoAg 101" }
+    ],
+    5: [],
+    6: [],
+    0: []
+  };
+
+  function getNextClassInfo() {
+    const now = new Date();
+    const day = now.getDay();
+    const slots = WEEKLY_SCHEDULE[day] || [];
+    if (!slots.length) {
+      return { value: "Vacant / Weekend", sub: "Walang scheduled class ngayong araw" };
+    }
+    // Simple: show first slot of the day (reliable on phones without parsing every time format)
+    const first = slots[0];
+    return {
+      value: first.subj,
+      sub: `${first.time} · ${first.tag}`
+    };
+  }
+
+  function getDailyStatusInfo() {
+    try {
+      const key = "bscs1a_daily_done_" + getLocalDateKey();
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          value: "Completed today",
+          sub: `Best score: ${Number(parsed.score || 0)}`
+        };
+      }
+    } catch (error) {
+      /* ignore */
+    }
+    return {
+      value: "Not started",
+      sub: `${DAILY_QUESTION_COUNT} shared questions · resets at midnight`
+    };
+  }
+
+  function markDailyDoneIfNeeded() {
+    if (!state.isDaily) return;
+    try {
+      const key = "bscs1a_daily_done_" + getLocalDateKey();
+      const prev = JSON.parse(localStorage.getItem(key) || "null");
+      const score = state.score;
+      if (!prev || Number(prev.score || 0) < score) {
+        localStorage.setItem(key, JSON.stringify({ score, ts: Date.now() }));
+      }
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
   function renderTodayStrip() {
     const host = elements.todayStrip || $("todayStrip");
     if (!host) return;
@@ -1949,14 +2061,31 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       }
     }
 
+    const nextClass = getNextClassInfo();
+    const daily = getDailyStatusInfo();
     const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
+
     host.innerHTML =
-      `<div class="today-card">` +
-        `<h3>Today on BSCS 1-A</h3>` +
-        `<ul>${items}</ul>` +
+      `<div class="today-card command-center">` +
+        `<h3>Command Center · RST</h3>` +
+        `<div class="cmd-grid">` +
+          `<div class="cmd-tile"><span class="cmd-label">Next class</span><span class="cmd-value">${escapeHtml(nextClass.value)}</span><span class="cmd-sub">${escapeHtml(nextClass.sub)}</span></div>` +
+          `<div class="cmd-tile"><span class="cmd-label">Daily Challenge</span><span class="cmd-value">${escapeHtml(daily.value)}</span><span class="cmd-sub">${escapeHtml(daily.sub)}</span></div>` +
+        `</div>` +
+        `<ul style="margin-top:0.65rem">${items}</ul>` +
         countdownHtml +
       `</div>`;
   }
+
+  function registerPwa() {
+    if (!("serviceWorker" in navigator)) return;
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch((error) => {
+        console.warn("[PWA] SW register skipped:", error);
+      });
+    });
+  }
+
 
 
 
@@ -2181,6 +2310,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     migrateLegacyScores().then(() => renderLeaderboard());
     renderMasteryBars();
     renderTodayStrip();
+    registerPwa();
     updateHud();
     setView("loginView");
     initialized = true;
@@ -2366,6 +2496,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function handleTimeout() {
     if (state.locked || !state.currentQuestion) return;
     playWrongBuzz();
+    state.answeredCount += 1;
+    state.streak = 0;
     if (state.currentQuestion && state.currentQuestion.s) {
       recordMastery(state.currentQuestion.s, false);
       saveRecentMistake(state.currentQuestion);
@@ -2587,6 +2719,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       const oldScore = state.score;
       state.score += gained;
       playCorrectBeep();
+      state.answeredCount += 1;
+      state.correctCount += 1;
+      if (state.streak > state.bestStreak) state.bestStreak = state.streak;
       if (state.currentQuestion && state.currentQuestion.s) {
         recordMastery(state.currentQuestion.s, true);
       }
@@ -2636,6 +2771,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
       state.streak = 0;
       playWrongBuzz();
+      state.answeredCount += 1;
       if (state.currentQuestion && state.currentQuestion.s) {
         recordMastery(state.currentQuestion.s, false);
         saveRecentMistake(state.currentQuestion);
@@ -2643,14 +2779,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       // Boss Question wrong answer: normal -1 heart, no extra penalty.
       state.bossQuestionActive = false;
       setBossVisuals(false);
+      const hint = "Tamang sagot: " + state.currentQuestion.answer;
       if (state.isPractice) {
-        elements.feedback.textContent = wasBossQuestion
-          ? "Boss question \u2014 mali. Practice mode: walang bawas na heart."
-          : "Mali. Practice mode: walang bawas na heart. Review & continue.";
+        elements.feedback.innerHTML = (wasBossQuestion
+          ? "Boss question — mali. Practice mode: walang bawas na heart."
+          : "Mali. Practice mode: walang bawas na heart.") +
+          '<div class="answer-hint">' + escapeHtml(hint) + "</div>";
       } else {
-        elements.feedback.textContent = wasBossQuestion
-          ? "Boss question \u2014 mali. Isang heart lang ang nabawas."
-          : "Mali. Isang heart ang nabawas.";
+        elements.feedback.innerHTML = (wasBossQuestion
+          ? "Boss question — mali. Isang heart lang ang nabawas."
+          : "Mali. Isang heart ang nabawas.") +
+          '<div class="answer-hint">' + escapeHtml(hint) + "</div>";
       }
       elements.feedback.className = "feedback is-wrong";
       updateHud();
@@ -2761,6 +2900,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.mistakes = [];
     state.displayedScore = 0;
     state.milestonesHit = new Set();
+    state.bestStreak = 0;
+    state.answeredCount = 0;
+    state.correctCount = 0;
     // NEW FEATURE: reset Boss Question state for a fresh run.
     state.bossQuestionActive = false;
     state.bossHit = new Set();
@@ -3509,6 +3651,27 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       elements.gameOverNote.innerHTML += " <strong>(Practice — hindi nasesave sa leaderboard)</strong>";
     }
     elements.gameOverQuote.textContent = formatQuote(quote);
+
+    const accEl = $("statAccuracy");
+    const streakEl = $("statStreak");
+    const modeEl = $("statMode");
+    const accuracy = state.answeredCount
+      ? Math.round((state.correctCount / state.answeredCount) * 100) + "%"
+      : "—";
+    if (accEl) accEl.textContent = accuracy;
+    if (streakEl) streakEl.textContent = String(state.bestStreak || 0);
+    if (modeEl) {
+      modeEl.textContent = state.isRetryMistakes
+        ? "Retry"
+        : state.runType === "study"
+          ? "Study"
+          : state.isDaily
+            ? "Daily"
+            : state.isPractice
+              ? "Practice"
+              : "Ranked";
+    }
+    markDailyDoneIfNeeded();
     renderReviewPanel();
 
     // PHASE 1: Retry Mistakes button only when there is something to retry
@@ -3555,14 +3718,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       : state.isPractice
         ? `Practice · ${mode.label}`
         : `Ranked · ${mode.label}`;
+    const accuracy = state.answeredCount
+      ? Math.round((state.correctCount / state.answeredCount) * 100) + "%"
+      : "n/a";
     const lines = [
-      "BSCS 1-A Reviewer Arena",
+      "BSCS 1-A Reviewer Arena · RST Hub",
       `Player: ${state.avatar} ${state.username || "Scholar"}`,
       `Mode: ${runLabel}`,
       `Score: ${state.score}`,
       `Badge: ${getRank(state.score)}`,
+      `Accuracy: ${accuracy} · Best streak: ${state.bestStreak || 0}`,
       `Mistakes: ${state.mistakes.length}`,
-      "— Developed by RST · LSPU Siniloan"
+      "— RST · Rome Mhar S. Tabifranca · LSPU Siniloan"
     ];
     return lines.join("\n");
   }
