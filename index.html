@@ -654,6 +654,43 @@ body.arena-playing.streak-hot #gameView.active {
 .row-bronze td { background: rgba(240, 168, 120, 0.06); }
 .lb-avatar { margin-right: 0.35rem; }
 
+/* Per-mode leaderboard tabs — horizontal scroll on phones */
+.lb-mode-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  margin: 0.55rem 0 0.75rem;
+  padding-bottom: 0.2rem;
+}
+.lb-mode-tab {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.85rem;
+  min-height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(100,255,218,0.18);
+  background: rgba(255,255,255,0.03);
+  color: rgba(230,241,255,0.86);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.lb-mode-tab.selected {
+  border-color: rgba(100,255,218,0.5);
+  background: rgba(100,255,218,0.14);
+  color: #eafffb;
+  box-shadow: 0 0 12px rgba(100,255,218,0.22);
+}
+.lb-mode-tab:hover, .lb-mode-tab:focus-visible {
+  border-color: rgba(100,255,218,0.4);
+  outline: none;
+}
+
+
 .quick-grid { grid-template-columns: 1fr; display: grid; gap: 0.75rem; }
 .linkcard {
   border-radius: 15px; padding: 0.9rem;
@@ -947,8 +984,10 @@ body.boss-active #gameView.active {
       <button type="button" class="modal-close-btn" data-close-modal="leaderboardModal" aria-label="Close Leaderboard">&times;</button>
       <div class="leaderboard-title">
         <h3 class="lb-title-tap" id="lbTitle" title="">Top Arena Challengers</h3>
-        <span class="lb-note">Top 10 highest scores, synced live</span>
+        <span class="lb-note" id="lbNote">Top 10 highest scores, synced live</span>
       </div>
+      <!-- Per-mode board switcher: each subject + RANDOM has its own Top 10 -->
+      <div class="lb-mode-tabs" id="lbModeTabs" role="tablist" aria-label="Leaderboard mode"></div>
       <div class="table-shell">
         <table class="lb" aria-label="Top Arena Challengers">
           <thead>
