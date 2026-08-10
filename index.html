@@ -690,6 +690,136 @@ body.arena-playing.streak-hot #gameView.active {
   outline: none;
 }
 
+/* ===== PHASE 1: Practice / Ranked run type ===== */
+.run-type-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  width: 100%;
+  margin: 0.35rem 0 0.15rem;
+}
+.run-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(100,255,218,0.16);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+  touch-action: manipulation;
+  min-height: 44px;
+}
+.run-type-card:hover, .run-type-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(100,255,218,0.36);
+  outline: none;
+}
+.run-type-card.selected {
+  border-color: var(--accent);
+  background: rgba(100,255,218,0.12);
+  box-shadow: 0 0 16px rgba(100,255,218,0.28);
+}
+.run-type-card.is-practice.selected {
+  border-color: rgba(0, 229, 255, 0.5);
+  background: rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.22);
+}
+.run-type-icon { font-size: 1.15rem; line-height: 1; }
+.run-type-title { font-weight: 900; font-size: 0.88rem; color: #f4fbff; }
+.run-type-desc { font-size: 0.72rem; color: rgba(230,241,255,0.7); line-height: 1.35; }
+
+.practice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(0,229,255,0.35);
+  background: rgba(0,229,255,0.1);
+  color: #9ff6ff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+.practice-chip[hidden] { display: none !important; }
+
+.end-practice-btn {
+  width: 100%;
+  margin-top: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  min-height: 44px;
+  border-radius: 13px;
+  border: 1px solid rgba(0,229,255,0.3);
+  background: rgba(0,229,255,0.08);
+  color: #dffcff;
+  font-weight: 800;
+  font-size: 0.88rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.end-practice-btn:hover, .end-practice-btn:focus-visible {
+  border-color: rgba(0,229,255,0.5);
+  outline: none;
+}
+.end-practice-btn[hidden] { display: none !important; }
+
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  width: 100%;
+}
+.result-actions .arena-btn,
+.result-actions .login-modal-btn {
+  width: 100%;
+  min-height: 44px;
+}
+.share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1.25rem + var(--safe-b));
+  transform: translateX(-50%);
+  z-index: 700;
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  background: rgba(9, 16, 30, 0.94);
+  border: 1px solid rgba(100,255,218,0.35);
+  color: #eafffb;
+  font-size: 0.82rem;
+  font-weight: 800;
+  box-shadow: var(--shadow), var(--glow);
+  pointer-events: none;
+  animation: toastIn 0.2s ease-out;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.lb-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.95rem;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(100,255,218,0.3);
+  background: rgba(100,255,218,0.1);
+  color: #eafffb;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+
 
 .quick-grid { grid-template-columns: 1fr; display: grid; gap: 0.75rem; }
 .linkcard {
@@ -1403,6 +1533,20 @@ body.boss-active #gameView.active {
                   <div class="mode-grid" id="modeGrid" role="radiogroup" aria-labelledby="modeLabel"></div>
                   <p class="selected-mode-display" id="selectedModeLabel">Selected Mode: RANDOM / ALL SUBJECTS</p>
 
+                  <p class="field-title" id="runTypeLabel">Select Run Type</p>
+                  <div class="run-type-grid" id="runTypeGrid" role="radiogroup" aria-labelledby="runTypeLabel">
+                    <button type="button" class="run-type-card selected" data-run-type="ranked" role="radio" aria-checked="true" id="runTypeRanked">
+                      <span class="run-type-icon" aria-hidden="true">&#127942;</span>
+                      <span class="run-type-title">Ranked</span>
+                      <span class="run-type-desc">3 hearts · score saves to leaderboard</span>
+                    </button>
+                    <button type="button" class="run-type-card is-practice" data-run-type="practice" role="radio" aria-checked="false" id="runTypePractice">
+                      <span class="run-type-icon" aria-hidden="true">&#128218;</span>
+                      <span class="run-type-title">Practice</span>
+                      <span class="run-type-desc">No heart loss · walang score save</span>
+                    </button>
+                  </div>
+
                   <div class="input-wrap">
                     <button id="startBtn" class="arena-btn" type="button">INITIALIZE</button>
                   </div>
@@ -1447,6 +1591,7 @@ body.boss-active #gameView.active {
 
                   <div class="game-center" id="question-container">
                     <div class="question-meta">
+                      <span id="practiceChip" class="practice-chip" hidden>PRACTICE</span>
                       <span id="subjectChip" class="subject-chip">ITEC 101</span>
                       <span class="stream-chip">STREAM: <span id="streamModeLabel">RANDOM_ALL_SUBJECTS</span> &middot; <span id="timerNum">25</span>s</span>
                     </div>
@@ -1457,6 +1602,7 @@ body.boss-active #gameView.active {
                     <div id="lifelineRow" class="lifeline-row"></div>
                     <div id="choicesWrap" class="choices"></div>
                     <div id="feedback" class="feedback" aria-live="polite"></div>
+                    <button type="button" id="endPracticeBtn" class="end-practice-btn" hidden>End Practice Session</button>
                   </div>
                 </div>
 
@@ -1473,13 +1619,14 @@ body.boss-active #gameView.active {
                       <div id="reviewList"></div>
                     </div>
 
-                    <div class="input-wrap" style="margin-top: 0.9rem; justify-content: center;">
+                    <div class="result-actions">
+                      <button id="retryMistakesBtn" class="arena-btn" type="button" hidden>Retry Mistakes</button>
+                      <button id="shareResultBtn" class="arena-btn" type="button">Share Result</button>
                       <button id="restartBtn" class="arena-btn" type="button">Reboot Arena</button>
+                      <button type="button" class="login-modal-btn" data-open-modal="leaderboardModal">
+                        View Leaderboard
+                      </button>
                     </div>
-
-                    <button type="button" class="login-modal-btn" style="margin: 0.9rem auto 0;" data-open-modal="leaderboardModal">
-                      View Leaderboard
-                    </button>
                   </div>
                 </div>
               </div>
