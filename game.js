@@ -35,7 +35,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       console.warn("[Arena] Analytics not initialized:", error);
     });
 
-  const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v5";
+  const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v6";
   const FIREBASE_TABLE = "arena_scores";
   /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
      Score writes go straight to Firebase; write validation (correct data
@@ -578,6 +578,31 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return GAME_MODES.find((m) => m.id === modeId) || GAME_MODES[0];
   }
 
+  /* ---------------- Per-mode leaderboard board keys ----------------
+     Firebase path segment under arena_scores/{boardKey}/{usernameKey}.
+     RANDOM maps to "random". Subject names are slugified so path segments
+     stay safe (no spaces/dots). This keeps each mode's Top list isolated. */
+  function modeToBoardKey(modeId) {
+    const mode = getModeConfig(modeId);
+    if (mode.id === RANDOM_MODE_ID) return "random";
+    return String(mode.id || "random")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "random";
+  }
+
+  function getAllBoardKeys() {
+    return GAME_MODES.map((m) => modeToBoardKey(m.id));
+  }
+
+  function getModeIdFromBoardKey(boardKey) {
+    const found = GAME_MODES.find((m) => modeToBoardKey(m.id) === boardKey);
+    return found ? found.id : RANDOM_MODE_ID;
+  }
+
+
   const state = {
     username: "",
     avatar: AVATARS[0],
@@ -613,7 +638,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     /* NEW FEATURE: Game Mode / Subject Selection — defaults to the existing
        "Infinite Randomized" experience so nothing changes for a player who
        never touches the selector. */
-    selectedMode: RANDOM_MODE_ID
+    selectedMode: RANDOM_MODE_ID,
+    /* Which mode's leaderboard is currently shown in the Leaderboard modal.
+       Independent of gameplay selectedMode so a player can browse boards
+       without changing their next-run mode. */
+    leaderboardMode: RANDOM_MODE_ID
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -892,6 +921,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     modal.removeAttribute("hidden");
     document.body.classList.add("no-scroll");
     if (id === "leaderboardModal") {
+      // Default the viewed board to the player's currently selected Game Mode
+      // so the list matches the run they are about to (or just did) play.
+      state.leaderboardMode = state.selectedMode || RANDOM_MODE_ID;
       renderLeaderboard();
     }
     // NEW FEATURE: Game Protocol is dynamic — always reflect whichever mode
@@ -1790,104 +1822,154 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     elements.usernameInput.focus();
   }
 
-  /* ---------------- Leaderboard (Firebase + local fallback) ---------------- */
-  async function fetchScores() {
+  /* ---------------- Leaderboard (Firebase + local fallback) ----------------
+     Per-mode boards: arena_scores/{boardKey}/{usernameKey}
+     boardKey examples: "random", "itec_101", "gec_102", "pi_100", "komfil"
+     Only the active board is fetched — never the whole tree. */
+  async function fetchScores(modeId) {
+    const boardKey = modeToBoardKey(modeId != null ? modeId : state.leaderboardMode);
+
     if (db) {
       try {
-        const snap = await get(ref(db, FIREBASE_TABLE));
+        const snap = await get(ref(db, `${FIREBASE_TABLE}/${boardKey}`));
         if (snap.exists()) {
           const val = snap.val();
-          return Object.keys(val).map((key) => ({ id: key, ...val[key] }));
+          // Guard: if this node is still a flat legacy username entry (has
+          // score at this level), treat it as empty for the new structure.
+          if (val && typeof val === "object" && !("score" in val && "username" in val)) {
+            return Object.keys(val).map((key) => ({ id: key, boardKey, ...val[key] }));
+          }
         }
         return [];
       } catch (error) {
         console.warn("[Arena] Firebase read failed, using local cache:", error);
       }
     }
+
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      // v6 shape: { random: [...], itec_101: [...] }
+      if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+        const list = raw[boardKey];
+        return Array.isArray(list) ? list.map((e) => ({ ...e, boardKey })) : [];
+      }
+      // v5 flat array fallback → only surface under random
+      if (Array.isArray(raw) && boardKey === "random") {
+        return raw.map((e) => ({ ...e, boardKey }));
+      }
+      return [];
     } catch {
-      return fallbackScores;
+      return Array.isArray(fallbackScores) ? fallbackScores : [];
     }
   }
 
-  async function persistScores(list) {
+  async function persistScores(list, modeId) {
+    const boardKey = modeToBoardKey(modeId != null ? modeId : state.leaderboardMode);
     fallbackScores = list;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      let store = {};
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+          store = raw;
+        } else if (Array.isArray(raw)) {
+          // One-time lift of flat v5 list into random board.
+          store = { random: raw };
+        }
+      } catch {
+        store = {};
+      }
+      store[boardKey] = list;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     } catch (error) {
       console.warn("[Arena] localStorage write failed:", error);
     }
   }
 
-  /* ---------------- One-time legacy score conversion ---------------- */
+  /* ---------------- One-time legacy score conversion (per-board) ---------------- */
   async function migrateLegacyScores() {
-    let all;
-    try {
-      all = await fetchScores();
-    } catch (error) {
-      console.warn("[Arena] Could not load scores for migration:", error);
-      return;
-    }
-    if (!all.length) return;
+    // Migrate each known board independently so mixed boards stay isolated.
+    const modeIds = GAME_MODES.map((m) => m.id);
+    let totalMigrated = 0;
 
-    const legacyEntries = all.filter(
-      (entry) => !entry.scoreVersion || entry.scoreVersion < SCORE_MIGRATION_VERSION
-    );
-    if (!legacyEntries.length) return;
-
-    const migrated = all.map((entry) => {
-      if (entry.scoreVersion && entry.scoreVersion >= SCORE_MIGRATION_VERSION) return entry;
-      const oldScore = Number(entry.score || 0);
-      const newScore = Math.max(0, Math.round(oldScore * LEGACY_TO_CURRENT_RATIO));
-      return {
-        ...entry,
-        score: newScore,
-        badge: getRank(newScore),
-        scoreVersion: SCORE_MIGRATION_VERSION
-      };
-    });
-
-    if (db) {
+    for (const modeId of modeIds) {
+      let all;
       try {
-        await Promise.all(
-          migrated
-            .filter((entry) => entry.id)
-            .map((entry) => {
-              const { id, ...rest } = entry;
-              return set(ref(db, `${FIREBASE_TABLE}/${id}`), rest);
-            })
-        );
+        all = await fetchScores(modeId);
       } catch (error) {
-        console.warn("[Arena] Firebase score migration failed, keeping local cache only:", error);
+        console.warn("[Arena] Could not load scores for migration:", error);
+        continue;
       }
+      if (!all.length) continue;
+
+      const legacyEntries = all.filter(
+        (entry) => !entry.scoreVersion || entry.scoreVersion < SCORE_MIGRATION_VERSION
+      );
+      if (!legacyEntries.length) continue;
+
+      const boardKey = modeToBoardKey(modeId);
+      const migrated = all.map((entry) => {
+        if (entry.scoreVersion && entry.scoreVersion >= SCORE_MIGRATION_VERSION) return entry;
+        const oldScore = Number(entry.score || 0);
+        const newScore = Math.max(0, Math.round(oldScore * LEGACY_TO_CURRENT_RATIO));
+        return {
+          ...entry,
+          score: newScore,
+          badge: getRank(newScore),
+          scoreVersion: SCORE_MIGRATION_VERSION
+        };
+      });
+
+      if (db) {
+        try {
+          await Promise.all(
+            migrated
+              .filter((entry) => entry.id)
+              .map((entry) => {
+                const { id, boardKey: _bk, ...rest } = entry;
+                return set(ref(db, `${FIREBASE_TABLE}/${boardKey}/${id}`), {
+                  username: rest.username,
+                  score: rest.score,
+                  badge: rest.badge,
+                  avatar: rest.avatar || "",
+                  ts: rest.ts || Date.now(),
+                  scoreVersion: rest.scoreVersion || SCORE_MIGRATION_VERSION
+                });
+              })
+          );
+        } catch (error) {
+          console.warn("[Arena] Firebase score migration failed for", boardKey, error);
+        }
+      }
+
+      await persistScores(migrated, modeId);
+      totalMigrated += legacyEntries.length;
     }
 
-    await persistScores(migrated);
-    console.log(`[Arena] Migrated ${legacyEntries.length} legacy score(s) to the current formula.`);
+    if (totalMigrated) {
+      console.log(`[Arena] Migrated ${totalMigrated} legacy score(s) across mode boards.`);
+    }
   }
 
   async function saveScore() {
     const key = usernameKey(state.username);
+    const modeId = state.selectedMode;
+    const boardKey = modeToBoardKey(modeId);
     const entry = {
       username: state.username,
       score: state.score,
       badge: getRank(state.score),
       avatar: state.avatar,
       ts: Date.now(),
-      scoreVersion: SCORE_MIGRATION_VERSION,
-      // NEW FEATURE: record which Game Mode this score was earned in. Purely
-      // additive — older entries simply don't have this field, and nothing
-      // that reads leaderboard entries requires it to be present.
-      mode: getModeConfig(state.selectedMode).label
+      scoreVersion: SCORE_MIGRATION_VERSION
     };
 
     if (db && key) {
       try {
-        const entryRef = ref(db, `${FIREBASE_TABLE}/${key}`);
+        const entryRef = ref(db, `${FIREBASE_TABLE}/${boardKey}/${key}`);
         const snap = await get(entryRef);
         if (snap.exists() && Number(snap.val().score || 0) >= state.score) {
-          // Existing high score is already equal or better — don't overwrite it.
+          // Existing high score on THIS board is already equal or better.
           return;
         }
         await set(entryRef, entry);
@@ -1897,14 +1979,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       }
     }
 
-    const list = await fetchScores();
+    const list = await fetchScores(modeId);
     const idx = list.findIndex((item) => usernameKey(item.username) === key);
     if (idx >= 0) {
-      if (Number(list[idx].score || 0) < state.score) list[idx] = entry;
+      if (Number(list[idx].score || 0) < state.score) list[idx] = { ...entry, id: key, boardKey };
     } else {
-      list.push(entry);
+      list.push({ ...entry, id: key, boardKey });
     }
-    await persistScores(list);
+    await persistScores(list, modeId);
   }
 
   function medalFor(rankIndex) {
@@ -1914,15 +1996,58 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return { medal: "", cls: "" };
   }
 
+  function renderLeaderboardModeTabs() {
+    const host = $("lbModeTabs");
+    if (!host) return;
+    host.innerHTML = "";
+    GAME_MODES.forEach((mode) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "lb-mode-tab" + (mode.id === state.leaderboardMode ? " selected" : "");
+      btn.textContent = mode.id === RANDOM_MODE_ID ? "RANDOM" : mode.label;
+      btn.setAttribute("aria-pressed", mode.id === state.leaderboardMode ? "true" : "false");
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        if (state.leaderboardMode === mode.id) return;
+        state.leaderboardMode = mode.id;
+        renderLeaderboard();
+      });
+      host.appendChild(btn);
+    });
+  }
+
   async function renderLeaderboard() {
-    const all = await fetchScores();
+    if (!elements.leaderboardBody) return;
+
+    // Keep tabs + title in sync with the board being viewed.
+    renderLeaderboardModeTabs();
+    const mode = getModeConfig(state.leaderboardMode);
+    if (elements.lbTitle) {
+      elements.lbTitle.textContent =
+        mode.id === RANDOM_MODE_ID
+          ? "Top Arena Challengers \u00b7 RANDOM"
+          : `Top Arena Challengers \u00b7 ${mode.label}`;
+    }
+    const note = $("lbNote");
+    if (note) {
+      note.textContent =
+        mode.id === RANDOM_MODE_ID
+          ? "Top 10 \u00b7 Random / All Subjects board"
+          : `Top 10 \u00b7 ${mode.label} only`;
+    }
+
+    elements.leaderboardBody.innerHTML =
+      `<tr><td colspan="4" class="lb-empty">Loading ${escapeHtml(mode.label)} board\u2026</td></tr>`;
+
+    const all = await fetchScores(state.leaderboardMode);
     const top = all
       .slice()
       .sort((a, b) => (b.score || 0) - (a.score || 0))
       .slice(0, 10);
 
     if (!top.length) {
-      elements.leaderboardBody.innerHTML = `<tr><td colspan="4" class="lb-empty">No challenger records yet.</td></tr>`;
+      elements.leaderboardBody.innerHTML =
+        `<tr><td colspan="4" class="lb-empty">No challenger records yet for ${escapeHtml(mode.label)}.</td></tr>`;
       return;
     }
 
@@ -1974,28 +2099,31 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const overlay = document.createElement("div");
     overlay.className = "admin-overlay";
 
+    const mode = getModeConfig(state.leaderboardMode);
+    const boardKey = modeToBoardKey(state.leaderboardMode);
+
     const panel = document.createElement("div");
     panel.className = "admin-panel";
     panel.innerHTML = `<h3 style="margin:0 0 10px;font-size:1rem;">Leaderboard Admin</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        I-edit ang score para ma-recalculate ang rank sa bagong 25-second mechanics, o i-delete ang isang entry.
-        Hindi nasisira ang Firebase structure &mdash; nag-a-update lang ito ng existing records.
+        Board: <strong>${escapeHtml(mode.label)}</strong> (<code>${escapeHtml(boardKey)}</code>).
+        I-edit ang score o i-delete ang isang entry sa board na ito lang.
       </p>
       <div id="adminRows"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;">
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
         <button type="button" class="lifeline-btn" id="adminClose">Close</button>
-        <button type="button" class="lifeline-btn admin-danger" id="adminResetAll">Reset ALL Scores</button>
+        <button type="button" class="lifeline-btn admin-danger" id="adminResetBoard">Reset THIS Board</button>
       </div>`;
 
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 
     const rowsHost = panel.querySelector("#adminRows");
-    const all = await fetchScores();
+    const all = await fetchScores(state.leaderboardMode);
     const sorted = all.slice().sort((a, b) => (b.score || 0) - (a.score || 0));
 
     if (!sorted.length) {
-      rowsHost.innerHTML = `<p class="lb-empty">Walang records.</p>`;
+      rowsHost.innerHTML = `<p class="lb-empty">Walang records sa board na ito.</p>`;
     } else {
       sorted.forEach((entry) => {
         const row = document.createElement("div");
@@ -2015,6 +2143,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           entry.score = newScore;
           entry.badge = getRank(newScore);
           entry.scoreVersion = SCORE_MIGRATION_VERSION;
+          entry.boardKey = boardKey;
           await writeEntry(entry);
           await renderLeaderboard();
           saveBtn.textContent = "Saved";
@@ -2023,7 +2152,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
         bindTap(delBtn, async (event) => {
           event.preventDefault();
-          if (!window.confirm(`Alisin ang record ni ${entry.username}?`)) return;
+          if (!window.confirm(`Alisin ang record ni ${entry.username} sa ${mode.label}?`)) return;
           await deleteEntry(entry);
           row.remove();
           await renderLeaderboard();
@@ -2038,10 +2167,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       overlay.remove();
     });
 
-    bindTap(panel.querySelector("#adminResetAll"), async (event) => {
+    bindTap(panel.querySelector("#adminResetBoard"), async (event) => {
       event.preventDefault();
-      if (!window.confirm("Sigurado ka bang gusto mong i-reset ang LAHAT ng scores? Hindi na ito maibabalik.")) return;
-      await resetAllScores();
+      if (!window.confirm(`Sigurado ka bang gusto mong i-reset ang ${mode.label} board? Hindi na ito maibabalik.`)) return;
+      await resetBoardScores(state.leaderboardMode);
       overlay.remove();
       await renderLeaderboard();
     });
@@ -2052,9 +2181,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   async function writeEntry(entry) {
-    if (db && entry.id) {
+    const boardKey = entry.boardKey || modeToBoardKey(state.leaderboardMode);
+    const id = entry.id || usernameKey(entry.username);
+    if (db && id) {
       try {
-        await set(ref(db, `${FIREBASE_TABLE}/${entry.id}`), {
+        await set(ref(db, `${FIREBASE_TABLE}/${boardKey}/${id}`), {
           username: entry.username,
           score: entry.score,
           badge: entry.badge,
@@ -2067,35 +2198,43 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         console.warn("[Arena] Firebase edit failed, falling back to local:", error);
       }
     }
-    const list = await fetchScores();
-    const idx = list.findIndex((item) => item === entry || (item.username === entry.username && item.ts === entry.ts));
-    if (idx >= 0) list[idx] = entry;
-    await persistScores(list);
+    const list = await fetchScores(getModeIdFromBoardKey(boardKey));
+    const idx = list.findIndex(
+      (item) => (item.id && item.id === id) || (item.username === entry.username && item.ts === entry.ts)
+    );
+    if (idx >= 0) list[idx] = { ...entry, id, boardKey };
+    await persistScores(list, getModeIdFromBoardKey(boardKey));
   }
 
   async function deleteEntry(entry) {
-    if (db && entry.id) {
+    const boardKey = entry.boardKey || modeToBoardKey(state.leaderboardMode);
+    const id = entry.id || usernameKey(entry.username);
+    if (db && id) {
       try {
-        await remove(ref(db, `${FIREBASE_TABLE}/${entry.id}`));
+        await remove(ref(db, `${FIREBASE_TABLE}/${boardKey}/${id}`));
         return;
       } catch (error) {
         console.warn("[Arena] Firebase delete failed, falling back to local:", error);
       }
     }
-    const list = await fetchScores();
-    const filtered = list.filter((item) => item !== entry && !(item.username === entry.username && item.ts === entry.ts));
-    await persistScores(filtered);
+    const modeId = getModeIdFromBoardKey(boardKey);
+    const list = await fetchScores(modeId);
+    const filtered = list.filter(
+      (item) => !(item.id === id || (item.username === entry.username && item.ts === entry.ts))
+    );
+    await persistScores(filtered, modeId);
   }
 
-  async function resetAllScores() {
+  async function resetBoardScores(modeId) {
+    const boardKey = modeToBoardKey(modeId);
     if (db) {
       try {
-        await remove(ref(db, FIREBASE_TABLE));
+        await remove(ref(db, `${FIREBASE_TABLE}/${boardKey}`));
       } catch (error) {
-        console.warn("[Arena] Firebase reset failed, clearing local cache instead:", error);
+        console.warn("[Arena] Firebase board reset failed, clearing local cache instead:", error);
       }
     }
-    await persistScores([]);
+    await persistScores([], modeId);
   }
 
   /* ---------------- Confetti ---------------- */
