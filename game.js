@@ -642,7 +642,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     /* Which mode's leaderboard is currently shown in the Leaderboard modal.
        Independent of gameplay selectedMode so a player can browse boards
        without changing their next-run mode. */
-    leaderboardMode: RANDOM_MODE_ID
+    leaderboardMode: RANDOM_MODE_ID,
+    /* PHASE 1: Practice Mode + Retry Mistakes */
+    isPractice: false,
+    isRetryMistakes: false,
+    retryQuestionPool: []
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -1088,6 +1092,41 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     renderProtocolContent();
   }
 
+  /* ---------------- PHASE 1: Ranked vs Practice run type ---------------- */
+  function initRunTypeSelector() {
+    const grid = elements.runTypeGrid || $("runTypeGrid");
+    if (!grid) return;
+    grid.querySelectorAll("[data-run-type]").forEach((btn) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        selectRunType(btn.getAttribute("data-run-type") === "practice");
+      });
+    });
+    selectRunType(false);
+  }
+
+  function selectRunType(isPractice) {
+    state.isPractice = !!isPractice;
+    const grid = elements.runTypeGrid || $("runTypeGrid");
+    if (grid) {
+      grid.querySelectorAll("[data-run-type]").forEach((btn) => {
+        const practice = btn.getAttribute("data-run-type") === "practice";
+        const selected = practice === state.isPractice;
+        btn.classList.toggle("selected", selected);
+        btn.setAttribute("aria-checked", selected ? "true" : "false");
+      });
+    }
+    if (elements.startBtn) {
+      elements.startBtn.textContent = state.isPractice ? "START PRACTICE" : "INITIALIZE";
+    }
+    if (elements.loginStatus) {
+      elements.loginStatus.textContent = state.isPractice
+        ? "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard."
+        : "Scores are saved to the cloud (Firebase) and also cached on this device.";
+    }
+  }
+
+
   /* ---------------- NEW FEATURE: dynamic Game Protocol ---------------- */
   // Generates the entire Game Protocol body from the ACTUAL live game
   // configuration (constants above) and the currently selected mode, so it
@@ -1209,7 +1248,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       gameOverQuote: $("gameOverQuote"),
       reviewList: $("reviewList"),
       lbTitle: $("lbTitle"),
-      muteToggleBtn: $("muteToggleBtn")
+      muteToggleBtn: $("muteToggleBtn"),
+      practiceChip: $("practiceChip"),
+      endPracticeBtn: $("endPracticeBtn"),
+      shareResultBtn: $("shareResultBtn"),
+      retryMistakesBtn: $("retryMistakesBtn"),
+      runTypeGrid: $("runTypeGrid"),
+      crashTitle: document.querySelector("#gameOverView .crash-title")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
@@ -1231,6 +1276,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     initNav();
     initAvatarGrid();
     initModeSelector();
+    initRunTypeSelector();
     initLifelineButtons();
     initAdminTrigger();
 
@@ -1250,6 +1296,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       event.preventDefault();
       rebootArena();
     });
+
+    if (elements.endPracticeBtn) {
+      bindTap(elements.endPracticeBtn, (event) => {
+        event.preventDefault();
+        endGame("practice_end");
+      });
+    }
+    if (elements.shareResultBtn) {
+      bindTap(elements.shareResultBtn, (event) => {
+        event.preventDefault();
+        shareResult();
+      });
+    }
+    if (elements.retryMistakesBtn) {
+      bindTap(elements.retryMistakesBtn, (event) => {
+        event.preventDefault();
+        startRetryMistakes();
+      });
+    }
 
     initModalTriggers();
 
@@ -1389,8 +1454,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       : "-";
     elements.hudRank.textContent = getRank(state.score);
     animateScoreTo(state.score);
-    elements.hudLives.textContent = "\u2764\uFE0F".repeat(Math.max(0, state.lives)) +
-      "\u{1F5A4}".repeat(Math.max(0, MAX_LIVES - state.lives));
+    if (state.isPractice) {
+      elements.hudLives.textContent = "\u221E";
+    } else {
+      elements.hudLives.textContent = "\u2764\uFE0F".repeat(Math.max(0, state.lives)) +
+        "\u{1F5A4}".repeat(Math.max(0, MAX_LIVES - state.lives));
+    }
+
+    if (elements.practiceChip) {
+      elements.practiceChip.hidden = !state.isPractice;
+      elements.practiceChip.textContent = state.isRetryMistakes ? "RETRY MISTAKES" : "PRACTICE";
+    }
+    if (elements.endPracticeBtn) {
+      elements.endPracticeBtn.hidden = !(state.isPractice && elements.gameView.classList.contains("active") && !state.ending);
+    }
 
     document.body.classList.toggle("streak-hot", state.streak >= STREAK_TARGET && !state.ending);
   }
@@ -1466,6 +1543,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   // containing only that one subject, so only its own questions can ever
   // be drawn — the existing shuffle/round-robin logic is reused as-is.
   function buildPool() {
+    // PHASE 1: Retry Mistakes uses a dedicated pool reconstructed from this session's misses.
+    if (state.isRetryMistakes && state.retryQuestionPool.length) {
+      state.activePool = shuffle(state.retryQuestionPool.slice());
+      state.currentIndex = 0;
+      return;
+    }
+
     const mode = getModeConfig(state.selectedMode);
     const activeSubjectPools = mode.id === RANDOM_MODE_ID
       ? subjectPools
@@ -1525,6 +1609,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       state.bossQuestionActive = false;
       setBossVisuals(false);
       if (state.currentIndex >= state.activePool.length) {
+        // PHASE 1: Retry Mistakes finishes after one full pass of the miss set.
+        if (state.isRetryMistakes) {
+          window.setTimeout(() => endGame("retry_done"), 200);
+          return;
+        }
         buildPool();
       }
       question = state.activePool[state.currentIndex];
@@ -1664,9 +1753,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       // Boss Question wrong answer: normal -1 heart, no extra penalty.
       state.bossQuestionActive = false;
       setBossVisuals(false);
-      elements.feedback.textContent = wasBossQuestion
-        ? "Boss question \u2014 mali. Isang heart lang ang nabawas."
-        : "Mali. Isang heart ang nabawas.";
+      if (state.isPractice) {
+        elements.feedback.textContent = wasBossQuestion
+          ? "Boss question \u2014 mali. Practice mode: walang bawas na heart."
+          : "Mali. Practice mode: walang bawas na heart. Review & continue.";
+      } else {
+        elements.feedback.textContent = wasBossQuestion
+          ? "Boss question \u2014 mali. Isang heart lang ang nabawas."
+          : "Mali. Isang heart ang nabawas.";
+      }
       elements.feedback.className = "feedback is-wrong";
       updateHud();
       loseLife("wrong");
@@ -1674,6 +1769,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function loseLife(reason) {
+    // PHASE 1: Practice / Retry Mistakes never lose hearts and never game-over from lives.
+    if (state.isPractice) {
+      updateHud();
+      window.setTimeout(loadNextQuestion, 650);
+      return;
+    }
     state.lives -= 1;
     updateHud();
     if (state.lives <= 0) {
@@ -1740,6 +1841,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   /* ---------------- Blur / focus anti-cheat ---------------- */
   function handleWindowBlur() {
     if (!state.allowBlurPenalty) return;
+    // Practice runs are learning sessions — no tab-switch penalty.
+    if (state.isPractice) return;
     if (elements.gameView.classList.contains("active") && !state.locked && !state.ending) {
       endGame("blur");
     }
@@ -1773,6 +1876,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.bossHit = new Set();
     state.activeTimeLimit = QUESTION_TIME_LIMIT;
     setBossVisuals(false);
+    // Note: isPractice / isRetryMistakes / retryQuestionPool are controlled by
+    // startGame / startRetryMistakes / rebootArena — not wiped here blindly
+    // so retry can call resetArena after setting those flags.
     buildPool();
     updateHud();
   }
@@ -1792,15 +1898,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     state.username = cleaned;
+    // Fresh ranked/practice run (not a retry) clears retry pool flags.
+    state.isRetryMistakes = false;
+    state.retryQuestionPool = [];
+    // isPractice is already set by the Ranked/Practice selector.
     resetArena();
     updateHud();
     // NEW FEATURE: make the selected Game Mode visible in the HUD stream
     // chip for the whole run (the subject chip beside it still always shows
     // the actual current question's subject — the two are never confused).
     if (elements.streamModeLabel) {
-      elements.streamModeLabel.textContent = getModeConfig(state.selectedMode).streamLabel;
+      const base = getModeConfig(state.selectedMode).streamLabel;
+      elements.streamModeLabel.textContent = state.isPractice ? `PRACTICE_${base}` : base;
     }
     setView("gameView");
+    updateHud();
     loadNextQuestion();
   }
 
@@ -1813,10 +1925,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     elements.usernameInput.value = "";
     state.username = "";
     state.bestScore = 0;
+    state.isRetryMistakes = false;
+    state.retryQuestionPool = [];
     resetArena();
     // NEW FEATURE: a fresh arena run returns to RANDOM / ALL SUBJECTS by
     // default rather than silently keeping whatever mode was last played.
     selectMode(RANDOM_MODE_ID);
+    selectRunType(false);
     elements.loginStatus.textContent = "Enter your username to begin the reviewer challenge.";
     setView("loginView");
     elements.usernameInput.focus();
@@ -1952,6 +2067,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   async function saveScore() {
+    // PHASE 1: Practice / Retry Mistakes never write to the competitive leaderboard.
+    if (state.isPractice || state.isRetryMistakes) {
+      console.log("[Arena] Practice/Retry run — score not saved to leaderboard.");
+      return;
+    }
     const key = usernameKey(state.username);
     const modeId = state.selectedMode;
     const boardKey = modeToBoardKey(modeId);
@@ -2047,7 +2167,26 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     if (!top.length) {
       elements.leaderboardBody.innerHTML =
-        `<tr><td colspan="4" class="lb-empty">No challenger records yet for ${escapeHtml(mode.label)}.</td></tr>`;
+        `<tr><td colspan="4" class="lb-empty">
+          <div>No challenger records yet for <strong>${escapeHtml(mode.label)}</strong>.</div>
+          <div style="margin-top:0.35rem;opacity:0.9;">Be the first Scholar on this board.</div>
+          <button type="button" class="lb-cta-btn" id="lbEmptyCta">Play ${escapeHtml(mode.label)}</button>
+        </td></tr>`;
+      const cta = $("lbEmptyCta");
+      if (cta) {
+        bindTap(cta, (event) => {
+          event.preventDefault();
+          // Apply this board's mode, switch to Ranked, close modal, focus start.
+          selectMode(state.leaderboardMode);
+          selectRunType(false);
+          closeModal("leaderboardModal");
+          setView("loginView");
+          if (elements.usernameInput) elements.usernameInput.focus();
+          if (elements.loginStatus) {
+            elements.loginStatus.textContent = `Ready: Ranked · ${getModeConfig(state.leaderboardMode).label}. Enter username then INITIALIZE.`;
+          }
+        });
+      }
       return;
     }
 
@@ -2402,12 +2541,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       lives: "Naubos ang hearts mo sa arena. Regroup, review, then bounce back.",
       wrong: "That final mistake ended the run, pero kaya mo pang higitan ito.",
       timeout: "Naubos ang oras sa huling tanong mo. Bilisan ang recall sa next round.",
-      blur: "Auto game over ito dahil lumipat ka ng browser tab habang active ang game."
+      blur: "Auto game over ito dahil lumipat ka ng browser tab habang active ang game.",
+      practice_end: "Practice session ended. Walang score na na-save — pure review lang ito.",
+      retry_done: "Naubos ang retry set mo. Review ulit o bumalik sa Ranked mode."
     };
 
+    if (elements.crashTitle) {
+      if (state.isPractice || reason === "practice_end") {
+        elements.crashTitle.textContent = state.isRetryMistakes
+          ? "[PRACTICE] RETRY MISTAKES COMPLETE"
+          : "[PRACTICE] SESSION ENDED";
+      } else {
+        elements.crashTitle.textContent = "[SYSTEM CRASH] REVIEWER OVER";
+      }
+    }
+
     elements.gameOverNote.innerHTML = "<strong>Status:</strong> " + escapeHtml(messageMap[reason] || messageMap.lives);
+    if (state.isPractice) {
+      elements.gameOverNote.innerHTML += " <strong>(Practice — hindi nasesave sa leaderboard)</strong>";
+    }
     elements.gameOverQuote.textContent = formatQuote(quote);
     renderReviewPanel();
+
+    // PHASE 1: Retry Mistakes button only when there is something to retry
+    // and this wasn't already a pure empty retry completion.
+    if (elements.retryMistakesBtn) {
+      const canRetry = state.mistakes.length > 0;
+      elements.retryMistakesBtn.hidden = !canRetry;
+      elements.retryMistakesBtn.disabled = !canRetry;
+      elements.retryMistakesBtn.textContent = canRetry
+        ? `Retry Mistakes (${state.mistakes.length})`
+        : "Retry Mistakes";
+    }
   }
 
   async function endGame(reason = "lives") {
@@ -2419,6 +2584,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.lastEndReason = reason;
     stopTimer();
     state.allowBlurPenalty = false;
+    if (elements.endPracticeBtn) elements.endPracticeBtn.hidden = true;
 
     await saveScore();
     await renderLeaderboard();
@@ -2430,6 +2596,115 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     state.allowBlurPenalty = true;
   }
+
+  /* ---------------- PHASE 1: Share Result + Retry Mistakes ---------------- */
+  function buildShareText() {
+    const mode = getModeConfig(state.selectedMode);
+    const runLabel = state.isRetryMistakes
+      ? "Retry Mistakes (Practice)"
+      : state.isPractice
+        ? `Practice · ${mode.label}`
+        : `Ranked · ${mode.label}`;
+    const lines = [
+      "BSCS 1-A Reviewer Arena",
+      `Player: ${state.avatar} ${state.username || "Scholar"}`,
+      `Mode: ${runLabel}`,
+      `Score: ${state.score}`,
+      `Badge: ${getRank(state.score)}`,
+      `Mistakes: ${state.mistakes.length}`,
+      "— Developed by RST · LSPU Siniloan"
+    ];
+    return lines.join("\n");
+  }
+
+  function showShareToast(message) {
+    const existing = document.querySelector(".share-toast");
+    if (existing) existing.remove();
+    const toast = document.createElement("div");
+    toast.className = "share-toast";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 2200);
+  }
+
+  async function shareResult() {
+    const text = buildShareText();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "BSCS 1-A Reviewer Arena",
+          text
+        });
+        showShareToast("Shared successfully");
+        return;
+      }
+    } catch (error) {
+      // User cancel or share failure → fall through to clipboard.
+      if (error && error.name === "AbortError") return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        showShareToast("Result copied — paste sa GC");
+        return;
+      }
+    } catch (error) {
+      console.warn("[Arena] Clipboard share failed:", error);
+    }
+    // Last-resort fallback for older mobile browsers
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+      showShareToast("Result copied — paste sa GC");
+    } catch (error) {
+      showShareToast("Copy failed — screenshot na lang");
+    }
+  }
+
+  function resolveMistakeQuestions(mistakes) {
+    const pool = [];
+    const seen = new Set();
+    mistakes.forEach((m) => {
+      const key = `${m.subject}||${m.q}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const found = questionBank.find((q) => q.s === m.subject && q.q === m.q);
+      if (found) pool.push(found);
+    });
+    return pool;
+  }
+
+  function startRetryMistakes() {
+    if (state.sessionLocked) return;
+    const pool = resolveMistakeQuestions(state.mistakes);
+    if (!pool.length) {
+      showShareToast("Walang mistakes to retry");
+      return;
+    }
+    // Preserve username/avatar/mode; switch into Practice + Retry pool.
+    state.isPractice = true;
+    state.isRetryMistakes = true;
+    state.retryQuestionPool = pool;
+    state.ending = false;
+    state.locked = false;
+    state.allowBlurPenalty = true;
+    // Keep previous mistakes list cleared for the new focused run tracking.
+    resetArena();
+    if (elements.streamModeLabel) {
+      elements.streamModeLabel.textContent = "RETRY_MISTAKES";
+    }
+    setView("gameView");
+    updateHud();
+    loadNextQuestion();
+  }
+
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
