@@ -1,0 +1,26 @@
+{
+  "name": "BSCS 1-A · RST Section Hub",
+  "short_name": "BSCS 1-A RST",
+  "description": "Official BSCS 1-A section hub and Reviewer Arena by RST — LSPU Siniloan.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#060c18",
+  "theme_color": "#060c18",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
