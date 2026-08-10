@@ -415,6 +415,50 @@ table { width: 100%; border-collapse: collapse; }
   box-shadow: 0 0 14px rgba(100,255,218,0.4);
 }
 
+/* ---------- NEW FEATURE: Game Mode / Subject Selection ---------- */
+.field-title {
+  margin: 0.9rem 0 0.5rem; font-size: 0.68rem; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.mode-grid {
+  display: grid; grid-template-columns: 1fr; gap: 0.6rem;
+  width: 100%; position: relative; z-index: 1;
+}
+.mode-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem;
+  width: 100%; text-align: left; padding: 0.85rem 0.95rem; border-radius: 14px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(100,255,218,0.16);
+  color: var(--text); cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.mode-card:hover, .mode-card:focus-visible {
+  transform: translateY(-2px); border-color: rgba(100,255,218,0.36); outline: none;
+}
+.mode-card.selected {
+  border-color: var(--accent); background: rgba(100,255,218,0.12);
+  box-shadow: 0 0 16px rgba(100,255,218,0.28);
+}
+.mode-icon { font-size: 1.25rem; line-height: 1; }
+.mode-title {
+  font-weight: 900; font-size: 0.92rem; color: #f4fbff; letter-spacing: 0.01em;
+}
+.mode-desc { font-size: 0.78rem; color: rgba(230,241,255,0.72); line-height: 1.4; }
+.selected-mode-display {
+  margin: 0.7rem 0 0; font-size: 0.82rem; font-weight: 800; color: rgba(100,255,218,0.94);
+  position: relative; z-index: 1;
+}
+
+/* ---------- NEW FEATURE: dynamic Game Protocol rules list ---------- */
+.protocol-rules-list {
+  list-style: none; margin: 0 0 0.7rem; padding: 0; display: grid; gap: 0.4rem;
+  border: 1px solid rgba(100,255,218,0.14); border-radius: 12px;
+  background: rgba(255,255,255,0.02); padding: 0.7rem 0.85rem;
+}
+.protocol-rules-list li {
+  font-size: 0.82rem; color: rgba(230,241,255,0.86); line-height: 1.45;
+}
+.protocol-rules-list li strong { color: var(--accent); }
+
 .view { display: none; }
 .view.active { display: block; }
 
@@ -839,6 +883,7 @@ body.boss-active #gameView.active {
   .choices { grid-template-columns: 1fr 1fr; }
   .hud { grid-template-columns: repeat(4, 1fr); }
   .avatar-opt { width: 3.8rem; height: 3.8rem; font-size: 1.7rem; }
+  .mode-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (min-width: 860px) {
@@ -888,56 +933,11 @@ body.boss-active #gameView.active {
     <div class="modal-panel modal-panel--info" role="dialog" aria-modal="true" aria-labelledby="protocolModalTitle">
       <button type="button" class="modal-close-btn" data-close-modal="protocolModal" aria-label="Close Game Protocol">&times;</button>
       <h3 id="protocolModalTitle">Game Protocol</h3>
-      <p class="sysline">[CORE RULES] 100-question pool | Randomized order | 3 lives | 25s per question | Boss Q @ 15s | Top 10 leaderboard</p>
-      <p>
-        Start with <strong>3 lives (hearts)</strong>. Bawat tamang sagot ay
-        <strong>+2 points</strong>, at kada 5 sunod-sunod na tamang sagot (streak)
-        ay may <strong>+1 bonus point</strong>. Bawat maling sagot o pag-expire ng
-        <strong>25-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
-        hearts, magti-trigger ang game over system.
-      </p>
-      <p>
-        Mixed ang tanong mula sa totoong subjects: <strong>ITEC 101, ITEC 102, GEC 101,
-        GEC 102, P.I. 100, KOMFIL, at PATHFIT 1.</strong>
-      </p>
-      <p>
-        May dalawang lifelines na pwedeng gamitin isang beses bawat session:
-        <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
-        (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
-        tumataas ang score mo. Kapag naubos ang buong question cycle, automatic na
-        magre-reshuffle ang arena para tuloy-tuloy ang review.
-      </p>
-      <p>
-        <strong>Username rules:</strong> letters at spaces lang ang tinatanggap
-        (walang numero, symbols, o emoji) — awtomatikong nililinis ito habang
-        nagta-type ka.
-      </p>
-      <p>
-        <strong>One entry per player:</strong> case-insensitive ang pagtukoy sa
-        pangalan sa leaderboard (hal. "RST" at "rst" ay iisa lang), kaya isang
-        record lang bawat player. Ang lumang score ay mapapalitan lamang kapag
-        mas mataas ang bagong score — kung mas mababa, hindi ito isasave.
-      </p>
-      <p>
-        <strong>🏅 Academic Rank Badges:</strong> nagbabago ang iyong badge title
-        kada <strong>10 points</strong>, mula "Hello World Installer" bilang
-        FRESHMAN pataas hanggang "BSCS 1-A Valedictorian" bilang LEGEND sa
-        score 500. Nakikita ito live sa tabi ng iyong score sa HUD.
-      </p>
-      <p>
-        <strong>🔊 Retro Sound FX:</strong> may 8-bit na tunog ang bawat tamang
-        sagot, maling sagot, at 25-score milestone — puro generated sa browser
-        (walang audio file na kailangang i-download). May Mute button
-        (🔊/🔇) sa ibabang-kanang bahagi ng screen kung gusto mong patahimikin.
-      </p>
-      <p>
-        <strong>⚔️ Boss Question Warning:</strong> sa scores na <strong>50,
-        150, 250, 350, at 450</strong>, magti-trigger ang isang "BOSS LEVEL"
-        na may red flash warning. Ang susunod na tanong ay galing sa
-        pinakamahirap na subject pool (ITEC 102) at bababa lang ang timer sa
-        <strong>15 seconds</strong>. Kung tama, +4 points (double) — kung
-        mali, normal na -1 heart lang.
-      </p>
+      <!-- NEW FEATURE: this entire body is generated at runtime by
+           renderProtocolContent() in game.js, straight from the live game
+           configuration and the currently selected Game Mode. It updates
+           instantly whenever the mode changes, with no page refresh. -->
+      <div id="protocolContent"></div>
     </div>
   </div>
 
@@ -1360,6 +1360,10 @@ body.boss-active #gameView.active {
                   <p class="hidden-label" id="avatarLabel">Choose your avatar</p>
                   <div class="avatar-grid" id="avatarGrid" role="radiogroup" aria-labelledby="avatarLabel"></div>
 
+                  <p class="field-title" id="modeLabel">Select Game Mode</p>
+                  <div class="mode-grid" id="modeGrid" role="radiogroup" aria-labelledby="modeLabel"></div>
+                  <p class="selected-mode-display" id="selectedModeLabel">Selected Mode: RANDOM / ALL SUBJECTS</p>
+
                   <div class="input-wrap">
                     <button id="startBtn" class="arena-btn" type="button">INITIALIZE</button>
                   </div>
@@ -1405,7 +1409,7 @@ body.boss-active #gameView.active {
                   <div class="game-center" id="question-container">
                     <div class="question-meta">
                       <span id="subjectChip" class="subject-chip">ITEC 101</span>
-                      <span class="stream-chip">STREAM: INFINITE_RANDOMIZED &middot; <span id="timerNum">25</span>s</span>
+                      <span class="stream-chip">STREAM: <span id="streamModeLabel">RANDOM_ALL_SUBJECTS</span> &middot; <span id="timerNum">25</span>s</span>
                     </div>
                     <p id="questionText" class="question-text">Loading question...</p>
                   </div>
