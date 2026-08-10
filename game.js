@@ -54,6 +54,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const ADMIN_CODE_HASH = "0468c056fcc1b0b733d4df0731d0bbb2180ff90e764f4972b5c423e8642b406a"; // RST-ADMIN-HUB-2026
   const HUB_CONFIG_PATH = "hub_config";
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
+  const LOGIN_LOG_PATH = "hub_logins";
+  const LOGIN_LOG_LOCAL_KEY = "bscs1a_login_log_v1";
   const COMPANY_NAME = "RST";
   const STUDY_PLAN_COUNT = 10;
   const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
@@ -253,8 +255,94 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       guestPlayAllowed: true,
       ts: Date.now()
     });
+    // Fire-and-forget login log for RST Admin dashboard
+    recordClassmateLogin({
+      username: entry.username,
+      displayName: entry.displayName,
+      role: elevatedAdmin ? "admin" : "classmate"
+    }).catch((error) => console.warn("[Auth] login log failed:", error));
     return { ok: true, admin: elevatedAdmin };
   }
+
+  function formatLoginStamp(ts) {
+    try {
+      const d = new Date(Number(ts) || Date.now());
+      return d.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return String(ts);
+    }
+  }
+
+  async function recordClassmateLogin(info) {
+    const entry = {
+      username: info.username,
+      displayName: info.displayName || info.username,
+      role: info.role || "classmate",
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
+
+    // Local mirror (always) — last login per username + recent event list
+    try {
+      const store = JSON.parse(localStorage.getItem(LOGIN_LOG_LOCAL_KEY) || "{}");
+      if (!store.byUser || typeof store.byUser !== "object") store.byUser = {};
+      if (!Array.isArray(store.events)) store.events = [];
+      store.byUser[entry.username] = entry;
+      store.events.unshift(entry);
+      store.events = store.events.slice(0, 50);
+      localStorage.setItem(LOGIN_LOG_LOCAL_KEY, JSON.stringify(store));
+    } catch (error) {
+      console.warn("[Auth] local login log failed:", error);
+    }
+
+    if (db && entry.username) {
+      try {
+        // One node per classmate = latest login (easy for admin to scan)
+        await set(ref(db, `${LOGIN_LOG_PATH}/${entry.username}`), entry);
+      } catch (error) {
+        console.warn("[Auth] Firebase login log write failed:", error);
+      }
+    }
+  }
+
+  async function fetchClassmateLoginLog() {
+    const list = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, LOGIN_LOG_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((key) => {
+            const row = val[key];
+            if (row && typeof row === "object") {
+              list.push({ id: key, ...row });
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("[Auth] Firebase login log read failed:", error);
+      }
+    }
+    if (!list.length) {
+      try {
+        const store = JSON.parse(localStorage.getItem(LOGIN_LOG_LOCAL_KEY) || "{}");
+        const byUser = store.byUser || {};
+        Object.keys(byUser).forEach((key) => list.push({ id: key, ...byUser[key] }));
+      } catch (error) {
+        /* ignore */
+      }
+    }
+    return list
+      .slice()
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
 
   async function verifyGuestPass(passRaw) {
     const code = String(passRaw || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
@@ -479,23 +567,28 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        Rome Mhar S. Tabifranca · ${COMPANY_NAME}. Control guest arena access for FB visitors.
+        Rome Mhar S. Tabifranca · ${COMPANY_NAME}. Guest access + classmate login activity.
       </p>
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
+      <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
+        Loading login activity…
+      </div>
       <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;margin-bottom:0.75rem;">
         <input type="checkbox" id="adminGuestGlobal" /> Enable guest play globally (all guests)
       </label>
       <div class="auth-field">
-        <label for="adminNewPass">Issue Guest Pass code</label>
+        <label for="adminNewPass">Issue / revoke Guest Pass code</label>
         <input id="adminNewPass" type="text" maxlength="16" placeholder="e.g. RST-GUEST-01" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(0,0,0,0.3);color:var(--text);" />
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
         <button type="button" class="lifeline-btn" id="adminIssuePass">Issue Pass</button>
         <button type="button" class="lifeline-btn admin-danger" id="adminRevokePass">Revoke Pass</button>
         <button type="button" class="lifeline-btn" id="adminSaveGlobal">Save Global Toggle</button>
+        <button type="button" class="lifeline-btn" id="adminRefreshLog">Refresh Log</button>
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
       <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
-      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Passes are stored in Firebase when online, and mirrored locally on this device.</p>
+      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Login log = last sign-in per classmate (date &amp; time). Guests are not listed.</p>
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
@@ -504,18 +597,49 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const globalBox = panel.querySelector("#adminGuestGlobal");
     const passInput = panel.querySelector("#adminNewPass");
 
-    // Load global flag
+    const logHost = panel.querySelector("#adminLoginLog");
+
+    async function renderAdminLoginLog() {
+      if (!logHost) return;
+      logHost.textContent = "Loading login activity…";
+      const rows = await fetchClassmateLoginLog();
+      if (!rows.length) {
+        logHost.innerHTML = `<span style="color:var(--muted)">No classmate logins recorded yet.</span>`;
+        return;
+      }
+      logHost.innerHTML = rows.map((row) => {
+        const when = formatLoginStamp(row.ts);
+        const role = row.role === "admin" ? "ADMIN" : "CLASSMATE";
+        const name = escapeHtml(row.displayName || row.username || "Unknown");
+        const user = escapeHtml(row.username || "");
+        return `<div style="padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div style="font-weight:800;color:#eafffb;">${name}</div>
+          <div style="color:var(--muted);margin-top:0.15rem;">@${user} · ${role}</div>
+          <div style="color:var(--accent);margin-top:0.15rem;font-weight:700;">${escapeHtml(when)}</div>
+        </div>`;
+      }).join("");
+    }
+
+    // Load global flag + login log
     (async () => {
-      if (!db) return;
       try {
-        const snap = await get(ref(db, HUB_CONFIG_PATH));
-        if (snap.exists() && snap.val()) {
-          globalBox.checked = snap.val().guestPlayEnabled === true;
+        if (db) {
+          const snap = await get(ref(db, HUB_CONFIG_PATH));
+          if (snap.exists() && snap.val()) {
+            globalBox.checked = snap.val().guestPlayEnabled === true;
+          }
         }
       } catch (error) {
         status.textContent = "Could not load hub_config (check Firebase rules).";
       }
+      await renderAdminLoginLog();
     })();
+
+    bindTap(panel.querySelector("#adminRefreshLog"), async (e) => {
+      e.preventDefault();
+      await renderAdminLoginLog();
+      status.textContent = "Login log refreshed.";
+    });
 
     bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
