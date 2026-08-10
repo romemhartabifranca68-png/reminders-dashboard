@@ -277,20 +277,47 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { s: "ITEC 102", q: "What is recursion in programming?", choices: ["A function calling itself to solve a smaller instance of a problem", "A loop that never runs", "A type of data type", "A file reading method"], answer: "A function calling itself to solve a smaller instance of a problem" },
     { s: "ITEC 102", q: "Why does a recursive function need a base case?", choices: ["To stop the recursive calls and prevent infinite recursion", "To make the function run faster", "To avoid declaring variables", "To skip parameter passing"], answer: "To stop the recursive calls and prevent infinite recursion" },
 
-    { s: "GEC 101", q: "What does self-concept refer to?", choices: ["A person's perception of themselves", "A person's Wi-Fi settings", "A school schedule", "A computer part"], answer: "A person's perception of themselves" },
-    { s: "GEC 101", q: "The physical self mainly refers to what?", choices: ["Body and appearance", "Internet speed", "National budget", "Classroom layout"], answer: "Body and appearance" },
-    { s: "GEC 101", q: "The social self develops mainly through what?", choices: ["Interaction with others", "Installing apps", "Writing machine code", "Watching only movies"], answer: "Interaction with others" },
-    { s: "GEC 101", q: "What is the digital self?", choices: ["A person's online identity", "A type of keyboard", "A storage file", "A network cable"], answer: "A person's online identity" },
-    { s: "GEC 101", q: "Emotional intelligence is the ability to do what?", choices: ["Understand and manage emotions", "Repair a computer", "Memorize every number", "Build a router"], answer: "Understand and manage emotions" },
-    { s: "GEC 101", q: "Self-esteem refers to what?", choices: ["A person's sense of self-worth", "A school uniform", "A mobile application", "A typing speed"], answer: "A person's sense of self-worth" },
-    { s: "GEC 101", q: "Which statement about development is most accurate?", choices: ["Both nature and nurture influence it", "Only nature matters", "Only nurture matters", "Technology decides everything"], answer: "Both nature and nurture influence it" },
-    { s: "GEC 101", q: "What is mindfulness?", choices: ["Awareness of the present moment", "A brand of laptop", "A type of printer", "A programming method"], answer: "Awareness of the present moment" },
-    { s: "GEC 101", q: "Values usually guide what?", choices: ["Decisions and behavior", "Battery voltage", "File downloads", "Screen brightness"], answer: "Decisions and behavior" },
-    { s: "GEC 101", q: "Johari Window is commonly associated with what?", choices: ["Self-awareness and feedback", "Computer hardware", "Network security", "Sports scoring"], answer: "Self-awareness and feedback" },
-    { s: "GEC 101", q: "What is the ideal self?", choices: ["The person one wants to become", "A default profile picture", "A secret password", "A temporary file"], answer: "The person one wants to become" },
-    { s: "GEC 101", q: "What is resilience?", choices: ["The ability to recover from challenges", "A software license", "A classroom project", "A phone setting"], answer: "The ability to recover from challenges" },
-    { s: "GEC 101", q: "Self-care mainly supports what?", choices: ["Well-being", "Hard drive speed", "Screen resolution", "Signal strength"], answer: "Well-being" },
-    { s: "GEC 101", q: "Which is a healthy stress-management technique?", choices: ["Deep breathing", "Ignoring every problem forever", "Skipping all sleep", "Never drinking water"], answer: "Deep breathing" },
+    { s: "GEC 101", q: "According to Socrates, what is the self synonymous with?", choices: ["The soul", "The body", "The government", "The community"], answer: "The soul" },
+    { s: "GEC 101", q: "What is Socrates' famous statement about self-examination?", choices: ["An unexamined life is not worth living", "I think, therefore I am", "The self is a blank slate", "There is no self"], answer: "An unexamined life is not worth living" },
+    { s: "GEC 101", q: "According to Socrates, what does the soul strive for?", choices: ["Wisdom and perfection", "Wealth and power", "Fame and pleasure", "Speed and strength"], answer: "Wisdom and perfection" },
+    { s: "GEC 101", q: "According to Socrates, what happens to the soul if it remains tied to the body?", choices: ["It continues to wander and be confused", "It becomes perfectly wise instantly", "It disappears completely", "It becomes another person's soul"], answer: "It continues to wander and be confused" },
+    { s: "GEC 101", q: "For Plato, what Greek word refers to the soul?", choices: ["Psyche", "Cogito", "Logos", "Ethos"], answer: "Psyche" },
+    { s: "GEC 101", q: "According to Plato, the soul is composed of how many parts?", choices: ["Three", "One", "Two", "Four"], answer: "Three" },
+    { s: "GEC 101", q: "Which of the following is one of Plato's three parts of the soul?", choices: ["Reason", "Wi-Fi", "Algorithm", "Currency"], answer: "Reason" },
+    { s: "GEC 101", q: "According to Plato, which part of the soul is the divine essence that enables wise choices?", choices: ["Reason", "Physical Appetite", "Spirit", "Ego"], answer: "Reason" },
+    { s: "GEC 101", q: "According to Plato, which part of the soul refers to basic biological needs like hunger and thirst?", choices: ["Physical Appetite", "Reason", "Spirit", "Consciousness"], answer: "Physical Appetite" },
+    { s: "GEC 101", q: "According to Plato, which part of the soul refers to emotions such as love, anger, and ambition?", choices: ["Spirit or passion", "Reason", "Physical Appetite", "Impression"], answer: "Spirit or passion" },
+    { s: "GEC 101", q: "According to Plato, who is responsible for sorting out conflict among the three parts of the soul?", choices: ["Reason", "Physical Appetite", "Spirit", "The body"], answer: "Reason" },
+    { s: "GEC 101", q: "According to Plato, genuine happiness is achieved when what is in control of Spirit and Appetites?", choices: ["Reason", "Money", "Fame", "Technology"], answer: "Reason" },
+    { s: "GEC 101", q: "Which philosopher combined Plato's ideas with Christian teachings and is regarded as a saint?", choices: ["St. Augustine", "Rene Descartes", "John Locke", "David Hume"], answer: "St. Augustine" },
+    { s: "GEC 101", q: "According to St. Augustine, self-knowledge is a consequence of what?", choices: ["Knowledge of God", "Knowledge of mathematics", "Knowledge of politics", "Knowledge of technology"], answer: "Knowledge of God" },
+    { s: "GEC 101", q: "According to St. Augustine, what governs and defines a man?", choices: ["The soul", "The body", "Wealth", "Social status"], answer: "The soul" },
+    { s: "GEC 101", q: "Which philosopher is known for the phrase 'Cogito ergo sum'?", choices: ["Rene Descartes", "Socrates", "Plato", "Immanuel Kant"], answer: "Rene Descartes" },
+    { s: "GEC 101", q: "What does 'Cogito ergo sum' mean?", choices: ["I think, therefore I am", "I feel, therefore I exist", "I am, therefore I think", "I doubt, therefore I fail"], answer: "I think, therefore I am" },
+    { s: "GEC 101", q: "Rene Descartes is considered the father of what field?", choices: ["Modern philosophy", "Modern chemistry", "Modern biology", "Modern astronomy"], answer: "Modern philosophy" },
+    { s: "GEC 101", q: "For Descartes, what proves that there is a self?", choices: ["The act of thinking about self / being self-conscious", "Physical appearance", "Having many possessions", "Being praised by others"], answer: "The act of thinking about self / being self-conscious" },
+    { s: "GEC 101", q: "For Descartes, the human self is essentially what kind of entity?", choices: ["A thinking entity that doubts, understands, analyzes, questions, and reasons", "A purely physical entity with no thought", "An entity defined only by wealth", "An entity created by government"], answer: "A thinking entity that doubts, understands, analyzes, questions, and reasons" },
+    { s: "GEC 101", q: "Which philosopher believed the human mind at birth is a 'tabula rasa' or blank slate?", choices: ["John Locke", "Rene Descartes", "David Hume", "Socrates"], answer: "John Locke" },
+    { s: "GEC 101", q: "According to John Locke, the self is constructed primarily from what?", choices: ["Sense experiences", "Divine revelation", "Government laws", "Mathematical formulas"], answer: "Sense experiences" },
+    { s: "GEC 101", q: "According to Locke, what shapes and molds the self throughout a person's life?", choices: ["Experiences", "Physical strength", "Family wealth", "Nationality"], answer: "Experiences" },
+    { s: "GEC 101", q: "According to Locke, what is necessary to have a coherent personal identity?", choices: ["Self-consciousness", "Wealth", "Physical beauty", "Fame"], answer: "Self-consciousness" },
+    { s: "GEC 101", q: "Which philosopher suggested that there is no self, only impressions and ideas?", choices: ["David Hume", "John Locke", "Rene Descartes", "Immanuel Kant"], answer: "David Hume" },
+    { s: "GEC 101", q: "According to David Hume, through what process do people discover there is no self?", choices: ["Introspection", "Meditation only", "Formal education", "Physical exercise"], answer: "Introspection" },
+    { s: "GEC 101", q: "According to Hume, what are the two distinct entities found when examining experience?", choices: ["Impressions and ideas", "Reason and Appetite", "Mind and Machine", "Logic and Emotion"], answer: "Impressions and ideas" },
+    { s: "GEC 101", q: "According to Hume, which are the basic, vivid, and lively sensations of experience?", choices: ["Impressions", "Ideas", "Constants", "Variables"], answer: "Impressions" },
+    { s: "GEC 101", q: "According to Hume, which are the thoughts and images derived from impressions, less lively and vivid?", choices: ["Ideas", "Impressions", "Constants", "Reasons"], answer: "Ideas" },
+    { s: "GEC 101", q: "Which philosopher proposed the concept of the Transcendental Unity of Apperception?", choices: ["Immanuel Kant", "David Hume", "John Locke", "Socrates"], answer: "Immanuel Kant" },
+    { s: "GEC 101", q: "According to Immanuel Kant, where is being or the self located?", choices: ["Outside the body, transcendent", "Only inside the brain", "Only inside the heart", "Nowhere; the self does not exist"], answer: "Outside the body, transcendent" },
+    { s: "GEC 101", q: "According to Kant, the self is an organizing principle that makes what possible?", choices: ["A unified and intelligible experience", "Only physical movement", "Only emotional reactions", "Only financial success"], answer: "A unified and intelligible experience" },
+    { s: "GEC 101", q: "According to Kant, how does the self transcend experience?", choices: ["Through rationality, grasping ideas beyond the senses", "By avoiding all thinking", "By relying only on physical senses", "By ignoring reality completely"], answer: "Through rationality, grasping ideas beyond the senses" },
+    { s: "GEC 101", q: "Which philosopher's concept of self is most associated with 'the self is consciousness'?", choices: ["John Locke", "St. Augustine", "Socrates", "Plato"], answer: "John Locke" },
+    { s: "GEC 101", q: "Which philosopher's concept of self is most associated with 'the self is an immortal soul'?", choices: ["Plato", "David Hume", "John Locke", "Immanuel Kant"], answer: "Plato" },
+    { s: "GEC 101", q: "Which philosopher's concept of self is most associated with 'there is no self; only impressions and ideas'?", choices: ["David Hume", "Plato", "Socrates", "St. Augustine"], answer: "David Hume" },
+    { s: "GEC 101", q: "Which philosopher's concept of self is most associated with 'the self is always transcendental'?", choices: ["Immanuel Kant", "Socrates", "John Locke", "St. Augustine"], answer: "Immanuel Kant" },
+    { s: "GEC 101", q: "Which nationality is Rene Descartes?", choices: ["French", "Scottish", "German", "English"], answer: "French" },
+    { s: "GEC 101", q: "Which nationality is David Hume?", choices: ["Scottish", "French", "German", "Greek"], answer: "Scottish" },
+    { s: "GEC 101", q: "Which nationality is John Locke?", choices: ["English", "French", "Scottish", "German"], answer: "English" },
+    { s: "GEC 101", q: "Which nationality is Immanuel Kant?", choices: ["German", "French", "English", "Scottish"], answer: "German" },
 
     { s: "GEC 102", q: "What is a primary source?", choices: ["A source created by participants or eyewitnesses giving firsthand information", "A summary written by a modern author", "A textbook explaining several other sources", "An encyclopedia entry"], answer: "A source created by participants or eyewitnesses giving firsthand information" },
     { s: "GEC 102", q: "Which of the following is an example of a primary source?", choices: ["Diaries and letters", "A history textbook", "A journal article reviewing an event", "An encyclopedia summary"], answer: "Diaries and letters" },
@@ -392,50 +419,104 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { s: "GEC 102", q: "If a text uses additional details and superlative adjectives, what is the author trying to do?", choices: ["Intensify an idea", "Compare two ideas", "Contrast two ideas", "List ideas without opinion"], answer: "Intensify an idea" },
     { s: "GEC 102", q: "If a text uses positive opinions to prove a point, what is the author's purpose?", choices: ["To suggest an idea", "To criticize an idea", "To contrast ideas", "To identify a list only"], answer: "To suggest an idea" },
 
-    { s: "P.I. 100", q: "What is the full name of Rizal?", choices: ["Jose Protacio Rizal Mercado y Alonso Realonda", "Jose Panganiban Rizal Mercado", "Jose Rizal Del Pilar", "Jose Protacio Bonifacio Realonda"], answer: "Jose Protacio Rizal Mercado y Alonso Realonda" },
-    { s: "P.I. 100", q: "Who wrote Noli Me Tangere?", choices: ["Jose Rizal", "Andres Bonifacio", "Apolinario Mabini", "Emilio Jacinto"], answer: "Jose Rizal" },
-    { s: "P.I. 100", q: "El Filibusterismo is the sequel to what novel?", choices: ["Noli Me Tangere", "Florante at Laura", "Mi Ultimo Adios", "Sa Aking Mga Kabata"], answer: "Noli Me Tangere" },
-    { s: "P.I. 100", q: "Where was Jose Rizal born?", choices: ["Calamba, Laguna", "Dapitan, Zamboanga", "Manila", "Kawit, Cavite"], answer: "Calamba, Laguna" },
-    { s: "P.I. 100", q: "What date was Rizal born?", choices: ["June 19, 1861", "December 30, 1896", "June 12, 1898", "August 30, 1896"], answer: "June 19, 1861" },
-    { s: "P.I. 100", q: "What is the main theme of Noli Me Tangere?", choices: ["Social injustice under Spanish rule", "Space exploration", "Modern web development", "Olympic sports"], answer: "Social injustice under Spanish rule" },
-    { s: "P.I. 100", q: "What is the main theme of El Filibusterismo?", choices: ["Revenge and reform", "Plant biology", "Digital marketing", "Volleyball training"], answer: "Revenge and reform" },
-    { s: "P.I. 100", q: "Which Rizal poem is often called his farewell masterpiece?", choices: ["Mi Ultimo Adios", "A La Juventud Filipina", "Sa Aking Mga Kabata", "To the Child Jesus"], answer: "Mi Ultimo Adios" },
-    { s: "P.I. 100", q: "In what place was Rizal executed?", choices: ["Bagumbayan", "Dapitan", "Fort Santiago", "Biak-na-Bato"], answer: "Bagumbayan" },
-    { s: "P.I. 100", q: "What profession is Rizal also known for?", choices: ["Ophthalmologist", "Architect", "Pilot", "Engineer"], answer: "Ophthalmologist" },
-    { s: "P.I. 100", q: "What organization did Rizal found in Hong Kong?", choices: ["La Liga Filipina", "Katipunan", "Propaganda Party", "Guardia Civil"], answer: "La Liga Filipina" },
-    { s: "P.I. 100", q: "Who among these was Rizal's mother?", choices: ["Teodora Alonso", "Gregoria de Jesus", "Melchora Aquino", "Trinidad Tecson"], answer: "Teodora Alonso" },
-    { s: "P.I. 100", q: "Why is Rizal considered a national hero?", choices: ["He inspired reform through his writings and sacrifice", "He invented the internet", "He won many elections", "He discovered electricity"], answer: "He inspired reform through his writings and sacrifice" },
-    { s: "P.I. 100", q: "What law requires the study of Rizal in Philippine schools?", choices: ["Rizal Law", "Education Act 2001", "Civil Code", "Barangay Law"], answer: "Rizal Law" },
+    { s: "P.I. 100", q: "Ano ang tawag sa Republic Act No. 1425?", choices: ["The Rizal Law", "The Education Act", "The Civil Code", "The Flag Law"], answer: "The Rizal Law" },
+    { s: "P.I. 100", q: "Ano ang pangunahing layunin ng Republic Act No. 1425?", choices: ["Isama sa kurikula ng lahat ng paaralan ang mga kurso tungkol sa buhay, akda, at sulatin ni Jose Rizal", "Ipagbawal ang pag-aaral tungkol kay Rizal", "Palitan ang pangalan ng lahat ng paaralan", "Magtatag ng bagong wikang pambansa"], answer: "Isama sa kurikula ng lahat ng paaralan ang mga kurso tungkol sa buhay, akda, at sulatin ni Jose Rizal" },
+    { s: "P.I. 100", q: "Anong mga nobela ni Rizal ang partikular na binanggit sa Republic Act No. 1425?", choices: ["Noli Me Tangere at El Filibusterismo", "Mi Ultimo Adios at Florante at Laura", "Sa Aking Mga Kabata at Noli Me Tangere", "El Filibusterismo at Ibong Adarna"], answer: "Noli Me Tangere at El Filibusterismo" },
+    { s: "P.I. 100", q: "Sino ang senador na sumulat/nag-akda ng Rizal Bill?", choices: ["Claro M. Recto", "Jose P. Laurel", "Fidel V. Ramos", "Emilio Cortez"], answer: "Claro M. Recto" },
+    { s: "P.I. 100", q: "Sino ang chairman ng committee on Education na nag-sponsor ng bill sa Senado?", choices: ["Senator P. Laurel, Sr.", "Claro M. Recto", "Mona D. Valisno", "Mariano Bengzon"], answer: "Senator P. Laurel, Sr." },
+    { s: "P.I. 100", q: "Ano ang isa sa mga Section ng RA 1425 na nag-oobliga sa mga paaralan na magtago ng sapat na bilang ng kopya ng mga akda ni Rizal?", choices: ["Section 2", "Section 1", "Section 4", "Section 6"], answer: "Section 2" },
+    { s: "P.I. 100", q: "Ano ang sinasabi ng Section 4 ng RA 1425?", choices: ["Walang bahagi ng batas ang magpapawalang-bisa sa probisyon tungkol sa relihiyosong doktrina sa paaralang pampubliko", "Ipagbabawal ang lahat ng aklat na banyaga", "Ipagbabawal ang lahat ng wikang katutubo", "Palalawakin ang mandatory na paggamit ng Espanyol"], answer: "Walang bahagi ng batas ang magpapawalang-bisa sa probisyon tungkol sa relihiyosong doktrina sa paaralang pampubliko" },
+    { s: "P.I. 100", q: "Magkano ang halagang inaprubahang ilaan para sa layunin ng RA 1425?", choices: ["Tatlong daang libong piso (P300,000)", "Isang milyong piso", "Sampung libong piso", "Isang bilyong piso"], answer: "Tatlong daang libong piso (P300,000)" },
+    { s: "P.I. 100", q: "Saan nailathala ang RA 1425 noong 1956?", choices: ["Official Gazette, Vol. 52, No. 6", "Manila Bulletin", "Philippine Star", "Philippine Daily Inquirer"], answer: "Official Gazette, Vol. 52, No. 6" },
+    { s: "P.I. 100", q: "Sino ang nag-isyu ng Memorandum Order No. 247 na naglalayong ipatupad nang husto ang RA 1425?", choices: ["Pangulong Fidel V. Ramos", "Pangulong Corazon Aquino", "Pangulong Ferdinand Marcos", "Pangulong Joseph Estrada"], answer: "Pangulong Fidel V. Ramos" },
+    { s: "P.I. 100", q: "Anong taon inilabas ang Memorandum Order No. 247?", choices: ["1994", "1956", "1998", "1996"], answer: "1994" },
+    { s: "P.I. 100", q: "Sino ang lumagda sa CHED Memorandum No. 3, s. 1995 bilang Commissioner Officer-in-Charge?", choices: ["Mona D. Valisno", "Claro M. Recto", "Fidel V. Ramos", "Jose P. Laurel"], answer: "Mona D. Valisno" },
+    { s: "P.I. 100", q: "Ayon sa aralin, ano ang isa sa positibong epekto ng Rizal Law?", choices: ["Nagdulot ito ng nationalist reawakening", "Nagpataas ito ng singil sa matrikula", "Nagpasara ito ng mga unibersidad", "Nag-alis ito ng lahat ng kurso sa agham"], answer: "Nagdulot ito ng nationalist reawakening" },
+    { s: "P.I. 100", q: "Ayon sa aralin, ano ang isa sa negatibong epekto ng Rizal Law?", choices: ["Nagdulot ito ng mass confusion sa pagitan ng relihiyon at nasyonalismo", "Nagpataas ito ng bilang ng mag-aaral", "Nagpababa ito ng presyo ng aklat", "Wala itong naging epekto"], answer: "Nagdulot ito ng mass confusion sa pagitan ng relihiyon at nasyonalismo" },
+    { s: "P.I. 100", q: "Ano ang tinuran ni Dr. Rizal tungkol sa paaralan ayon sa Memorandum Order No. 247?", choices: ["Ang paaralan ang aklat kung saan nakasulat ang kinabukasan ng bansa", "Ang paaralan ay para lamang sa mayayaman", "Ang paaralan ay hindi kailangan ng bansa", "Ang paaralan ay dapat isara"], answer: "Ang paaralan ang aklat kung saan nakasulat ang kinabukasan ng bansa" },
+    { s: "P.I. 100", q: "Alin sa mga sumusunod ang isa sa mga kalagayan ng mga Pilipino sa ilalim ng kolonyal na kapangyarihan noong ika-19 na siglo?", choices: ["Racial discrimination", "Kalayaan sa lahat ng bagay", "Pantay na representasyon sa Espanya", "Libreng edukasyon para sa lahat"], answer: "Racial discrimination" },
+    { s: "P.I. 100", q: "Ano ang tinatawag sa sistema ng sapilitang paggawa noong panahon ng Espanyol?", choices: ["Polo y servicio", "Cortes", "Frailocracy", "Encomienda lamang"], answer: "Polo y servicio" },
+    { s: "P.I. 100", q: "Ano ang tawag sa kapangyarihan ng mga prayle sa relihiyon, edukasyon, at pulitika noong ika-19 na siglo?", choices: ["Frailocracy", "Democracy", "Monarchy", "Theocracy ng Amerikano"], answer: "Frailocracy" },
+    { s: "P.I. 100", q: "Alin ang naging kilalang grupo na kinilala sa maraming abuso tulad ng maltreatment sa mga tao noong panahong iyon?", choices: ["Guardia Civil", "Katipunan", "Propaganda Movement", "Cortes"], answer: "Guardia Civil" },
+    { s: "P.I. 100", q: "Ano ang tawag ng mga Espanyol sa mga Pilipino noong panahong iyon?", choices: ["Indios", "Ilustrados", "Bangus", "Mestizos"], answer: "Indios" },
+    { s: "P.I. 100", q: "Ano naman ang itinawag ng mga Pilipino sa mga Espanyol bilang pagganti?", choices: ["Bangus", "Indios", "Kastila lamang", "Guardia"], answer: "Bangus" },
+    { s: "P.I. 100", q: "Sino ang navigator-priest na nakahanap ng ruta pabalik sa Mexico mula sa Pilipinas noong 1565?", choices: ["Andres de Urdaneta", "Ferdinand Magellan", "Miguel Lopez de Legazpi", "Jose Basco y Vargas"], answer: "Andres de Urdaneta" },
+    { s: "P.I. 100", q: "Ano ang tawag sa kalakalang dagat sa pagitan ng Manila at Acapulco?", choices: ["Galleon Trade", "Suez Canal Trade", "Silk Road Trade", "Spice Trade"], answer: "Galleon Trade" },
+    { s: "P.I. 100", q: "Ano ang tawag sa mga tiket na naghahati sa espasyo ng kargamento sa mga barko ng galleon trade?", choices: ["Boletas", "Cedulas", "Encomiendas", "Cortes"], answer: "Boletas" },
+    { s: "P.I. 100", q: "Anong petsa binuksan ang Suez Canal?", choices: ["November 17, 1869", "June 12, 1898", "December 30, 1896", "May 1, 1898"], answer: "November 17, 1869" },
+    { s: "P.I. 100", q: "Bakit mahalaga ang pagbukas ng Suez Canal para sa Pilipinas?", choices: ["Pinaikli nito ang oras ng biyahe mula Pilipinas papuntang Espanya", "Pinatigil nito ang lahat ng kalakalan", "Ipinasara nito ang lahat ng daungan", "Winakasan nito ang paggamit ng barko"], answer: "Pinaikli nito ang oras ng biyahe mula Pilipinas papuntang Espanya" },
+    { s: "P.I. 100", q: "Sino ang French na namuno sa pagtatayo ng Suez Canal?", choices: ["Ferdinand de Lesseps", "Andres de Urdaneta", "Nicholas Loney", "Jose Basco y Vargas"], answer: "Ferdinand de Lesseps" },
+    { s: "P.I. 100", q: "Anong grupo ng mga Pilipino ang lumitaw dahil sa ekonomikong pag-unlad noong ika-19 na siglo?", choices: ["Mga ilustrado", "Mga Guardia Civil", "Mga prayle", "Mga Cortes"], answer: "Mga ilustrado" },
+    { s: "P.I. 100", q: "Ano ang tatlong pangunahing produkto na dominante sa Philippine exports noong huling bahagi ng ika-19 na siglo?", choices: ["Tabako, abaka, at asukal", "Bigas, mais, at kape", "Ginto, pilak, at tanso", "Karne, gulay, at prutas"], answer: "Tabako, abaka, at asukal" },
+    { s: "P.I. 100", q: "Sino ang British vice consul na tumulong sa pag-unlad ng industriya ng asukal sa Negros?", choices: ["Nicholas Loney", "Ferdinand de Lesseps", "Andres de Urdaneta", "Jose Basco y Vargas"], answer: "Nicholas Loney" },
+    { s: "P.I. 100", q: "Ano ang tawag sa mga may-ari ng mga plantasyon ng asukal sa Negros noong huling bahagi ng ika-19 na siglo?", choices: ["Mga sugar barons", "Mga Guardia Civil", "Mga ilustrado lamang", "Mga Cortes"], answer: "Mga sugar barons" },
+    { s: "P.I. 100", q: "Sino ang gobernador na nagsimula ng mga inisyatiba para sa kalakalan bago pa man mahirap ang panahon ng Economic Society?", choices: ["Jose Basco y Vargas", "Fidel V. Ramos", "Claro M. Recto", "Andres de Urdaneta"], answer: "Jose Basco y Vargas" },
+    { s: "P.I. 100", q: "Ang paglaki ng populasyon ng Chinese mestizo sa Pilipinas noong huling bahagi ng ika-19 na siglo ay lumampas sa ilang bilang?", choices: ["200,000", "20,000", "2,000,000", "2,000"], answer: "200,000" },
+    { s: "P.I. 100", q: "Saan ipinanganak si Jose Rizal?", choices: ["Calamba, Laguna", "Manila", "Dapitan", "Biñan, Laguna"], answer: "Calamba, Laguna" },
+    { s: "P.I. 100", q: "Anong petsa ipinanganak si Jose Rizal?", choices: ["Hunyo 19, 1861", "Disyembre 30, 1896", "Hunyo 12, 1898", "Mayo 11, 1818"], answer: "Hunyo 19, 1861" },
+    { s: "P.I. 100", q: "Ika-ilang anak si Jose Rizal sa labing-isang magkakapatid?", choices: ["Ikapito", "Una", "Ikasampu", "Ikalabing-isa"], answer: "Ikapito" },
+    { s: "P.I. 100", q: "Sino ang ama ni Jose Rizal?", choices: ["Francisco Mercado Rizal", "Paciano Rizal", "Domingo Lam-co", "Manuel Alberto"], answer: "Francisco Mercado Rizal" },
+    { s: "P.I. 100", q: "Sino ang ina ni Jose Rizal?", choices: ["Teodora Alonso Realonda", "Saturnina Rizal", "Narcisa Rizal", "Josephine Bracken"], answer: "Teodora Alonso Realonda" },
+    { s: "P.I. 100", q: "Sino ang full-blooded Chinese na paternal ascendant ng pamilyang Rizal?", choices: ["Domingo Lam-co", "Eugenio Ursua", "Lakandula", "Juan Mercado"], answer: "Domingo Lam-co" },
+    { s: "P.I. 100", q: "Sino ang naging asawa ni Domingo Lam-co?", choices: ["Ines de la Rosa", "Cirila Alejandro", "Teodora Alonso", "Regina Ursua"], answer: "Ines de la Rosa" },
+    { s: "P.I. 100", q: "Sino ang maternal great-great-grandfather ni Rizal na may lahing Hapon?", choices: ["Eugenio Ursua", "Domingo Lam-co", "Juan Mercado", "Francisco Mercado"], answer: "Eugenio Ursua" },
+    { s: "P.I. 100", q: "Sino ang huling Malayan king of Tondo na kinilalang ninuno ni Rizal?", choices: ["Lakandula", "Domingo Lam-co", "Eugenio Ursua", "Juan Mercado"], answer: "Lakandula" },
+    { s: "P.I. 100", q: "Ano ang naging pinagmulan ng surname na 'Mercado'?", choices: ["Ang salitang MARKET, na inampon ni Domingo Lam-co", "Isang pangalan ng bayan", "Isang pangalan ng simbahan", "Isang titulo ng hari"], answer: "Ang salitang MARKET, na inampon ni Domingo Lam-co" },
+    { s: "P.I. 100", q: "Sinong gobernador-heneral ang nag-utos sa mga pamilyang Pilipino na pumili ng bagong apelyido noong 1849?", choices: ["Gobernador Narciso Clavería", "Fidel V. Ramos", "Andres de Urdaneta", "Claro M. Recto"], answer: "Gobernador Narciso Clavería" },
+    { s: "P.I. 100", q: "Ano ang kahulugan ng salitang 'Rizal' sa Espanyol ayon sa aralin?", choices: ["Isang bukid kung saan ang trigo, kahit putol habang berde pa, ay muling tutubo", "Isang uri ng hayop", "Isang uri ng damit", "Isang lugar sa Espanya"], answer: "Isang bukid kung saan ang trigo, kahit putol habang berde pa, ay muling tutubo" },
+    { s: "P.I. 100", q: "Sino ang nakatatandang kapatid na lalaki ni Jose Rizal?", choices: ["Paciano Rizal", "Manuel Hidalgo", "Antonio Lopez", "Mariano Herbosa"], answer: "Paciano Rizal" },
+    { s: "P.I. 100", q: "Sino ang pinaka-panganay sa magkakapatid na Rizal?", choices: ["Saturnina Rizal", "Narcisa Rizal", "Maria Rizal", "Trinidad Rizal"], answer: "Saturnina Rizal" },
+    { s: "P.I. 100", q: "Sino ang pinakabata sa magkakapatid na Rizal?", choices: ["Soledad Rizal", "Josefa Rizal", "Trinidad Rizal", "Concepcion Rizal"], answer: "Soledad Rizal" },
+    { s: "P.I. 100", q: "Sino sa magkakapatid ni Rizal ang naging tagapag-ingat ng kanyang huli at pinakamagandang tula?", choices: ["Trinidad Rizal", "Saturnina Rizal", "Narcisa Rizal", "Josefa Rizal"], answer: "Trinidad Rizal" },
+    { s: "P.I. 100", q: "Sino sa magkakapatid ni Rizal ang namatay sa edad na tatlo?", choices: ["Concepcion Rizal", "Olympia Rizal", "Lucia Rizal", "Maria Rizal"], answer: "Concepcion Rizal" },
+    { s: "P.I. 100", q: "Sino sa magkakapatid ang naging pinaka-edukado sa mga kapatid na babae ni Rizal, na naging guro?", choices: ["Soledad Rizal", "Narcisa Rizal", "Josefa Rizal", "Olympia Rizal"], answer: "Soledad Rizal" },
+    { s: "P.I. 100", q: "Anong titulo ang ibinigay ni Rizal kay Paciano sa kanyang unang nobela?", choices: ["Pilosopo Tasio", "Elias", "Ibarra", "Padre Damaso"], answer: "Pilosopo Tasio" },
+    { s: "P.I. 100", q: "Sino sa mga tiyuhin ni Rizal ang nagturo sa kanya na magbasa at magtrabaho nang masipag?", choices: ["Tiyo Gregorio", "Tiyo Jose", "Tiyo Manuel", "Tiyo Antonio"], answer: "Tiyo Gregorio" },
+    { s: "P.I. 100", q: "Sino sa mga tiyuhin ni Rizal ang naghikayat sa kanya na mag-drawing, mag-sketch, at mag-eskultura?", choices: ["Tiyo Jose", "Tiyo Gregorio", "Tiyo Manuel", "Tiyo Antonio"], answer: "Tiyo Jose" },
+    { s: "P.I. 100", q: "Sino sa mga tiyuhin ni Rizal ang naghikayat sa kanya na matutong lumangoy, mag-fencing, at mag-wrestling?", choices: ["Tiyo Manuel", "Tiyo Gregorio", "Tiyo Jose", "Tiyo Antonio"], answer: "Tiyo Manuel" },
+    { s: "P.I. 100", q: "Ilang taon si Rizal noong natutunan niya ang alpabeto mula sa kanyang ina?", choices: ["Tatlong taong gulang", "Anim na taong gulang", "Walong taong gulang", "Sampung taong gulang"], answer: "Tatlong taong gulang" },
+    { s: "P.I. 100", q: "Sino ang unang guro ni Rizal?", choices: ["Ang kanyang ina, si Teodora Alonso", "Si Leon Monroy", "Si Justiniano Aquino Cruz", "Si Padre Casañas"], answer: "Ang kanyang ina, si Teodora Alonso" },
+    { s: "P.I. 100", q: "Sino ang unang tutor ni Rizal sa Espanyol at Latin na namatay makalipas ang limang buwan?", choices: ["Leon Monroy", "Justiniano Aquino Cruz", "Padre Casañas", "Maestro Celestino"], answer: "Leon Monroy" },
+    { s: "P.I. 100", q: "Anong taon isinulat ni Rizal ang kanyang unang tula na 'Sa Aking Mga Kabata'?", choices: ["1869", "1861", "1896", "1898"], answer: "1869" },
+    { s: "P.I. 100", q: "Ilang taong gulang si Rizal noong isulat ang 'Sa Aking Mga Kabata'?", choices: ["Walong taong gulang", "Tatlong taong gulang", "Sampung taong gulang", "Labindalawang taong gulang"], answer: "Walong taong gulang" },
+    { s: "P.I. 100", q: "Ano ang tema ng tula na 'Sa Aking Mga Kabata'?", choices: ["Pag-ibig sa sariling wika", "Pag-ibig sa bayan", "Pag-ibig sa pamilya", "Pag-ibig sa kalikasan"], answer: "Pag-ibig sa sariling wika" },
+    { s: "P.I. 100", q: "Saan nag-aral si Rizal para sa kanyang unang pormal na pribadong paaralan?", choices: ["Biñan", "Manila", "Dapitan", "Hong Kong"], answer: "Biñan" },
+    { s: "P.I. 100", q: "Sino ang mahigpit na guro ni Rizal sa Biñan?", choices: ["Justiniano Aquino Cruz", "Leon Monroy", "Padre Casañas", "Rufino Collantes"], answer: "Justiniano Aquino Cruz" },
+    { s: "P.I. 100", q: "Sino ang sumamang kapatid ni Rizal noong pumunta siya sa Biñan upang mag-aral?", choices: ["Paciano", "Narcisa", "Saturnina", "Trinidad"], answer: "Paciano" },
+    { s: "P.I. 100", q: "Anong apat na R ang binanggit bilang katangian ng maagang edukasyon ni Rizal?", choices: ["Reading, writing, arithmetic, at religion", "Reading, running, writing, at religion", "Riding, writing, arithmetic, at reasoning", "Reading, arithmetic, running, at rowing"], answer: "Reading, writing, arithmetic, at religion" },
+    { s: "P.I. 100", q: "Sino ang bully na kinaaway ni Rizal noong unang araw niya sa paaralan sa Biñan?", choices: ["Pedro", "Andres Salandanan", "Leandro", "Justiniano"], answer: "Pedro" },
+    { s: "P.I. 100", q: "Sino ang kaklaseng humamon kay Rizal sa arm-wrestling matches sa Biñan?", choices: ["Andres Salandanan", "Pedro", "Leandro", "Justiniano"], answer: "Andres Salandanan" },
+    { s: "P.I. 100", q: "Saan nagpunta si Rizal at ang kanyang ama noong Hunyo 1868 upang tuparin ang panata ng kanyang ina?", choices: ["Antipolo", "Dapitan", "Hong Kong", "Biñan"], answer: "Antipolo" },
+    { s: "P.I. 100", q: "Sino ang kapatid ni Rizal na kanilang binisita sa La Concordia College sa Sta. Ana?", choices: ["Saturnina", "Narcisa", "Maria", "Josefa"], answer: "Saturnina" },
 
-    { s: "KOMFIL", q: "What does KOMFIL stand for?", choices: ["Kontekstwalisadong Komunikasyon sa Filipino", "Komunikasyon para sa Literatura", "Kompyuter at Filipino", "Konteksto ng Midya at Filipino"], answer: "Kontekstwalisadong Komunikasyon sa Filipino" },
-    { s: "KOMFIL", q: "Ano ang pangunahing layunin ng komunikasyon?", choices: ["Magpahayag at magkaunawaan", "Magpalit ng grades", "Mag-compile ng code", "Mag-format ng hard drive"], answer: "Magpahayag at magkaunawaan" },
-    { s: "KOMFIL", q: "Ano ang tawag sa taong nagpapadala ng mensahe?", choices: ["Tagapagpadala", "Tagatanggap", "Daluyan", "Simbolo"], answer: "Tagapagpadala" },
-    { s: "KOMFIL", q: "Ano ang tawag sa taong tumatanggap ng mensahe?", choices: ["Tagatanggap", "Tagapagpadala", "Ingay", "Paksa"], answer: "Tagatanggap" },
-    { s: "KOMFIL", q: "Ano ang channel o daluyan sa komunikasyon?", choices: ["Daan na ginagamit sa pagpapahatid ng mensahe", "Uri ng grado", "Pamagat ng aklat", "Uri ng memorya"], answer: "Daan na ginagamit sa pagpapahatid ng mensahe" },
-    { s: "KOMFIL", q: "Ano ang ibig sabihin ng verbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng salita", "Komunikasyong puro larawan lamang", "Komunikasyong walang kahulugan", "Komunikasyong para sa robot lang"], answer: "Komunikasyong gumagamit ng salita" },
-    { s: "KOMFIL", q: "Ano ang nonverbal na komunikasyon?", choices: ["Komunikasyong gumagamit ng kilos, galaw, at ekspresyon", "Komunikasyong para sa exams lamang", "Komunikasyong gamit ang printer", "Komunikasyong puro numero"], answer: "Komunikasyong gumagamit ng kilos, galaw, at ekspresyon" },
-    { s: "KOMFIL", q: "Ano ang halimbawa ng nonverbal communication?", choices: ["Pagngiti", "Pag-type ng password", "Pag-delete ng file", "Pag-shutdown ng laptop"], answer: "Pagngiti" },
-    { s: "KOMFIL", q: "Ano ang tinatawag na sagabal sa malinaw na komunikasyon?", choices: ["Ingay", "Paksa", "Talasalitaan", "Bantas"], answer: "Ingay" },
-    { s: "KOMFIL", q: "Ano ang register ng wika?", choices: ["Barayti ng wikang ginagamit ayon sa sitwasyon", "Uri ng camera", "Laki ng silid", "Pangalan ng estudyante"], answer: "Barayti ng wikang ginagamit ayon sa sitwasyon" },
-    { s: "KOMFIL", q: "Ano ang akademikong komunikasyon?", choices: ["Pormal na komunikasyong ginagamit sa paaralan at pananaliksik", "Usapang laro lamang", "Usapang meme lang", "Impormal na tsismisan"], answer: "Pormal na komunikasyong ginagamit sa paaralan at pananaliksik" },
-    { s: "KOMFIL", q: "Ano ang kahalagahan ng konteksto sa komunikasyon?", choices: ["Nakaaapekto ito sa kahulugan ng mensahe", "Wala itong epekto", "Ginagamit lamang sa coding", "Nagpapabagal ito ng internet"], answer: "Nakaaapekto ito sa kahulugan ng mensahe" },
-    { s: "KOMFIL", q: "Ano ang ibig sabihin ng midyum sa komunikasyon?", choices: ["Paraan o anyo ng paghahatid ng mensahe", "Pangkat ng mag-aaral", "Uri ng papel", "Office software"], answer: "Paraan o anyo ng paghahatid ng mensahe" },
-    { s: "KOMFIL", q: "Bakit mahalaga ang Filipino sa komunikasyong pambansa?", choices: ["Nagpapalawak ito ng pagkakaunawaan at pambansang identidad", "Pinapalitan nito ang lahat ng wika", "Ginagamit lamang sa social media", "Para lang ito sa elementarya"], answer: "Nagpapalawak ito ng pagkakaunawaan at pambansang identidad" },
-
-    { s: "PATHFIT 1", q: "What does PATHFIT commonly focus on?", choices: ["Physical activity and fitness", "Operating systems", "Film editing", "Bank accounting"], answer: "Physical activity and fitness" },
-    { s: "PATHFIT 1", q: "Why is warm-up important before exercise?", choices: ["It prepares the body for movement", "It instantly builds muscles", "It replaces sleep", "It lowers intelligence"], answer: "It prepares the body for movement" },
-    { s: "PATHFIT 1", q: "Which of these is a cardiovascular activity?", choices: ["Jogging", "Sleeping", "Reading", "Typing"], answer: "Jogging" },
-    { s: "PATHFIT 1", q: "What is flexibility?", choices: ["The ability of joints and muscles to move through a range of motion", "The speed of internet", "The size of a classroom", "The memory of a phone"], answer: "The ability of joints and muscles to move through a range of motion" },
-    { s: "PATHFIT 1", q: "Which exercise mainly develops muscular strength?", choices: ["Push-up", "Meditation", "Drawing", "Typing test"], answer: "Push-up" },
-    { s: "PATHFIT 1", q: "What should you do after intense exercise?", choices: ["Cool down", "Skip breathing", "Eat paper", "Stay completely still forever"], answer: "Cool down" },
-    { s: "PATHFIT 1", q: "Hydration is important because it helps what?", choices: ["Maintain body function during activity", "Increase screen brightness", "Charge batteries", "Improve Wi-Fi"], answer: "Maintain body function during activity" },
-    { s: "PATHFIT 1", q: "What is the ideal way to improve endurance?", choices: ["Regular aerobic exercise", "Never moving", "Only watching sports", "Studying only at night"], answer: "Regular aerobic exercise" },
-    { s: "PATHFIT 1", q: "Which is an example of a body-weight exercise?", choices: ["Squat", "Printing", "Encoding", "Browsing"], answer: "Squat" },
-    { s: "PATHFIT 1", q: "What does BMI stand for?", choices: ["Body Mass Index", "Body Motion Indicator", "Basic Muscle Intake", "Balance Measure Input"], answer: "Body Mass Index" },
-    { s: "PATHFIT 1", q: "Why is proper breathing important during workouts?", choices: ["It helps deliver oxygen to the body", "It deletes fatigue forever", "It replaces stretching", "It makes gravity weaker"], answer: "It helps deliver oxygen to the body" },
-    { s: "PATHFIT 1", q: "What is one benefit of regular physical activity?", choices: ["Improved health and stamina", "Automatic perfect grades", "Unlimited energy without sleep", "No need for food"], answer: "Improved health and stamina" },
-    { s: "PATHFIT 1", q: "Which activity best helps improve balance?", choices: ["Single-leg stand", "Scrolling", "Sleeping", "Watching TV"], answer: "Single-leg stand" },
-    { s: "PATHFIT 1", q: "What is the safest mindset during exercise?", choices: ["Practice proper form and listen to your body", "Rush every movement", "Ignore pain", "Compete every second"], answer: "Practice proper form and listen to your body" }
+    { s: "KOMFIL", q: "Ano ang tinatawag na komunikasyon kapag isinasaalang-alang ang partikular na kalagayan kung saan ito nagaganap?", choices: ["Kontekstwalisadong komunikasyon", "Impormal na usapan", "Digital na mensahe", "Sekretong wika"], answer: "Kontekstwalisadong komunikasyon" },
+    { s: "KOMFIL", q: "Ano ang ginamit ng mga sinaunang Pilipino bago pa dumating ang mga mananakop upang ipasa ang kaalaman at kultura?", choices: ["Pasalitang komunikasyon, simbolo, kilos, awit, at ritwal", "Email at social media", "Telepono at telegrama", "Pahayagang Espanyol"], answer: "Pasalitang komunikasyon, simbolo, kilos, awit, at ritwal" },
+    { s: "KOMFIL", q: "Ano ang naipapasa sa pamamagitan ng pakikipag-usap at pagkukuwento noong sinaunang panahon?", choices: ["Mga alamat, epiko, kasaysayan, paniniwala, kaugalian, at pagpapahalaga", "Mga batas ng gobyerno lamang", "Mga aklat-aralin sa paaralan", "Mga kontrata sa negosyo"], answer: "Mga alamat, epiko, kasaysayan, paniniwala, kaugalian, at pagpapahalaga" },
+    { s: "KOMFIL", q: "Bukod sa pagpapalitan ng mensahe, ano pa ang ginagampanan ng komunikasyon sa sinaunang pamayanan?", choices: ["Pagpapanatili ng kultura at pagkakakilanlan ng komunidad", "Pagpapalaki lamang ng populasyon", "Pagpapabilis ng industriya", "Pagbuo ng makabagong teknolohiya"], answer: "Pagpapanatili ng kultura at pagkakakilanlan ng komunidad" },
+    { s: "KOMFIL", q: "Anong wika ang naging mahalaga sa pamahalaan, relihiyon, at edukasyon noong panahon ng mga Espanyol?", choices: ["Wikang Espanyol", "Wikang Ingles", "Wikang Hapon", "Wikang Intsik"], answer: "Wikang Espanyol" },
+    { s: "KOMFIL", q: "Sa kabila ng paggamit ng Espanyol sa mga institusyon, ano ang patuloy na ginagamit ng mga Pilipino sa pang-araw-araw na pakikipag-ugnayan?", choices: ["Ang kanilang mga katutubong wika", "Wikang Latin", "Wikang Pranses", "Wikang Aleman"], answer: "Ang kanilang mga katutubong wika" },
+    { s: "KOMFIL", q: "Ano ang ginamit na instrumento ng mga Espanyol para sa pagpapalaganap ng relihiyon at pamamahala?", choices: ["Ang komunikasyon", "Ang salapi", "Ang digmaan lamang", "Ang agrikultura"], answer: "Ang komunikasyon" },
+    { s: "KOMFIL", q: "Ano ang natutuhan ng ilang Pilipino sa pag-usbong ng pahayagan at akdang pampanitikan?", choices: ["Gamitin ang pagsulat at publikasyon para ipahayag ang saloobin tungkol sa lipunan", "Gamitin ang wikang banyaga lamang", "Kalimutan ang kanilang katutubong kultura", "Sumunod na lamang sa lahat ng patakaran"], answer: "Gamitin ang pagsulat at publikasyon para ipahayag ang saloobin tungkol sa lipunan" },
+    { s: "KOMFIL", q: "Sa panahon ng pag-usbong ng kilusang makabayan, para saan naging mahalagang kasangkapan ang komunikasyon?", choices: ["Pagpapalaganap ng ideya tungkol sa kalayaan, pagkakakilanlan, at pagbabago sa lipunan", "Pagbebenta ng produkto sa ibang bansa", "Pagpapalawak lamang ng negosyo", "Pagtatayo ng mga simbahan"], answer: "Pagpapalaganap ng ideya tungkol sa kalayaan, pagkakakilanlan, at pagbabago sa lipunan" },
+    { s: "KOMFIL", q: "Alin sa mga sumusunod ang naging daan upang maipahayag ang mga ideyang makabayan noong panahon ng kilusang makabayan?", choices: ["Mga pahayagan, sanaysay, liham, at talumpati", "Mga larong online lamang", "Mga pelikulang banyaga", "Mga aplikasyong pang-negosyo"], answer: "Mga pahayagan, sanaysay, liham, at talumpati" },
+    { s: "KOMFIL", q: "Anong wika ang naging malawak ang paggamit sa panahon ng mga Amerikano, lalo na sa edukasyon at pamahalaan?", choices: ["Wikang Ingles", "Wikang Espanyol", "Wikang Intsik", "Wikang Arabic"], answer: "Wikang Ingles" },
+    { s: "KOMFIL", q: "Ano ang naging mahalagang usapin sa panahon ng mga Amerikano tungkol sa komunikasyon ng mga Pilipino?", choices: ["Ang pagkakaroon ng isang wikang maaaring magsilbing daan ng komunikasyon ng iba't ibang pangkat ng Pilipino", "Ang pagsasara ng lahat ng paaralan", "Ang paggamit lamang ng senyas", "Ang pagbabawal sa lahat ng wikang katutubo"], answer: "Ang pagkakaroon ng isang wikang maaaring magsilbing daan ng komunikasyon ng iba't ibang pangkat ng Pilipino" },
+    { s: "KOMFIL", q: "Anong taon pinili ang Tagalog bilang batayan ng wikang pambansa?", choices: ["1937", "1898", "1946", "1987"], answer: "1937" },
+    { s: "KOMFIL", q: "Bakit mahalaga ang pagbuo ng pambansang wika ayon sa aralin?", choices: ["Dahil may kaugnayan ito sa pagkakakilanlan, kultura, kasaysayan, at pagkakaisa ng bansa", "Dahil ito lamang ang pinakamadaling wika", "Dahil ito ang pinakaunang wikang ginamit sa daigdig", "Dahil ito ang ginagamit sa lahat ng bansa"], answer: "Dahil may kaugnayan ito sa pagkakakilanlan, kultura, kasaysayan, at pagkakaisa ng bansa" },
+    { s: "KOMFIL", q: "Saan ginagamit ang Filipino sa larangan ng edukasyon ayon sa binanggit sa aralin?", choices: ["Talakayan sa klase, presentasyon, pananaliksik, pagsulat, pakikipanayam, at pulong", "Sa mga laro lamang sa labas ng paaralan", "Sa pagluluto lamang", "Sa paggawa ng kotse"], answer: "Talakayan sa klase, presentasyon, pananaliksik, pagsulat, pakikipanayam, at pulong" },
+    { s: "KOMFIL", q: "Bakit higit na nakikita ang kahalagahan ng konteksto sa larangan ng edukasyon?", choices: ["Dahil iba ang paraan ng paggamit ng Filipino sa pormal na presentasyon kumpara sa impormal na pakikipag-usap", "Dahil pareho lamang lagi ang gamit ng wika saan man", "Dahil hindi na kailangan pumili ng salita", "Dahil hindi mahalaga ang tono sa pagsasalita"], answer: "Dahil iba ang paraan ng paggamit ng Filipino sa pormal na presentasyon kumpara sa impormal na pakikipag-usap" },
+    { s: "KOMFIL", q: "Ano ang dapat piliin ng isang tao ayon sa aralin batay sa sitwasyon at kausap?", choices: ["Angkop na salita, tono, antas ng wika, at paraan ng pagpapahayag", "Kahit anong salitang gusto niya", "Wikang banyaga lamang", "Salitang hindi nauunawaan ng kausap"], answer: "Angkop na salita, tono, antas ng wika, at paraan ng pagpapahayag" },
+    { s: "KOMFIL", q: "Bakit naging mas komplikado ang komunikasyon sa kasalukuyang panahon?", choices: ["Dahil sa mabilis na pag-unlad ng teknolohiya", "Dahil naglaho na ang lahat ng wika", "Dahil bawal na ang pagsasalita", "Dahil walang gumagamit ng internet"], answer: "Dahil sa mabilis na pag-unlad ng teknolohiya" },
+    { s: "KOMFIL", q: "Alin sa mga sumusunod ay HINDI kabilang sa mga digital platform na binanggit sa aralin?", choices: ["Palengke", "Social media", "Email", "Video conferencing"], answer: "Palengke" },
+    { s: "KOMFIL", q: "Bakit kailangang maging sensitibo ang isang tao sa konteksto ng kanyang mensahe sa makabagong panahon?", choices: ["Dahil maaaring hindi angkop gamitin sa iba't ibang tao ang paraan ng pagsulat na ginagamit sa kaibigan", "Dahil bawal nang magsulat ng mensahe", "Dahil parehas lang lagi ang paraan ng pagsulat kahit kanino", "Dahil hindi na kailangang mag-isip bago magsulat"], answer: "Dahil maaaring hindi angkop gamitin sa iba't ibang tao ang paraan ng pagsulat na ginagamit sa kaibigan" },
+    { s: "KOMFIL", q: "Ano ang tumutukoy sa mga salik na nakapaligid sa isang sitwasyong pangkomunikasyon?", choices: ["Konteksto", "Bokabularyo", "Gramatika", "Ponolohiya"], answer: "Konteksto" },
+    { s: "KOMFIL", q: "Alin sa mga sumusunod ay isa sa mga salik na kabilang sa konteksto ayon sa aralin?", choices: ["Kultura", "Kulay ng damit", "Uri ng sapatos", "Petsa ng kapanganakan"], answer: "Kultura" },
+    { s: "KOMFIL", q: "Ano ang tumutukoy sa 'lugar' bilang salik ng konteksto?", choices: ["Kung saan nagaganap ang komunikasyon", "Ang layunin ng mensahe", "Ang wikang ginagamit", "Ang relasyon ng mga kausap"], answer: "Kung saan nagaganap ang komunikasyon" },
+    { s: "KOMFIL", q: "Ano ang tumutukoy sa 'panahon' bilang salik ng konteksto?", choices: ["Ang kalagayan o yugto kung kailan nagaganap ang komunikasyon", "Ang lugar ng pag-uusap", "Ang wikang ginagamit", "Ang bilang ng kalahok"], answer: "Ang kalagayan o yugto kung kailan nagaganap ang komunikasyon" },
+    { s: "KOMFIL", q: "Ano ang halimbawa ng 'relasyon ng mga kalahok' bilang salik ng konteksto?", choices: ["Guro at estudyante, o empleyado at supervisor", "Uri ng gadyet na ginagamit", "Presyo ng produkto", "Kulay ng logo"], answer: "Guro at estudyante, o empleyado at supervisor" },
+    { s: "KOMFIL", q: "Ano ang tumutukoy sa 'layunin' bilang salik ng konteksto?", choices: ["Kung ang komunikasyon ay para magbigay ng impormasyon, manghikayat, o magpahayag ng damdamin", "Ang lugar kung saan nagaganap ang usapan", "Ang oras ng pagsasalita", "Ang kulay ng damit ng nagsasalita"], answer: "Kung ang komunikasyon ay para magbigay ng impormasyon, manghikayat, o magpahayag ng damdamin" },
+    { s: "KOMFIL", q: "Ano ang tumutukoy sa 'daluyan' bilang salik ng konteksto?", choices: ["Maaaring pasalita, pasulat, harapan, o digital", "Ang bilang ng salita sa pangungusap", "Ang uri ng papel na ginamit", "Ang lugar ng pagpupulong lamang"], answer: "Maaaring pasalita, pasulat, harapan, o digital" },
+    { s: "KOMFIL", q: "Ano ang naitutulong ng pag-unawa sa mga salik ng konteksto ayon sa aralin?", choices: ["Nagiging mas malinaw, angkop, epektibo, at responsableng tagapagsalita o tagapagsulat ang isang tao", "Nawawalan ng kahulugan ang mensahe", "Naiiwasan ang lahat ng pag-uusap", "Nagiging mas mahirap unawain ang mensahe"], answer: "Nagiging mas malinaw, angkop, epektibo, at responsableng tagapagsalita o tagapagsulat ang isang tao" }
   ];
 
   const state = {
@@ -1122,8 +1203,35 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   /* ---------------- Question flow ---------------- */
+  // NEW FEATURE: subject-alternating pool. Instead of one flat shuffled list
+  // (which can cluster several questions from the same subject back-to-back),
+  // we group all questions by subject, shuffle each subject's own list, and
+  // then round-robin across subjects when building the play order. This way
+  // the same subject can't dominate a stretch of the run, and every single
+  // question is used exactly once before anything repeats / the pool reshuffles.
+  const subjectPools = (() => {
+    const bySubject = new Map();
+    questionBank.forEach((item) => {
+      if (!bySubject.has(item.s)) bySubject.set(item.s, []);
+      bySubject.get(item.s).push(item);
+    });
+    return Array.from(bySubject.values());
+  })();
+
   function buildPool() {
-    state.activePool = shuffle(questionBank);
+    const shuffledSubjectQueues = shuffle(subjectPools).map((list) => shuffle(list));
+    const pool = [];
+    let remaining = true;
+    while (remaining) {
+      remaining = false;
+      for (const queue of shuffledSubjectQueues) {
+        if (queue.length) {
+          pool.push(queue.shift());
+          if (queue.length) remaining = true;
+        }
+      }
+    }
+    state.activePool = pool;
     state.currentIndex = 0;
   }
 
@@ -1261,11 +1369,6 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       }
       updateHud();
 
-      if (state.score >= WIN_SCORE && !state.victoryAchieved) {
-        handleGraduationWin();
-        return;
-      }
-
       const milestone = getCrossedMilestone(oldScore, state.score);
       if (milestone) {
         state.milestonesHit.add(milestone);
@@ -1324,7 +1427,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   /* ---------------- 25-point milestones ---------------- */
   function getCrossedMilestone(oldScore, newScore) {
     const milestone = Math.floor(newScore / 25) * 25;
-    if (milestone > 0 && milestone < WIN_SCORE && milestone > oldScore && !state.milestonesHit.has(milestone)) {
+    if (milestone > 0 && milestone > oldScore && !state.milestonesHit.has(milestone)) {
       return milestone;
     }
     return null;
