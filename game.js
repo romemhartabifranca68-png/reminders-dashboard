@@ -519,6 +519,65 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { s: "KOMFIL", q: "Ano ang naitutulong ng pag-unawa sa mga salik ng konteksto ayon sa aralin?", choices: ["Nagiging mas malinaw, angkop, epektibo, at responsableng tagapagsalita o tagapagsulat ang isang tao", "Nawawalan ng kahulugan ang mensahe", "Naiiwasan ang lahat ng pag-uusap", "Nagiging mas mahirap unawain ang mensahe"], answer: "Nagiging mas malinaw, angkop, epektibo, at responsableng tagapagsalita o tagapagsulat ang isang tao" }
   ];
 
+  /* ============ NEW FEATURE: 🎮 Game Mode / Subject Selection ============
+     The questionBank above is the SINGLE SOURCE OF TRUTH for which subjects
+     are selectable. We derive the subject list and per-subject question
+     pools directly from it, so a subject only ever becomes a mode if it
+     actually has questions right now. Nothing here is hardcoded — if a
+     subject is removed from questionBank (or one is added later), the mode
+     list, the Game Protocol text, and the HUD stream label all update
+     automatically with zero other changes required. */
+  const subjectPoolMap = new Map();
+  questionBank.forEach((item) => {
+    if (!subjectPoolMap.has(item.s)) subjectPoolMap.set(item.s, []);
+    subjectPoolMap.get(item.s).push(item);
+  });
+  // Preserves first-appearance order from questionBank (e.g. ITEC 101, ITEC
+  // 102, GEC 101, GEC 102, P.I. 100, KOMFIL). A subject with zero questions
+  // simply never appears in this Map, so it can never produce a mode.
+  const AVAILABLE_SUBJECTS = Array.from(subjectPoolMap.keys());
+
+  const RANDOM_MODE_ID = "RANDOM";
+
+  // Short, accurate per-subject blurbs. Any subject not listed here (e.g. a
+  // newly-added one) automatically falls back to a safe generic description
+  // instead of an invented one.
+  const SUBJECT_DESCRIPTIONS = {
+    "ITEC 101": "Review questions from ITEC 101 only.",
+    "ITEC 102": "Review questions from ITEC 102 only.",
+    "GEC 101": "Review questions from GEC 101 only.",
+    "GEC 102": "Review questions from GEC 102 only.",
+    "P.I. 100": "Review questions from P.I. 100 only.",
+    "KOMFIL": "Review questions from KOMFIL only."
+  };
+
+  // Centralized mode config: one RANDOM entry + one entry per real subject.
+  // Everything downstream (mode selector cards, pool filtering, HUD stream
+  // chip, dynamic Game Protocol, Boss Question subject) reads from this
+  // single array instead of duplicating the subject list anywhere else.
+  const GAME_MODES = [
+    {
+      id: RANDOM_MODE_ID,
+      label: "RANDOM / ALL SUBJECTS",
+      icon: "\u{1F3B2}",
+      description: "Mixed questions from all available subjects.",
+      streamLabel: "RANDOM_ALL_SUBJECTS",
+      subjects: AVAILABLE_SUBJECTS.slice()
+    },
+    ...AVAILABLE_SUBJECTS.map((subject) => ({
+      id: subject,
+      label: subject,
+      icon: "\u{1F4D8}",
+      description: SUBJECT_DESCRIPTIONS[subject] || `Questions from ${subject} only.`,
+      streamLabel: subject.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase(),
+      subjects: [subject]
+    }))
+  ];
+
+  function getModeConfig(modeId) {
+    return GAME_MODES.find((m) => m.id === modeId) || GAME_MODES[0];
+  }
+
   const state = {
     username: "",
     avatar: AVATARS[0],
@@ -550,7 +609,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     bossHit: new Set(),
     activeTimeLimit: QUESTION_TIME_LIMIT,
     /* NEW FEATURE: sound mute toggle */
-    muted: false
+    muted: false,
+    /* NEW FEATURE: Game Mode / Subject Selection — defaults to the existing
+       "Infinite Randomized" experience so nothing changes for a player who
+       never touches the selector. */
+    selectedMode: RANDOM_MODE_ID
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -831,6 +894,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (id === "leaderboardModal") {
       renderLeaderboard();
     }
+    // NEW FEATURE: Game Protocol is dynamic — always reflect whichever mode
+    // is currently selected (or the default) the instant the modal opens.
+    if (id === "protocolModal") {
+      renderProtocolContent();
+    }
   }
 
   function closeModal(id) {
@@ -934,6 +1002,148 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.avatar = AVATARS[0];
   }
 
+  /* ---------------- NEW FEATURE: Game Mode / Subject Selection ---------------- */
+  // Builds one selectable card per GAME_MODES entry (RANDOM + every subject
+  // that actually has questions). Mirrors the avatar picker's interaction
+  // pattern (tap-to-select, single selected state, radiogroup semantics)
+  // so it feels like it was always part of the arena.
+  function initModeSelector() {
+    const grid = elements.modeGrid;
+    if (!grid) return;
+    grid.innerHTML = "";
+
+    GAME_MODES.forEach((mode) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mode-card" + (mode.id === state.selectedMode ? " selected" : "");
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", mode.id === state.selectedMode ? "true" : "false");
+      btn.dataset.modeId = mode.id;
+      btn.innerHTML =
+        '<span class="mode-icon" aria-hidden="true">' + mode.icon + '</span>' +
+        '<span class="mode-title">' + escapeHtml(mode.label) + '</span>' +
+        '<span class="mode-desc">' + escapeHtml(mode.description) + '</span>';
+
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        selectMode(mode.id);
+      });
+
+      grid.appendChild(btn);
+    });
+
+    selectMode(state.selectedMode);
+  }
+
+  function selectMode(modeId) {
+    const mode = getModeConfig(modeId);
+    state.selectedMode = mode.id;
+
+    if (elements.modeGrid) {
+      elements.modeGrid.querySelectorAll(".mode-card").forEach((card) => {
+        const isSelected = card.dataset.modeId === mode.id;
+        card.classList.toggle("selected", isSelected);
+        card.setAttribute("aria-checked", isSelected ? "true" : "false");
+      });
+    }
+
+    if (elements.selectedModeLabel) {
+      elements.selectedModeLabel.textContent = `Selected Mode: ${mode.label}`;
+    }
+
+    // Keep an already-open Game Protocol modal in sync with the newly
+    // selected mode, with zero page refresh required.
+    renderProtocolContent();
+  }
+
+  /* ---------------- NEW FEATURE: dynamic Game Protocol ---------------- */
+  // Generates the entire Game Protocol body from the ACTUAL live game
+  // configuration (constants above) and the currently selected mode, so it
+  // can never drift out of sync with the real rules the way a static block
+  // of copy could.
+  function renderProtocolContent() {
+    const container = elements.protocolContent;
+    if (!container) return;
+
+    const mode = getModeConfig(state.selectedMode);
+    const isRandom = mode.id === RANDOM_MODE_ID;
+    const bossSubject = getBossSubjectForActiveMode();
+
+    const poolText = isRandom
+      ? `All available subjects that currently have questions (${AVAILABLE_SUBJECTS.join(", ")}).`
+      : `${mode.id} ONLY.`;
+
+    const diffText = isRandom
+      ? "Questions may come from any subject currently available in the question bank."
+      : `Questions are restricted to ${mode.id}. Questions from other subjects will not appear.`;
+
+    const bossText = isRandom
+      ? `Random / All Subjects keeps the original Boss Question behavior \u2014 the Boss pulls from the hardest subject pool (${BOSS_SUBJECT}).`
+      : `To keep this mode strictly ${mode.id}-only, the Boss Question here is also pulled from ${bossSubject} instead of ${BOSS_SUBJECT} \u2014 it will never break your subject-only selection.`;
+
+    container.innerHTML =
+      `<p class="sysline">[CORE RULES] ${questionBank.length}-question bank &middot; Randomized order &middot; ${MAX_LIVES} starting lives &middot; ${QUESTION_TIME_LIMIT}s per question &middot; Boss Q @ ${BOSS_TIME_LIMIT}s &middot; Top 10 leaderboard</p>` +
+      `<p><strong>Mode:</strong> ${escapeHtml(mode.label)}<br/><strong>Question Pool:</strong> ${escapeHtml(poolText)}</p>` +
+      `<p><strong>Mode Difference:</strong> ${escapeHtml(diffText)}</p>` +
+      `<ul class="protocol-rules-list">` +
+        `<li><strong>Starting Hearts:</strong> ${MAX_LIVES}</li>` +
+        `<li><strong>Correct Answer:</strong> +${SCORE_PER_CORRECT} points</li>` +
+        `<li><strong>Wrong Answer:</strong> -1 heart</li>` +
+        `<li><strong>Timeout:</strong> -1 heart</li>` +
+        `<li><strong>Every ${MILESTONE_FANFARE_SCORE_STEP} Points:</strong> +2 Hearts</li>` +
+        `<li><strong>Timer:</strong> ${QUESTION_TIME_LIMIT}s per question (Boss: ${BOSS_TIME_LIMIT}s)</li>` +
+        `<li><strong>Streak Bonus:</strong> +${STREAK_BONUS} every ${STREAK_TARGET}-streak</li>` +
+        `<li><strong>Lifelines:</strong> 50/50 + Skip (1 use each per session)</li>` +
+      `</ul>` +
+      `<p>
+        Start with <strong>${MAX_LIVES} lives (hearts)</strong>. Bawat tamang sagot ay
+        <strong>+${SCORE_PER_CORRECT} points</strong>, at kada ${STREAK_TARGET} sunod-sunod na tamang sagot (streak)
+        ay may <strong>+${STREAK_BONUS} bonus point</strong>. Bawat maling sagot o pag-expire ng
+        <strong>${QUESTION_TIME_LIMIT}-second timer</strong> ay babawas ng isang heart. Kapag naubos ang
+        hearts, magti-trigger ang game over system.
+      </p>` +
+      `<p>
+        <strong>\u2764\uFE0F HEART MILESTONE:</strong> Every ${MILESTONE_FANFARE_SCORE_STEP} points reached = +2 Hearts.
+        Isang beses lang ito magre-reward bawat milestone kada session (hal. 25, 50, 75, 100...).
+      </p>` +
+      `<p>
+        May dalawang lifelines na pwedeng gamitin isang beses bawat session:
+        <strong>50/50</strong> (nag-aalis ng dalawang maling choice) at <strong>Skip</strong>
+        (lumalaktaw sa tanong nang walang penalty). Dynamic ang badge title habang
+        tumataas ang score mo.
+      </p>` +
+      `<p>
+        <strong>\u2694\uFE0F Boss Question:</strong> sa scores na <strong>${BOSS_THRESHOLDS.join(", ")}</strong>,
+        magti-trigger ang isang "BOSS LEVEL" na may red flash warning. Ang susunod na tanong ay
+        galing sa <strong>${escapeHtml(bossSubject)}</strong> at bababa ang timer sa
+        <strong>${BOSS_TIME_LIMIT} seconds</strong>. Kung tama, +${BOSS_SCORE_PER_CORRECT} points (double)
+        &mdash; kung mali, normal na -1 heart lang. ${escapeHtml(bossText)}
+      </p>` +
+      `<p>
+        <strong>Username rules:</strong> letters at spaces lang ang tinatanggap
+        (walang numero, symbols, o emoji) &mdash; awtomatikong nililinis ito habang
+        nagta-type ka.
+      </p>` +
+      `<p>
+        <strong>One entry per player:</strong> case-insensitive ang pagtukoy sa
+        pangalan sa leaderboard (hal. "RST" at "rst" ay iisa lang), kaya isang
+        record lang bawat player. Ang lumang score ay mapapalitan lamang kapag
+        mas mataas ang bagong score &mdash; kung mas mababa, hindi ito isasave.
+      </p>` +
+      `<p>
+        <strong>\u{1F3C5} Academic Rank Badges:</strong> nagbabago ang iyong badge title
+        kada <strong>10 points</strong>, mula "Hello World Installer" bilang
+        FRESHMAN pataas hanggang "BSCS 1-A Valedictorian" bilang LEGEND sa
+        score 500. Nakikita ito live sa tabi ng iyong score sa HUD.
+      </p>` +
+      `<p>
+        <strong>\u{1F50A} Retro Sound FX:</strong> may 8-bit na tunog ang bawat tamang
+        sagot, maling sagot, at ${MILESTONE_FANFARE_SCORE_STEP}-score milestone &mdash; puro generated sa browser
+        (walang audio file na kailangang i-download). May Mute button
+        (\u{1F50A}/\u{1F507}) sa ibabang-kanang bahagi ng screen kung gusto mong patahimikin.
+      </p>`;
+  }
+
   function init() {
     if (initialized) return;
 
@@ -950,6 +1160,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       hudScore: $("hudScore"),
       hudLives: $("hudLives"),
       subjectChip: $("subjectChip"),
+      streamModeLabel: $("streamModeLabel"),
+      modeGrid: $("modeGrid"),
+      selectedModeLabel: $("selectedModeLabel"),
+      protocolContent: $("protocolContent"),
       questionText: $("questionText"),
       choicesWrap: $("choicesWrap"),
       feedback: $("feedback"),
@@ -984,6 +1198,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     initMatrixBackground();
     initNav();
     initAvatarGrid();
+    initModeSelector();
     initLifelineButtons();
     initAdminTrigger();
 
@@ -1209,17 +1424,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   // then round-robin across subjects when building the play order. This way
   // the same subject can't dominate a stretch of the run, and every single
   // question is used exactly once before anything repeats / the pool reshuffles.
-  const subjectPools = (() => {
-    const bySubject = new Map();
-    questionBank.forEach((item) => {
-      if (!bySubject.has(item.s)) bySubject.set(item.s, []);
-      bySubject.get(item.s).push(item);
-    });
-    return Array.from(bySubject.values());
-  })();
+  // Reuses the subjectPoolMap built once, above, from the actual
+  // questionBank — no second copy of "which subjects exist" anywhere.
+  const subjectPools = Array.from(subjectPoolMap.values());
 
+  // NEW FEATURE: mode-aware pool builder. RANDOM / ALL SUBJECTS keeps the
+  // exact original round-robin-across-subjects behavior untouched. A
+  // subject-specific mode instead round-robins across a pool list
+  // containing only that one subject, so only its own questions can ever
+  // be drawn — the existing shuffle/round-robin logic is reused as-is.
   function buildPool() {
-    const shuffledSubjectQueues = shuffle(subjectPools).map((list) => shuffle(list));
+    const mode = getModeConfig(state.selectedMode);
+    const activeSubjectPools = mode.id === RANDOM_MODE_ID
+      ? subjectPools
+      : mode.subjects.map((subject) => subjectPoolMap.get(subject)).filter(Boolean);
+
+    const shuffledSubjectQueues = shuffle(activeSubjectPools).map((list) => shuffle(list));
     const pool = [];
     let remaining = true;
     while (remaining) {
@@ -1235,12 +1455,19 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.currentIndex = 0;
   }
 
-  // NEW FEATURE: Boss Question pool — hardest subject only (ITEC 102).
-  const bossQuestionPool = questionBank.filter((item) => item.s === BOSS_SUBJECT);
+  // NEW FEATURE: Boss Question subject now adapts to the selected Game
+  // Mode. RANDOM / ALL SUBJECTS preserves the original hardest-subject hack
+  // (ITEC 102). A subject-specific mode must never violate its own
+  // subject-only restriction, so its Boss Question is instead pulled from
+  // that same selected subject.
+  function getBossSubjectForActiveMode() {
+    return state.selectedMode === RANDOM_MODE_ID ? BOSS_SUBJECT : state.selectedMode;
+  }
 
   function getBossQuestion() {
-    if (!bossQuestionPool.length) return null;
-    return bossQuestionPool[Math.floor(Math.random() * bossQuestionPool.length)];
+    const pool = subjectPoolMap.get(getBossSubjectForActiveMode());
+    if (!pool || !pool.length) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
 
   // Toggles the red boss-mode visuals on the subject chip, stream label, and arena border.
@@ -1459,13 +1686,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (state.ending || state.sessionLocked) return;
     playWrongBuzz();
 
+    const bossSubject = getBossSubjectForActiveMode();
     const flashOverlay = document.createElement("div");
     flashOverlay.className = "boss-flash-overlay";
     const flashText = document.createElement("div");
     flashText.className = "boss-flash-text";
     flashText.innerHTML =
       "<span>\u26A0\uFE0F BOSS LEVEL WARNING! \u26A0\uFE0F</span>" +
-      "<small>SUBJECT HACK DETECTED \u2014 ITEC 102 INCOMING \u2014 15s CLOCK</small>";
+      "<small>SUBJECT HACK DETECTED \u2014 " + escapeHtml(bossSubject) + " INCOMING \u2014 " + BOSS_TIME_LIMIT + "s CLOCK</small>";
     document.body.appendChild(flashOverlay);
     document.body.appendChild(flashText);
 
@@ -1534,6 +1762,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.username = cleaned;
     resetArena();
     updateHud();
+    // NEW FEATURE: make the selected Game Mode visible in the HUD stream
+    // chip for the whole run (the subject chip beside it still always shows
+    // the actual current question's subject — the two are never confused).
+    if (elements.streamModeLabel) {
+      elements.streamModeLabel.textContent = getModeConfig(state.selectedMode).streamLabel;
+    }
     setView("gameView");
     loadNextQuestion();
   }
@@ -1548,6 +1782,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.username = "";
     state.bestScore = 0;
     resetArena();
+    // NEW FEATURE: a fresh arena run returns to RANDOM / ALL SUBJECTS by
+    // default rather than silently keeping whatever mode was last played.
+    selectMode(RANDOM_MODE_ID);
     elements.loginStatus.textContent = "Enter your username to begin the reviewer challenge.";
     setView("loginView");
     elements.usernameInput.focus();
@@ -1638,7 +1875,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       badge: getRank(state.score),
       avatar: state.avatar,
       ts: Date.now(),
-      scoreVersion: SCORE_MIGRATION_VERSION
+      scoreVersion: SCORE_MIGRATION_VERSION,
+      // NEW FEATURE: record which Game Mode this score was earned in. Purely
+      // additive — older entries simply don't have this field, and nothing
+      // that reads leaderboard entries requires it to be present.
+      mode: getModeConfig(state.selectedMode).label
     };
 
     if (db && key) {
