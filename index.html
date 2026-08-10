@@ -693,7 +693,7 @@ body.arena-playing.streak-hot #gameView.active {
 /* ===== PHASE 1: Practice / Ranked run type ===== */
 .run-type-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.55rem;
   width: 100%;
   margin: 0.35rem 0 0.15rem;
@@ -818,6 +818,127 @@ body.arena-playing.streak-hot #gameView.active {
   cursor: pointer;
   touch-action: manipulation;
 }
+
+/* ===== PHASE 2: Daily / Mastery / Today strip ===== */
+.run-type-grid {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 420px) {
+  .run-type-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.run-type-card.is-daily.selected {
+  border-color: rgba(255, 210, 125, 0.55);
+  background: rgba(255, 210, 125, 0.1);
+  box-shadow: 0 0 16px rgba(255, 210, 125, 0.2);
+}
+.daily-meta {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #ffd27d;
+  position: relative;
+  z-index: 1;
+}
+.mastery-panel {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(100,255,218,0.14);
+  background: rgba(255,255,255,0.03);
+  position: relative;
+  z-index: 1;
+}
+.mastery-panel h4 {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mastery-row {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 30%) 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+  font-size: 0.75rem;
+}
+.mastery-row:last-child { margin-bottom: 0; }
+.mastery-name { color: rgba(230,241,255,0.88); font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mastery-track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.mastery-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(100,255,218,0.85), rgba(0,229,255,0.9));
+  width: 0%;
+  transition: width 0.35s ease;
+}
+.mastery-pct { color: var(--accent); font-weight: 900; font-variant-numeric: tabular-nums; min-width: 2.4rem; text-align: right; }
+.mastery-empty { margin: 0; font-size: 0.78rem; color: var(--muted); }
+
+.today-strip {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.65rem;
+  position: relative;
+  z-index: 1;
+}
+.today-card {
+  border-radius: 16px;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid rgba(100,255,218,0.16);
+  background: linear-gradient(180deg, rgba(19,34,58,0.72), rgba(19,34,58,0.42));
+}
+.today-card h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  color: #f2fffb;
+}
+.today-card ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.today-card li {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(230,241,255,0.86);
+  padding-left: 0.9rem;
+  position: relative;
+}
+.today-card li::before {
+  content: "▹";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 900;
+}
+.countdown-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,210,125,0.3);
+  background: rgba(255,210,125,0.08);
+  color: #ffe6b0;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.practice-chip.is-daily {
+  border-color: rgba(255,210,125,0.45);
+  background: rgba(255,210,125,0.12);
+  color: #ffe6b0;
+}
+
 
 
 
@@ -1189,6 +1310,10 @@ body.boss-active #gameView.active {
           </p>
         </div>
 
+        <div class="today-strip" id="todayStrip" aria-label="Today on BSCS 1-A">
+          <!-- Filled by game.js: announcements + exam countdown -->
+        </div>
+
         <div class="hero-actions">
           <a class="btn btn-primary" href="dashboard.html">Tingnan ang Class Dashboard</a>
           <a class="btn btn-secondary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
@@ -1545,6 +1670,17 @@ body.boss-active #gameView.active {
                       <span class="run-type-title">Practice</span>
                       <span class="run-type-desc">No heart loss · walang score save</span>
                     </button>
+                    <button type="button" class="run-type-card is-daily" data-run-type="daily" role="radio" aria-checked="false" id="runTypeDaily">
+                      <span class="run-type-icon" aria-hidden="true">&#128197;</span>
+                      <span class="run-type-title">Daily</span>
+                      <span class="run-type-desc">12 fixed Qs · shared set today</span>
+                    </button>
+                  </div>
+                  <p class="daily-meta" id="dailyMeta" hidden>Daily Challenge · resets in --</p>
+
+                  <div class="mastery-panel" id="masteryPanel" aria-label="Subject mastery">
+                    <h4>Subject Mastery (this device)</h4>
+                    <div id="masteryBars"><p class="mastery-empty">Play a few questions to build mastery bars.</p></div>
                   </div>
 
                   <div class="input-wrap">
