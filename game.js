@@ -37,6 +37,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   const STORAGE_KEY = "bscs1a_reviewer_arena_scores_v6";
   const FIREBASE_TABLE = "arena_scores";
+  /* PHASE 2 */
+  const MASTERY_STORAGE_KEY = "bscs1a_arena_mastery_v1";
+  const DAILY_QUESTION_COUNT = 12;
+  const DAILY_LEADERBOARD_PREFIX = "daily_";
+  const LEADERBOARD_DAILY_ID = "__daily__";
   /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
      Score writes go straight to Firebase; write validation (correct data
      shape, no overwriting/deleting other players' entries) is enforced
@@ -583,6 +588,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
      RANDOM maps to "random". Subject names are slugified so path segments
      stay safe (no spaces/dots). This keeps each mode's Top list isolated. */
   function modeToBoardKey(modeId) {
+    if (modeId === LEADERBOARD_DAILY_ID || modeId === "daily") {
+      return DAILY_LEADERBOARD_PREFIX + getLocalDateKey();
+    }
     const mode = getModeConfig(modeId);
     if (mode.id === RANDOM_MODE_ID) return "random";
     return String(mode.id || "random")
@@ -645,8 +653,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     leaderboardMode: RANDOM_MODE_ID,
     /* PHASE 1: Practice Mode + Retry Mistakes */
     isPractice: false,
+    isDaily: false,
     isRetryMistakes: false,
-    retryQuestionPool: []
+    retryQuestionPool: [],
+    dailyDateKey: "",
+    runType: "ranked"
   };
 
   // Short terminal-style lines shown on each 25-point milestone overlay.
@@ -1092,39 +1103,245 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     renderProtocolContent();
   }
 
-  /* ---------------- PHASE 1: Ranked vs Practice run type ---------------- */
+  /* ---------------- PHASE 1+2: Ranked / Practice / Daily run types ---------------- */
+  function getLocalDateKey(dateObj) {
+    const d = dateObj || new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}${m}${day}`;
+  }
+
+  function hashStringToSeed(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i += 1) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let t = seed >>> 0;
+    return function next() {
+      t += 0x6D2B79F5;
+      let r = Math.imul(t ^ (t >>> 15), 1 | t);
+      r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+      return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function seededShuffle(arr, seed) {
+    const copy = arr.slice();
+    const rand = mulberry32(seed);
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = copy[i];
+      copy[i] = copy[j];
+      copy[j] = tmp;
+    }
+    return copy;
+  }
+
+  function buildDailyPool() {
+    const dateKey = getLocalDateKey();
+    const seed = hashStringToSeed("bscs1a-daily-" + dateKey);
+    return seededShuffle(questionBank, seed).slice(0, Math.min(DAILY_QUESTION_COUNT, questionBank.length));
+  }
+
+  function msUntilNextLocalMidnight() {
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+    return Math.max(0, next.getTime() - now.getTime());
+  }
+
+  function formatCountdown(ms) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    return `${h}h ${String(m).padStart(2, "0")}m`;
+  }
+
+  function updateDailyMeta() {
+    const el = elements.dailyMeta || $("dailyMeta");
+    if (!el) return;
+    if (state.runType !== "daily") {
+      el.hidden = true;
+      return;
+    }
+    el.hidden = false;
+    el.textContent = `Daily Challenge · ${DAILY_QUESTION_COUNT} shared questions · resets in ${formatCountdown(msUntilNextLocalMidnight())}`;
+  }
+
   function initRunTypeSelector() {
     const grid = elements.runTypeGrid || $("runTypeGrid");
     if (!grid) return;
     grid.querySelectorAll("[data-run-type]").forEach((btn) => {
       bindTap(btn, (event) => {
         event.preventDefault();
-        selectRunType(btn.getAttribute("data-run-type") === "practice");
+        selectRunType(btn.getAttribute("data-run-type") || "ranked");
       });
     });
-    selectRunType(false);
+    selectRunType("ranked");
+    // Refresh daily countdown while login is visible
+    window.setInterval(() => {
+      if (elements.loginView && elements.loginView.classList.contains("active")) {
+        updateDailyMeta();
+      }
+    }, 30000);
   }
 
-  function selectRunType(isPractice) {
-    state.isPractice = !!isPractice;
+  function selectRunType(runType) {
+    // Back-compat: old boolean callers
+    if (runType === true) runType = "practice";
+    if (runType === false || runType == null) runType = "ranked";
+    if (runType !== "ranked" && runType !== "practice" && runType !== "daily") {
+      runType = "ranked";
+    }
+
+    state.runType = runType;
+    state.isPractice = runType === "practice";
+    state.isDaily = runType === "daily";
+    if (runType !== "practice") {
+      // Daily is competitive; only pure practice disables hearts.
+      state.isPractice = false;
+    }
+    if (runType === "practice") {
+      state.isDaily = false;
+      state.isPractice = true;
+    }
+
     const grid = elements.runTypeGrid || $("runTypeGrid");
     if (grid) {
       grid.querySelectorAll("[data-run-type]").forEach((btn) => {
-        const practice = btn.getAttribute("data-run-type") === "practice";
-        const selected = practice === state.isPractice;
+        const selected = btn.getAttribute("data-run-type") === state.runType;
         btn.classList.toggle("selected", selected);
         btn.setAttribute("aria-checked", selected ? "true" : "false");
       });
     }
+
+    // Daily uses a fixed mixed set — subject mode picker is informational only.
+    if (elements.modeGrid) {
+      elements.modeGrid.style.opacity = state.isDaily ? "0.45" : "1";
+      elements.modeGrid.style.pointerEvents = state.isDaily ? "none" : "";
+    }
+    if (elements.selectedModeLabel) {
+      if (state.isDaily) {
+        elements.selectedModeLabel.textContent = "Daily set: mixed subjects (same for everyone today)";
+      } else {
+        elements.selectedModeLabel.textContent = `Selected Mode: ${getModeConfig(state.selectedMode).label}`;
+      }
+    }
+
     if (elements.startBtn) {
-      elements.startBtn.textContent = state.isPractice ? "START PRACTICE" : "INITIALIZE";
+      elements.startBtn.textContent =
+        state.runType === "practice" ? "START PRACTICE" :
+        state.runType === "daily" ? "START DAILY CHALLENGE" :
+        "INITIALIZE";
     }
     if (elements.loginStatus) {
-      elements.loginStatus.textContent = state.isPractice
-        ? "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard."
-        : "Scores are saved to the cloud (Firebase) and also cached on this device.";
+      if (state.runType === "practice") {
+        elements.loginStatus.textContent = "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard.";
+      } else if (state.runType === "daily") {
+        elements.loginStatus.textContent = `Daily Challenge: ${DAILY_QUESTION_COUNT} fixed questions shared by the whole section. Score saves to today's Daily board only.`;
+      } else {
+        elements.loginStatus.textContent = "Scores are saved to the cloud (Firebase) and also cached on this device.";
+      }
+    }
+    updateDailyMeta();
+  }
+
+  /* ---------------- PHASE 2: Local subject mastery ---------------- */
+  function loadMastery() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MASTERY_STORAGE_KEY) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch {
+      return {};
     }
   }
+
+  function saveMastery(data) {
+    try {
+      localStorage.setItem(MASTERY_STORAGE_KEY, JSON.stringify(data));
+    } catch (error) {
+      console.warn("[Arena] mastery save failed:", error);
+    }
+  }
+
+  function recordMastery(subject, isCorrect) {
+    if (!subject) return;
+    const data = loadMastery();
+    if (!data[subject]) data[subject] = { correct: 0, total: 0 };
+    data[subject].total += 1;
+    if (isCorrect) data[subject].correct += 1;
+    saveMastery(data);
+    renderMasteryBars();
+  }
+
+  function renderMasteryBars() {
+    const host = elements.masteryBars || $("masteryBars");
+    if (!host) return;
+    const data = loadMastery();
+    const subjects = AVAILABLE_SUBJECTS.slice();
+    const rows = subjects.map((subject) => {
+      const entry = data[subject] || { correct: 0, total: 0 };
+      const pct = entry.total ? Math.round((entry.correct / entry.total) * 100) : 0;
+      return { subject, pct, total: entry.total, correct: entry.correct };
+    }).filter((row) => row.total > 0);
+
+    if (!rows.length) {
+      host.innerHTML = `<p class="mastery-empty">Play a few questions to build mastery bars.</p>`;
+      return;
+    }
+
+    host.innerHTML = rows
+      .map((row) => {
+        return `<div class="mastery-row" title="${escapeHtml(String(row.correct))}/${escapeHtml(String(row.total))} correct">
+          <span class="mastery-name">${escapeHtml(row.subject)}</span>
+          <span class="mastery-track"><span class="mastery-fill" style="width:${row.pct}%"></span></span>
+          <span class="mastery-pct">${row.pct}%</span>
+        </div>`;
+      })
+      .join("");
+  }
+
+  /* ---------------- PHASE 2: Hero Today strip ---------------- */
+  // Easy to edit for section officers — static list, no backend required.
+  const SECTION_ANNOUNCEMENTS = [
+    { text: "Reviewer Arena: try Daily Challenge for a shared 12-question set every day." },
+    { text: "Practice Mode is available — review without losing hearts or leaderboard pressure." },
+    { text: "Check the Freedom Wall for section shout-outs and study tips." }
+  ];
+
+  // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
+  const NEXT_EXAM_DATE = "2026-09-15";
+
+  function renderTodayStrip() {
+    const host = elements.todayStrip || $("todayStrip");
+    if (!host) return;
+
+    let countdownHtml = "";
+    if (NEXT_EXAM_DATE) {
+      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+      if (!Number.isNaN(target.getTime())) {
+        const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
+        if (diffDays >= 0) {
+          countdownHtml =
+            `<span class="countdown-pill">Exam focus · ${escapeHtml(NEXT_EXAM_DATE)} · ${diffDays} day${diffDays === 1 ? "" : "s"} left</span>`;
+        }
+      }
+    }
+
+    const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
+    host.innerHTML =
+      `<div class="today-card">` +
+        `<h3>Today on BSCS 1-A</h3>` +
+        `<ul>${items}</ul>` +
+        countdownHtml +
+      `</div>`;
+  }
+
 
 
   /* ---------------- NEW FEATURE: dynamic Game Protocol ---------------- */
@@ -1254,7 +1471,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       shareResultBtn: $("shareResultBtn"),
       retryMistakesBtn: $("retryMistakesBtn"),
       runTypeGrid: $("runTypeGrid"),
-      crashTitle: document.querySelector("#gameOverView .crash-title")
+      crashTitle: document.querySelector("#gameOverView .crash-title"),
+      dailyMeta: $("dailyMeta"),
+      masteryBars: $("masteryBars"),
+      masteryPanel: $("masteryPanel"),
+      todayStrip: $("todayStrip")
     };
 
     const missing = Object.keys(elements).filter((key) => !elements[key]);
@@ -1341,6 +1562,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     window.addEventListener("blur", handleWindowBlur);
 
     migrateLegacyScores().then(() => renderLeaderboard());
+    renderMasteryBars();
+    renderTodayStrip();
     updateHud();
     setView("loginView");
     initialized = true;
@@ -1462,8 +1685,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     if (elements.practiceChip) {
-      elements.practiceChip.hidden = !state.isPractice;
-      elements.practiceChip.textContent = state.isRetryMistakes ? "RETRY MISTAKES" : "PRACTICE";
+      if (state.isRetryMistakes) {
+        elements.practiceChip.hidden = false;
+        elements.practiceChip.textContent = "RETRY MISTAKES";
+        elements.practiceChip.classList.remove("is-daily");
+      } else if (state.isPractice) {
+        elements.practiceChip.hidden = false;
+        elements.practiceChip.textContent = "PRACTICE";
+        elements.practiceChip.classList.remove("is-daily");
+      } else if (state.isDaily) {
+        elements.practiceChip.hidden = false;
+        elements.practiceChip.textContent = "DAILY";
+        elements.practiceChip.classList.add("is-daily");
+      } else {
+        elements.practiceChip.hidden = true;
+        elements.practiceChip.classList.remove("is-daily");
+      }
     }
     if (elements.endPracticeBtn) {
       elements.endPracticeBtn.hidden = !(state.isPractice && elements.gameView.classList.contains("active") && !state.ending);
@@ -1512,6 +1749,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function handleTimeout() {
     if (state.locked || !state.currentQuestion) return;
     playWrongBuzz();
+    if (state.currentQuestion && state.currentQuestion.s) {
+      recordMastery(state.currentQuestion.s, false);
+    }
     state.mistakes.push({
       subject: state.currentQuestion.s,
       q: state.currentQuestion.q,
@@ -1546,6 +1786,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     // PHASE 1: Retry Mistakes uses a dedicated pool reconstructed from this session's misses.
     if (state.isRetryMistakes && state.retryQuestionPool.length) {
       state.activePool = shuffle(state.retryQuestionPool.slice());
+      state.currentIndex = 0;
+      return;
+    }
+
+    // PHASE 2: Daily Challenge — deterministic shared set for the local calendar day.
+    if (state.isDaily) {
+      state.dailyDateKey = getLocalDateKey();
+      state.activePool = buildDailyPool();
       state.currentIndex = 0;
       return;
     }
@@ -1612,6 +1860,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         // PHASE 1: Retry Mistakes finishes after one full pass of the miss set.
         if (state.isRetryMistakes) {
           window.setTimeout(() => endGame("retry_done"), 200);
+          return;
+        }
+        // PHASE 2: Daily Challenge is a finite 12-question set.
+        if (state.isDaily) {
+          window.setTimeout(() => endGame("daily_complete"), 200);
           return;
         }
         buildPool();
@@ -1705,6 +1958,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       const oldScore = state.score;
       state.score += gained;
       playCorrectBeep();
+      if (state.currentQuestion && state.currentQuestion.s) {
+        recordMastery(state.currentQuestion.s, true);
+      }
 
       if (wasBossQuestion) {
         state.bossQuestionActive = false;
@@ -1726,7 +1982,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         playFanfare(false);
         showMilestoneOverlay(milestone, () => {
           // NEW FEATURE: some checkpoints are also Boss Question triggers.
-          if (BOSS_THRESHOLDS.includes(milestone) && !state.bossHit.has(milestone)) {
+          // PHASE 2: Daily Challenge stays a pure shared set — no boss inject.
+          if (!state.isDaily && BOSS_THRESHOLDS.includes(milestone) && !state.bossHit.has(milestone)) {
             state.bossHit.add(milestone);
             window.setTimeout(() => triggerBossSequence(), 200);
           } else {
@@ -1750,6 +2007,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
       state.streak = 0;
       playWrongBuzz();
+      if (state.currentQuestion && state.currentQuestion.s) {
+        recordMastery(state.currentQuestion.s, false);
+      }
       // Boss Question wrong answer: normal -1 heart, no extra penalty.
       state.bossQuestionActive = false;
       setBossVisuals(false);
@@ -1898,18 +2158,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     state.username = cleaned;
-    // Fresh ranked/practice run (not a retry) clears retry pool flags.
+    // Fresh run (not a retry) clears retry pool flags.
     state.isRetryMistakes = false;
     state.retryQuestionPool = [];
-    // isPractice is already set by the Ranked/Practice selector.
+    // Sync flags from run-type selector (ranked / practice / daily).
+    state.isPractice = state.runType === "practice";
+    state.isDaily = state.runType === "daily";
+    state.dailyDateKey = state.isDaily ? getLocalDateKey() : "";
     resetArena();
     updateHud();
     // NEW FEATURE: make the selected Game Mode visible in the HUD stream
     // chip for the whole run (the subject chip beside it still always shows
     // the actual current question's subject — the two are never confused).
     if (elements.streamModeLabel) {
-      const base = getModeConfig(state.selectedMode).streamLabel;
-      elements.streamModeLabel.textContent = state.isPractice ? `PRACTICE_${base}` : base;
+      if (state.isDaily) {
+        elements.streamModeLabel.textContent = `DAILY_${getLocalDateKey()}`;
+      } else {
+        const base = getModeConfig(state.selectedMode).streamLabel;
+        elements.streamModeLabel.textContent = state.isPractice ? `PRACTICE_${base}` : base;
+      }
     }
     setView("gameView");
     updateHud();
@@ -1927,6 +2194,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     state.bestScore = 0;
     state.isRetryMistakes = false;
     state.retryQuestionPool = [];
+    state.isDaily = false;
+    state.dailyDateKey = "";
     resetArena();
     // NEW FEATURE: a fresh arena run returns to RANDOM / ALL SUBJECTS by
     // default rather than silently keeping whatever mode was last played.
@@ -2068,13 +2337,16 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   async function saveScore() {
     // PHASE 1: Practice / Retry Mistakes never write to the competitive leaderboard.
-    if (state.isPractice || state.isRetryMistakes) {
+    if ((state.isPractice && !state.isDaily) || state.isRetryMistakes) {
       console.log("[Arena] Practice/Retry run — score not saved to leaderboard.");
       return;
     }
     const key = usernameKey(state.username);
-    const modeId = state.selectedMode;
-    const boardKey = modeToBoardKey(modeId);
+    // PHASE 2: Daily scores go to arena_scores/daily_YYYYMMDD/{user}
+    const boardKey = state.isDaily
+      ? (DAILY_LEADERBOARD_PREFIX + (state.dailyDateKey || getLocalDateKey()))
+      : modeToBoardKey(state.selectedMode);
+    const modeId = state.isDaily ? LEADERBOARD_DAILY_ID : state.selectedMode;
     const entry = {
       username: state.username,
       score: state.score,
@@ -2120,16 +2392,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const host = $("lbModeTabs");
     if (!host) return;
     host.innerHTML = "";
-    GAME_MODES.forEach((mode) => {
+
+    const tabDefs = [
+      { id: LEADERBOARD_DAILY_ID, label: "DAILY" },
+      ...GAME_MODES.map((mode) => ({
+        id: mode.id,
+        label: mode.id === RANDOM_MODE_ID ? "RANDOM" : mode.label
+      }))
+    ];
+
+    tabDefs.forEach((tab) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "lb-mode-tab" + (mode.id === state.leaderboardMode ? " selected" : "");
-      btn.textContent = mode.id === RANDOM_MODE_ID ? "RANDOM" : mode.label;
-      btn.setAttribute("aria-pressed", mode.id === state.leaderboardMode ? "true" : "false");
+      btn.className = "lb-mode-tab" + (tab.id === state.leaderboardMode ? " selected" : "");
+      btn.textContent = tab.label;
+      btn.setAttribute("aria-pressed", tab.id === state.leaderboardMode ? "true" : "false");
       bindTap(btn, (event) => {
         event.preventDefault();
-        if (state.leaderboardMode === mode.id) return;
-        state.leaderboardMode = mode.id;
+        if (state.leaderboardMode === tab.id) return;
+        state.leaderboardMode = tab.id;
         renderLeaderboard();
       });
       host.appendChild(btn);
@@ -2141,17 +2422,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     // Keep tabs + title in sync with the board being viewed.
     renderLeaderboardModeTabs();
-    const mode = getModeConfig(state.leaderboardMode);
+    const isDailyBoard = state.leaderboardMode === LEADERBOARD_DAILY_ID;
+    const mode = isDailyBoard
+      ? { id: LEADERBOARD_DAILY_ID, label: "Daily Challenge (" + getLocalDateKey() + ")" }
+      : getModeConfig(state.leaderboardMode);
     if (elements.lbTitle) {
-      elements.lbTitle.textContent =
-        mode.id === RANDOM_MODE_ID
+      elements.lbTitle.textContent = isDailyBoard
+        ? "Top Arena Challengers \u00b7 DAILY"
+        : mode.id === RANDOM_MODE_ID
           ? "Top Arena Challengers \u00b7 RANDOM"
           : `Top Arena Challengers \u00b7 ${mode.label}`;
     }
     const note = $("lbNote");
     if (note) {
-      note.textContent =
-        mode.id === RANDOM_MODE_ID
+      note.textContent = isDailyBoard
+        ? "Top 10 \u00b7 Today's shared Daily Challenge board"
+        : mode.id === RANDOM_MODE_ID
           ? "Top 10 \u00b7 Random / All Subjects board"
           : `Top 10 \u00b7 ${mode.label} only`;
     }
@@ -2176,15 +2462,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       if (cta) {
         bindTap(cta, (event) => {
           event.preventDefault();
-          // Apply this board's mode, switch to Ranked, close modal, focus start.
-          selectMode(state.leaderboardMode);
-          selectRunType(false);
           closeModal("leaderboardModal");
           setView("loginView");
-          if (elements.usernameInput) elements.usernameInput.focus();
-          if (elements.loginStatus) {
-            elements.loginStatus.textContent = `Ready: Ranked · ${getModeConfig(state.leaderboardMode).label}. Enter username then INITIALIZE.`;
+          if (state.leaderboardMode === LEADERBOARD_DAILY_ID) {
+            selectRunType("daily");
+            if (elements.loginStatus) {
+              elements.loginStatus.textContent = "Ready: Daily Challenge. Enter username then START DAILY CHALLENGE.";
+            }
+          } else {
+            selectMode(state.leaderboardMode);
+            selectRunType("ranked");
+            if (elements.loginStatus) {
+              elements.loginStatus.textContent = `Ready: Ranked · ${getModeConfig(state.leaderboardMode).label}. Enter username then INITIALIZE.`;
+            }
           }
+          if (elements.usernameInput) elements.usernameInput.focus();
         });
       }
       return;
@@ -2543,14 +2835,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       timeout: "Naubos ang oras sa huling tanong mo. Bilisan ang recall sa next round.",
       blur: "Auto game over ito dahil lumipat ka ng browser tab habang active ang game.",
       practice_end: "Practice session ended. Walang score na na-save — pure review lang ito.",
-      retry_done: "Naubos ang retry set mo. Review ulit o bumalik sa Ranked mode."
+      retry_done: "Naubos ang retry set mo. Review ulit o bumalik sa Ranked mode.",
+      daily_complete: "Natapos mo ang Daily Challenge set ngayong araw. Score is saved to today's Daily board."
     };
 
     if (elements.crashTitle) {
-      if (state.isPractice || reason === "practice_end") {
-        elements.crashTitle.textContent = state.isRetryMistakes
-          ? "[PRACTICE] RETRY MISTAKES COMPLETE"
-          : "[PRACTICE] SESSION ENDED";
+      if (state.isRetryMistakes || reason === "retry_done") {
+        elements.crashTitle.textContent = "[PRACTICE] RETRY MISTAKES COMPLETE";
+      } else if (state.isPractice || reason === "practice_end") {
+        elements.crashTitle.textContent = "[PRACTICE] SESSION ENDED";
+      } else if (state.isDaily || reason === "daily_complete") {
+        elements.crashTitle.textContent = "[DAILY CHALLENGE] COMPLETE";
       } else {
         elements.crashTitle.textContent = "[SYSTEM CRASH] REVIEWER OVER";
       }
@@ -2602,6 +2897,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const mode = getModeConfig(state.selectedMode);
     const runLabel = state.isRetryMistakes
       ? "Retry Mistakes (Practice)"
+      : state.isDaily
+        ? `Daily Challenge · ${state.dailyDateKey || getLocalDateKey()}`
       : state.isPractice
         ? `Practice · ${mode.label}`
         : `Ranked · ${mode.label}`;
@@ -2690,6 +2987,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     // Preserve username/avatar/mode; switch into Practice + Retry pool.
     state.isPractice = true;
+    state.isDaily = false;
+    state.runType = "practice";
     state.isRetryMistakes = true;
     state.retryQuestionPool = pool;
     state.ending = false;
