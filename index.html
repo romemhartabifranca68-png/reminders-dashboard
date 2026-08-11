@@ -1929,11 +1929,64 @@ body.role-admin .officer-desk-btn { display: inline-flex !important; }
   color: #eafffb;
 }
 .ou-shortcut {
-  display: none;
-  margin: 0.55rem 0 0;
+  display: none !important;
+  margin: 0;
+  width: 100%;
 }
 body.role-classmate .ou-shortcut,
-body.role-admin .ou-shortcut { display: block; }
+body.role-admin .ou-shortcut {
+  display: inline-flex !important;
+}
+.btn-officer-updates {
+  border: 1px solid rgba(100, 255, 218, 0.38) !important;
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.14), rgba(0, 229, 255, 0.1)) !important;
+  color: #eafffb !important;
+  box-shadow: 0 0 18px rgba(100, 255, 218, 0.14), var(--shadow);
+  width: 100%;
+}
+.btn-officer-updates:hover,
+.btn-officer-updates:focus-visible {
+  border-color: rgba(100, 255, 218, 0.55) !important;
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.2), rgba(0, 229, 255, 0.14)) !important;
+}
+
+/* Highlight Officer Updates + Resources Vault in quick-jump */
+.quick-jump {
+  margin-top: 1.15rem;
+  padding: 0.75rem 0.65rem;
+  border-radius: 16px;
+  border: 1px solid rgba(100, 255, 218, 0.14);
+  background: linear-gradient(180deg, rgba(100, 255, 218, 0.06), rgba(0, 229, 255, 0.03));
+  gap: 0.55rem;
+}
+.quick-jump a.is-featured {
+  padding: 0.7rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 255, 218, 0.32);
+  background: rgba(100, 255, 218, 0.1);
+  color: #eafffb;
+  font-size: 0.86rem;
+  font-weight: 800;
+  box-shadow: 0 0 14px rgba(100, 255, 218, 0.12);
+}
+.quick-jump a.is-featured:nth-child(2) {
+  border-color: rgba(0, 229, 255, 0.34);
+  background: rgba(0, 229, 255, 0.1);
+  color: #d9fbff;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.12);
+}
+.nav-links a.nav-logout {
+  border-color: rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.1);
+  color: #ffb4b4;
+  font-weight: 800;
+}
+.nav-links a.nav-logout:hover,
+.nav-links a.nav-logout:focus-visible {
+  border-color: rgba(255, 107, 107, 0.55);
+  background: rgba(255, 107, 107, 0.16);
+  color: #ffd0d0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .admin-pin, .top-link, .room-finder, .reveal-on-load,
@@ -2121,6 +2174,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <a href="#resources">Resources</a>
         <a href="#freedom-wall">Freedom Wall</a>
         <a class="fb-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">🌐 CCS | BS Computer Science - 1A SC | Siniloan</a>
+        <a href="#" class="nav-logout" id="navLogoutLink" hidden role="button">Log out</a>
       </div>
     </div>
   </nav>
@@ -2171,15 +2225,13 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <a class="btn btn-primary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
           <a class="btn btn-dashboard" href="dashboard.html">Class Dashboard</a>
           <a class="btn btn-secondary js-smooth" href="#resources">Resources</a>
+          <a class="btn btn-officer-updates ou-shortcut js-smooth" href="#officer-updates">Officer Updates · classmates only</a>
         </div>
-        <p class="ou-shortcut">
-          <a class="top-link js-smooth" href="#officer-updates" style="display:inline-flex;width:auto;padding:0.55rem 1rem;">Officer Updates · classmates only</a>
-        </p>
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
-          <a class="js-smooth" href="#officer-updates">Officer Updates</a>
-          <a class="js-smooth" href="#resources">Resources Vault</a>
+          <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
+          <a class="js-smooth is-featured" href="#resources">Resources Vault</a>
           <a class="js-smooth" href="#reviewer-arena">Reviewer Arena</a>
           <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
           <a class="js-smooth" href="#officers">Class Officers</a>
