@@ -2178,12 +2178,13 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
+          <a class="js-smooth" href="#officer-updates">Officer Updates</a>
+          <a class="js-smooth" href="#resources">Resources Vault</a>
+          <a class="js-smooth" href="#reviewer-arena">Reviewer Arena</a>
           <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
           <a class="js-smooth" href="#officers">Class Officers</a>
           <a class="js-smooth" href="#schedule">Weekly Schedule</a>
           <a class="js-smooth" href="#freshmen">Freshmen Directory</a>
-          <a class="js-smooth" href="#reviewer-arena">Academic Reviewer Arena</a>
-          <a class="js-smooth" href="#resources">Resources</a>
           <a class="js-smooth" href="#freedom-wall">Freedom Wall</a>
         </div>
       </section>
@@ -2233,6 +2234,77 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
 
   <main id="main">
     <div class="wrap">
+      <section id="officer-updates" class="officer-updates-section">
+        <div class="section-title">
+          <h2>Officer Updates</h2>
+          <span>Classmates only · top priority board</span>
+        </div>
+        <div class="card pad">
+          <p class="arena-note" style="margin:0;">
+            Official updates from section officers. Guests cannot view this board.
+          </p>
+          <div class="ou-filters" id="ouFilters" role="tablist">
+            <button type="button" class="ou-filter active" data-ou="all">All</button>
+            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
+            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
+            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
+            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
+          </div>
+          <div class="officer-update-list" id="officerUpdateList">
+            <p class="arena-note">Loading updates…</p>
+          </div>
+          <p style="margin:0.75rem 0 0;">
+            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
+          </p>
+        </div>
+      </section>
+
+
+      <section id="resources">
+        <div class="section-title">
+          <h2>Resources Vault</h2>
+          <span>Top of hub · modules · requests · duty</span>
+        </div>
+        <div class="card pad">
+          <div class="resources-grid">
+            <div class="resource-card">
+              <strong>ITEC 101 / 102</strong>
+              <p>Programming modules, sample traces, and lab notes. Open Drive from the top links.</p>
+              <p><a class="js-smooth" href="#reviewer-arena">Open Arena · Study Plan</a></p>
+            </div>
+            <div class="resource-card">
+              <strong>GEC + PI 100</strong>
+              <p>Reading packs and reviewer sets. Use Subject Mode then Practice for low-pressure drills.</p>
+            </div>
+            <div class="resource-card">
+              <strong>Officer duty (this term)</strong>
+              <div class="duty-roster" id="dutyRoster">
+                <div class="duty-item"><strong>Academics / modules</strong><span>Academic Committee</span></div>
+                <div class="duty-item"><strong>Hub / tech issues</strong><span>Tech Manager · RST</span></div>
+                <div class="duty-item"><strong>Section announcements</strong><span>President / PIO</span></div>
+                <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary / Treasurer</span></div>
+              </div>
+            </div>
+            <div class="resource-card">
+              <strong>Request a resource</strong>
+              <p>Need a module or reviewer? Send a short request for RST / officers.</p>
+              <form class="request-form" id="resourceRequestForm">
+                <input id="reqName" type="text" maxlength="40" placeholder="Your name (optional)" />
+                <input id="reqTopic" type="text" maxlength="80" placeholder="What do you need?" required />
+                <textarea id="reqNote" maxlength="200" placeholder="Short note (optional)"></textarea>
+                <button type="submit" class="btn btn-primary" style="min-height:46px;">Send request</button>
+              </form>
+              <p class="arena-note" id="reqStatus" style="margin:0.45rem 0 0;"></p>
+            </div>
+          </div>
+          <div class="changelog-box">
+            <strong>What’s new · RST Hub</strong><br/>
+            Admin pin · top quick links · Command Center · Reviewer Arena modes · classmate access · mobile polish
+          </div>
+        </div>
+      </section>
+
+
       <section id="vision-mission">
         <div class="section-title">
           <h2>Vision &amp; Mission</h2>
@@ -2681,75 +2753,6 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </section>
 
 
-      <section id="officer-updates" class="officer-updates-section">
-        <div class="section-title">
-          <h2>Officer Updates</h2>
-          <span>Classmates only · duty-based posts</span>
-        </div>
-        <div class="card pad">
-          <p class="arena-note" style="margin:0;">
-            Official updates from section officers. Guests cannot view this board.
-          </p>
-          <div class="ou-filters" id="ouFilters" role="tablist">
-            <button type="button" class="ou-filter active" data-ou="all">All</button>
-            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
-            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
-            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
-            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
-          </div>
-          <div class="officer-update-list" id="officerUpdateList">
-            <p class="arena-note">Loading updates…</p>
-          </div>
-          <p style="margin:0.75rem 0 0;">
-            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
-          </p>
-        </div>
-      </section>
-
-      <section id="resources">
-        <div class="section-title">
-          <h2>Resources Vault</h2>
-          <span>Modules · links · section tools · RST</span>
-        </div>
-        <div class="card pad">
-          <div class="resources-grid">
-            <div class="resource-card">
-              <strong>ITEC 101 / 102</strong>
-              <p>Programming modules, sample traces, and lab notes. Open Drive from the top links.</p>
-              <p><a class="js-smooth" href="#reviewer-arena">Open Arena · Study Plan</a></p>
-            </div>
-            <div class="resource-card">
-              <strong>GEC + PI 100</strong>
-              <p>Reading packs and reviewer sets. Use Subject Mode then Practice for low-pressure drills.</p>
-            </div>
-            <div class="resource-card">
-              <strong>Officer duty (this term)</strong>
-              <div class="duty-roster" id="dutyRoster">
-                <div class="duty-item"><strong>Academics / modules</strong><span>Academic Committee</span></div>
-                <div class="duty-item"><strong>Hub / tech issues</strong><span>Tech Manager · RST</span></div>
-                <div class="duty-item"><strong>Section announcements</strong><span>President / PIO</span></div>
-                <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary / Treasurer</span></div>
-              </div>
-            </div>
-            <div class="resource-card">
-              <strong>Request a resource</strong>
-              <p>Need a module or reviewer? Send a short request for RST / officers.</p>
-              <form class="request-form" id="resourceRequestForm">
-                <input id="reqName" type="text" maxlength="40" placeholder="Your name (optional)" />
-                <input id="reqTopic" type="text" maxlength="80" placeholder="What do you need?" required />
-                <textarea id="reqNote" maxlength="200" placeholder="Short note (optional)"></textarea>
-                <button type="submit" class="btn btn-primary" style="min-height:46px;">Send request</button>
-              </form>
-              <p class="arena-note" id="reqStatus" style="margin:0.45rem 0 0;"></p>
-            </div>
-          </div>
-          <div class="changelog-box">
-            <strong>What’s new · RST Hub</strong><br/>
-            Admin pin · top quick links · Command Center · Reviewer Arena modes · classmate access · mobile polish
-          </div>
-        </div>
-      </section>
-
       <section id="freedom-wall">
         <div class="section-title">
           <h2>Integrated Freedom Wall</h2>
@@ -2818,7 +2821,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed &amp; coded by <span>RST</span> · BSCS 1-A Section Hub</p>
-        <p class="hub-version">RST Hub v3.6 · BSCS 1-A · LSPU Siniloan</p>
+        <p class="hub-version">RST Hub v3.7 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
