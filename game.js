@@ -341,6 +341,19 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const navLogout = $("navLogoutLink");
     if (navLogout) navLogout.hidden = !authState.role;
 
+    // Lock resource request form for browse-only guests (no Guest Pass)
+    const reqForm = $("resourceRequestForm");
+    const browseOnlyGuest = authState.role === "guest" && !authState.guestPlayAllowed;
+    if (reqForm) {
+      const fields = reqForm.querySelectorAll("input, textarea, button");
+      fields.forEach((el) => {
+        el.disabled = browseOnlyGuest;
+        if (browseOnlyGuest) el.setAttribute("tabindex", "-1");
+        else el.removeAttribute("tabindex");
+      });
+      reqForm.setAttribute("aria-disabled", browseOnlyGuest ? "true" : "false");
+    }
+
     const guestBanner = $("guestBanner");
     if (guestBanner) {
       guestBanner.hidden = authState.role !== "guest";
@@ -3217,20 +3230,32 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (!form) return;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const status = $("reqStatus");
+      // Guests without Guest Pass cannot submit resource requests
+      if (authState.role === "guest" && !authState.guestPlayAllowed) {
+        if (status) {
+          status.textContent = "Guest · Browse only — hindi pwede mag-request. Sign in as classmate o gumamit ng Guest Pass.";
+        }
+        return;
+      }
+      if (!authState.role) {
+        if (status) status.textContent = "Sign in muna bago mag-send ng request.";
+        return;
+      }
       const topic = String(($("reqTopic") && $("reqTopic").value) || "").trim();
       const name = String(($("reqName") && $("reqName").value) || "").trim().slice(0, 40);
       const note = String(($("reqNote") && $("reqNote").value) || "").trim().slice(0, 200);
-      const status = $("reqStatus");
       if (!topic) {
         if (status) status.textContent = "Ilagay kung ano ang kailangan mo.";
         return;
       }
       const payload = {
         topic,
-        name: name || "Anonymous",
+        name: name || (authState.displayName ? String(authState.displayName).split(",")[0] : "Anonymous"),
         note,
         ts: Date.now(),
-        by: authState.username || "guest"
+        by: authState.username || "guest",
+        role: authState.role || "guest"
       };
       try {
         const key = "req_" + Date.now();
