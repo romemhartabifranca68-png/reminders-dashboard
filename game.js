@@ -358,9 +358,28 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (guestBanner) {
       guestBanner.hidden = authState.role !== "guest";
       if (authState.role === "guest") {
-        guestBanner.innerHTML = authState.guestPlayAllowed
-          ? "Guest Pass active: you may use <strong>Practice</strong> / <strong>Study Plan</strong> only. Ranked &amp; Daily stay classmate-only."
-          : "Guest mode: <strong>browse only</strong>. Arena is locked until Admin (RST) issues a Guest Pass.";
+        if (authState.guestPlayAllowed) {
+          guestBanner.innerHTML =
+            '<span class="gb-title">Guest Pass active</span>' +
+            "You may use <strong>Practice</strong> / <strong>Study Plan</strong> only." +
+            '<ul class="gb-list">' +
+            "<li>Locked: Ranked · Daily Challenge</li>" +
+            "<li>Locked: Class Dashboard · Google Drive</li>" +
+            "<li>Locked: Officer Updates board</li>" +
+            "</ul>" +
+            '<p class="gb-ok">Open for you: browse hub · Practice · Study Plan · resource request</p>';
+        } else {
+          guestBanner.innerHTML =
+            '<span class="gb-title">Guest mode · browse only</span>' +
+            "Arena is locked until Admin (RST) issues a Guest Pass." +
+            '<ul class="gb-list">' +
+            "<li>Locked: Reviewer Arena (all modes)</li>" +
+            "<li>Locked: Class Dashboard · Google Drive</li>" +
+            "<li>Locked: Officer Updates · Resource requests</li>" +
+            "<li>Locked: Ranked scores / leaderboard play</li>" +
+            "</ul>" +
+            '<p class="gb-ok">Open for you: schedule · officers list · vision · freshmen directory · Freedom Wall · Section FB</p>';
+        }
       }
     }
 
