@@ -1725,13 +1725,102 @@ body.exam-mode .choice { min-height: 52px; }
 }
 .mode-card.double-tap-armed::after,
 .run-type-card.double-tap-armed::after {
-  content: "tap again";
+  content: "tap again to confirm";
   display: block;
   margin-top: 0.25rem;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   color: var(--accent);
+}
+.double-tap-hint {
+  margin: 0 0 0.55rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(100, 255, 218, 0.35);
+  background: rgba(100, 255, 218, 0.08);
+  color: rgba(230, 241, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.double-tap-hint strong { color: var(--accent); }
+
+.nav-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 210, 125, 0.45);
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.22), rgba(100, 255, 218, 0.1));
+  color: #ffe9c2;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255, 196, 94, 0.18);
+  flex: 0 0 auto;
+}
+.nav-admin-btn:hover, .nav-admin-btn:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+  border-color: rgba(255, 210, 125, 0.7);
+}
+.nav-admin-btn[hidden] { display: none !important; }
+
+.nav-toggle { position: relative; }
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 10px rgba(255, 107, 107, 0.45);
+  line-height: 1;
+}
+.nav-badge[hidden] { display: none !important; }
+
+.ou-new-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 107, 107, 0.18);
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  color: #ffb4b4;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.deadline-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0.45rem 0 0.65rem;
+}
+.deadline-add-row input {
+  flex: 1 1 120px;
+  min-height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.3);
+  color: var(--text);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.86rem;
 }
 
 .arena-input[readonly] {
@@ -2493,10 +2582,12 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </a>
 
       <span class="session-chip" id="sessionChip" hidden title="Signed-in session">Guest</span>
+      <button type="button" class="nav-admin-btn" id="openAdminHubBtnTop" hidden aria-label="Open RST Admin Panel" title="RST Admin Panel">Admin</button>
       <button type="button" class="nav-toggle" id="logoutBtn" hidden aria-label="Sign out" title="Sign out" style="width:auto;padding:0 0.65rem;font-size:0.72rem;font-weight:800;">Exit</button>
 
       <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="navLinks" aria-label="Toggle navigation">
         &#9776;
+        <span class="nav-badge" id="navUpdateBadge" hidden>1</span>
       </button>
 
       <div class="nav-links" id="navLinks" aria-label="Section navigation">
@@ -3027,6 +3118,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
                   <div class="avatar-grid" id="avatarGrid" role="radiogroup" aria-labelledby="avatarLabel"></div>
 
                   <p class="field-title" id="modeLabel">Select Game Mode</p>
+                  <p class="double-tap-hint" id="doubleTapHint">Tip: <strong>double-tap</strong> a mode or run type to select it. Prevents accidental taps while scrolling.</p>
                   <div class="mode-grid" id="modeGrid" role="radiogroup" aria-labelledby="modeLabel"></div>
                   <p class="selected-mode-display" id="selectedModeLabel">Selected Mode: RANDOM / ALL SUBJECTS</p>
 
