@@ -180,6 +180,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return isAdmin() || (authState.officerChannels && authState.officerChannels.length > 0);
   }
 
+  /** Academics / tech duty (or full admin) may review resource requests. */
+  function canManageResourceRequests() {
+    if (isAdmin()) return true;
+    const ch = authState.officerChannels || [];
+    return ch.indexOf("academics") >= 0 || ch.indexOf("tech") >= 0;
+  }
+
+
   function resolveOfficerProfile(username) {
     const key = String(username || "").toLowerCase();
     const row = OFFICER_ROLES[key];
@@ -843,6 +851,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
       <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
       <button type="button" class="lifeline-btn" id="adminSavePin" style="margin-bottom:0.75rem;">Publish pin</button>
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">RESOURCE REQUESTS</h4>
+      <div id="adminRequestList" style="max-height:28vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
       <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
         Loading login activity…
@@ -951,6 +961,27 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         console.warn(error);
       }
     });
+
+    const reqHost = panel.querySelector("#adminRequestList");
+    if (reqHost) {
+      (async () => {
+        const rows = await fetchResourceRequests();
+        reqHost.innerHTML = renderRequestRowsHtml(rows.slice(0, 40));
+        const bindDone = () => {
+          reqHost.querySelectorAll(".req-done-btn").forEach((btn) => {
+            bindTap(btn, async (ev) => {
+              ev.preventDefault();
+              await markResourceRequestDone(btn.getAttribute("data-req-id"));
+              const refreshed = await fetchResourceRequests();
+              reqHost.innerHTML = renderRequestRowsHtml(refreshed.slice(0, 40));
+              bindDone();
+            });
+          });
+        };
+        bindDone();
+      })();
+    }
+
 
     bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
@@ -2791,6 +2822,74 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   let officerUpdateFilter = "all";
 
+
+  async function fetchResourceRequests() {
+    let list = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, RESOURCE_REQ_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((id) => {
+            const row = val[id];
+            if (row && typeof row === "object") list.push({ id, ...row });
+          });
+        }
+      } catch (error) {
+        console.warn("[Hub] resource requests fetch failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_resource_reqs_v1") || "{}");
+      Object.keys(local).forEach((id) => {
+        if (!list.find((x) => x.id === id)) list.push({ id, ...local[id] });
+      });
+    } catch (error) {
+      /* ignore */
+    }
+    return list.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  async function markResourceRequestDone(id) {
+    if (!canManageResourceRequests()) throw new Error("Not allowed");
+    const patch = { done: true, doneAt: Date.now(), doneBy: authState.username || "" };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_resource_reqs_v1") || "{}");
+      if (local[id]) {
+        local[id] = { ...local[id], ...patch };
+        localStorage.setItem("bscs1a_resource_reqs_v1", JSON.stringify(local));
+      }
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      try {
+        const snap = await get(ref(db, RESOURCE_REQ_PATH + "/" + id));
+        if (snap.exists()) {
+          await set(ref(db, RESOURCE_REQ_PATH + "/" + id), { ...snap.val(), ...patch });
+        }
+      } catch (error) {
+        console.warn(error);
+      }
+    }
+  }
+
+  function renderRequestRowsHtml(rows) {
+    if (!rows.length) {
+      return `<p style="color:var(--muted);font-size:0.82rem;">No resource requests yet.</p>`;
+    }
+    return rows.map((r) => {
+      const when = formatLoginStamp(r.ts);
+      const done = r.done ? " · DONE" : "";
+      return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="font-weight:800;color:#eafffb;">${escapeHtml(r.topic || "")}${done}</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem;">${escapeHtml(r.name || "Anonymous")} · ${escapeHtml(when)}</div>
+        ${r.note ? `<div style="font-size:0.8rem;margin-top:0.25rem;color:rgba(230,241,255,0.85);">${escapeHtml(r.note)}</div>` : ""}
+        ${!r.done ? `<button type="button" class="lifeline-btn req-done-btn" data-req-id="${escapeHtml(r.id)}" style="margin-top:0.35rem;">Mark done</button>` : ""}
+      </div>`;
+    }).join("");
+  }
+
   async function fetchOfficerUpdates() {
     let list = [];
     if (db) {
@@ -2925,6 +3024,40 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         status.textContent = error.message || "Publish failed";
       }
     });
+
+    // Resource request inbox for academics / tech duty officers
+    if (canManageResourceRequests()) {
+      const box = document.createElement("div");
+      box.style.marginTop = "14px";
+      box.innerHTML = `<h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">RESOURCE REQUESTS</h4>
+        <div id="odRequestList" style="max-height:36vh;overflow:auto;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>`;
+      panel.appendChild(box);
+      const listHost = box.querySelector("#odRequestList");
+      (async () => {
+        const rows = await fetchResourceRequests();
+        listHost.innerHTML = renderRequestRowsHtml(rows.slice(0, 30));
+        listHost.querySelectorAll(".req-done-btn").forEach((btn) => {
+          bindTap(btn, async (ev) => {
+            ev.preventDefault();
+            try {
+              await markResourceRequestDone(btn.getAttribute("data-req-id"));
+              const refreshed = await fetchResourceRequests();
+              listHost.innerHTML = renderRequestRowsHtml(refreshed.slice(0, 30));
+              listHost.querySelectorAll(".req-done-btn").forEach((b2) => {
+                bindTap(b2, async (ev2) => {
+                  ev2.preventDefault();
+                  await markResourceRequestDone(b2.getAttribute("data-req-id"));
+                  const r2 = await fetchResourceRequests();
+                  listHost.innerHTML = renderRequestRowsHtml(r2.slice(0, 30));
+                });
+              });
+            } catch (error) {
+              status.textContent = error.message || "Update failed";
+            }
+          });
+        });
+      })();
+    }
   }
 
   function initOfficerUpdatesUI() {
