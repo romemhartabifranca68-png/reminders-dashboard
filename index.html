@@ -2006,6 +2006,95 @@ main#main > .wrap > section:nth-child(4) { animation-delay: 0.2s; }
     0 8px 28px rgba(0,0,0,0.3),
     inset 0 1px 0 rgba(255,255,255,0.05);
 }
+/* Officer Updates — top spotlight board */
+.hero-side-ou {
+  border: 1px solid rgba(255, 196, 94, 0.35) !important;
+  background:
+    radial-gradient(420px 180px at 0% 0%, rgba(255, 210, 125, 0.16), transparent 60%),
+    radial-gradient(380px 160px at 100% 100%, rgba(100, 255, 218, 0.1), transparent 55%),
+    linear-gradient(165deg, rgba(28, 22, 12, 0.55), rgba(12, 22, 40, 0.72)) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 125, 0.18),
+    0 0 28px rgba(255, 196, 94, 0.18),
+    0 0 48px rgba(100, 255, 218, 0.08),
+    0 16px 44px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+.ou-top-board {
+  display: none;
+  padding: 0.15rem 0.1rem 0.25rem;
+}
+body.role-classmate .ou-top-board,
+body.role-admin .ou-top-board { display: block; }
+.ou-top-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.35rem;
+}
+.ou-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffd27d;
+}
+.ou-top-title {
+  margin: 0.15rem 0 0;
+  font-size: 1.28rem;
+  font-weight: 900;
+  color: #fff6e4;
+  text-shadow: 0 0 18px rgba(255, 210, 125, 0.25);
+}
+.ou-live-pill {
+  flex: 0 0 auto;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #062635;
+  background: linear-gradient(135deg, #64ffda, #a8ffe8);
+  box-shadow: 0 0 14px rgba(100, 255, 218, 0.35);
+}
+.ou-top-desc {
+  margin: 0 0 0.55rem;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: rgba(255, 242, 220, 0.88);
+  font-weight: 600;
+}
+.ou-feed {
+  min-height: 220px;
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.35rem 0.15rem 0.35rem 0;
+  margin-top: 0.65rem;
+  gap: 0.65rem;
+}
+.ou-desk-wrap { margin: 0.85rem 0 0; }
+.ou-desk-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 46px;
+  border-color: rgba(255, 210, 125, 0.4) !important;
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.18), rgba(100, 255, 218, 0.1)) !important;
+  color: #ffe9c2 !important;
+}
+/* Guests see Section Status in the same top slot */
+.section-status-panel {
+  display: grid;
+  gap: 0.85rem;
+}
+body.role-classmate .section-status-panel,
+body.role-admin .section-status-panel { display: none; }
+body.role-classmate .section-status-lower,
+body.role-admin .section-status-lower { display: block; }
+.section-status-lower { display: none; }
+body.role-guest .section-status-lower { display: none; }
 #officer-updates .card {
   border-color: rgba(255, 210, 125, 0.32);
   box-shadow:
@@ -2073,53 +2162,71 @@ body.role-officer .officer-desk-btn,
 body.role-admin .officer-desk-btn { display: inline-flex !important; }
 .officer-update-list { display: grid; gap: 0.55rem; margin-top: 0.55rem; }
 .officer-update-card {
-  border-radius: 14px;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid rgba(100,255,218,0.18);
-  background: rgba(0,0,0,0.22);
+  border-radius: 16px;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid rgba(255, 210, 125, 0.28);
+  background:
+    linear-gradient(135deg, rgba(255, 210, 125, 0.1), rgba(100, 255, 218, 0.06) 45%, rgba(0, 229, 255, 0.05));
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 125, 0.1),
+    0 0 16px rgba(255, 196, 94, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   animation: riseIn 0.45s ease both;
 }
+.officer-update-card:nth-child(3n+1) {
+  border-color: rgba(255, 210, 125, 0.32);
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.14), rgba(255, 150, 100, 0.06));
+}
+.officer-update-card:nth-child(3n+2) {
+  border-color: rgba(100, 255, 218, 0.32);
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.12), rgba(0, 229, 255, 0.06));
+}
+.officer-update-card:nth-child(3n) {
+  border-color: rgba(180, 160, 255, 0.32);
+  background: linear-gradient(135deg, rgba(180, 160, 255, 0.12), rgba(100, 255, 218, 0.05));
+}
 .officer-update-card .ou-ch {
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #ffd27d;
 }
 .officer-update-card .ou-text {
-  margin: 0.35rem 0 0;
-  font-size: 0.88rem;
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
   font-weight: 700;
-  color: #eef6ff;
-  line-height: 1.45;
+  color: #fff8ee;
+  line-height: 1.5;
 }
 .officer-update-card .ou-meta {
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
   font-size: 0.72rem;
-  color: var(--muted);
+  color: rgba(230, 241, 255, 0.72);
   font-weight: 700;
 }
 .ou-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.4rem;
   margin-top: 0.45rem;
 }
 .ou-filter {
-  min-height: 36px;
-  padding: 0.35rem 0.65rem;
+  min-height: 38px;
+  padding: 0.4rem 0.75rem;
   border-radius: 999px;
-  border: 1px solid rgba(100,255,218,0.2);
-  background: rgba(255,255,255,0.03);
-  color: rgba(230,241,255,0.85);
-  font-size: 0.72rem;
+  border: 1px solid rgba(255, 210, 125, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 242, 220, 0.9);
+  font-size: 0.74rem;
   font-weight: 800;
   cursor: pointer;
 }
 .ou-filter.active {
-  border-color: rgba(100,255,218,0.5);
-  background: rgba(100,255,218,0.12);
-  color: #eafffb;
+  border-color: rgba(255, 210, 125, 0.55);
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.28), rgba(100, 255, 218, 0.14));
+  color: #fff8e8;
+  box-shadow: 0 0 14px rgba(255, 196, 94, 0.2);
 }
 .ou-shortcut {
   display: none !important;
@@ -2427,8 +2534,8 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
-          <a class="js-smooth is-featured" href="#resources">Resources Vault</a>
           <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
+          <a class="js-smooth is-featured" href="#resources">Resources Vault</a>
           <a class="js-smooth" href="#reviewer-arena">Reviewer Arena</a>
           <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
           <a class="js-smooth" href="#officers">Class Officers</a>
@@ -2438,44 +2545,71 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
       </section>
 
-      <aside class="hero-side glass" aria-label="Section quick info">
-        <div class="note-card">
-          <strong>Section Status</strong>
-          <p>
-            Centralized welcome page ito ng BSCS 1-A para sa officers, weekly schedule,
-            directory, section interactions, at mixed-subject reviewer game.
+      <!-- TOP PRIORITY: Officer Updates (classmates) — swaps with Section Status for guests -->
+      <aside class="hero-side glass hero-side-ou" aria-label="Officer Updates and section info">
+        <section id="officer-updates" class="officer-updates-section ou-top-board">
+          <div class="ou-top-header">
+            <div>
+              <p class="ou-kicker">Classmates only · live board</p>
+              <h2 class="ou-top-title">Officer Updates</h2>
+            </div>
+            <span class="ou-live-pill" aria-hidden="true">● LIVE</span>
+          </div>
+          <p class="ou-top-desc">
+            Official school &amp; section posts from officers. Dito makikita ang announcements, academics, events, at hub/tech updates.
           </p>
-        </div>
-
-        <div class="stats-grid">
-          <div class="statbox">
-            <small>Freshmen</small>
-            <h3>20</h3>
-            <p>Complete class directory</p>
+          <div class="ou-filters" id="ouFilters" role="tablist">
+            <button type="button" class="ou-filter active" data-ou="all">All</button>
+            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
+            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
+            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
+            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
           </div>
-          <div class="statbox">
-            <small>Officers</small>
-            <h3>10</h3>
-            <p>Official class leaders</p>
+          <div class="officer-update-list ou-feed" id="officerUpdateList">
+            <p class="arena-note">Loading updates…</p>
           </div>
-          <div class="statbox">
-            <small>Question Pool</small>
-            <h3>100</h3>
-            <p>Mixed-subject reviewer set</p>
-          </div>
-          <div class="statbox">
-            <small>Access</small>
-            <h3>24/7</h3>
-            <p>Responsive section hub</p>
-          </div>
-        </div>
-
-        <div class="note-card">
-          <strong>Dark Theme Identity</strong>
-          <p>
-            Deep navy blue, slate glassmorphic panels, at neon teal accents ang ginamit para sa
-            premium at modern Computer Science aesthetic.
+          <p class="ou-desk-wrap">
+            <button type="button" class="login-modal-btn officer-desk-btn ou-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
           </p>
+        </section>
+
+        <div class="section-status-panel" id="sectionStatusPanel">
+          <div class="note-card">
+            <strong>Section Status</strong>
+            <p>
+              Centralized welcome page ito ng BSCS 1-A para sa officers, weekly schedule,
+              directory, section interactions, at mixed-subject reviewer game.
+            </p>
+          </div>
+          <div class="stats-grid">
+            <div class="statbox">
+              <small>Freshmen</small>
+              <h3>20</h3>
+              <p>Complete class directory</p>
+            </div>
+            <div class="statbox">
+              <small>Officers</small>
+              <h3>10</h3>
+              <p>Official class leaders</p>
+            </div>
+            <div class="statbox">
+              <small>Question Pool</small>
+              <h3>100</h3>
+              <p>Mixed-subject reviewer set</p>
+            </div>
+            <div class="statbox">
+              <small>Access</small>
+              <h3>24/7</h3>
+              <p>Responsive section hub</p>
+            </div>
+          </div>
+          <div class="note-card">
+            <strong>Dark Theme Identity</strong>
+            <p>
+              Deep navy blue, slate glassmorphic panels, at neon teal accents ang ginamit para sa
+              premium at modern Computer Science aesthetic.
+            </p>
+          </div>
         </div>
       </aside>
     </div>
@@ -2531,28 +2665,46 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </section>
 
 
-      <section id="officer-updates" class="officer-updates-section">
+      <!-- Section Status moved down — Officers Updates now lives at top (hero-side) -->
+      <section id="section-status" class="section-status-lower">
         <div class="section-title">
-          <h2>Officer Updates</h2>
-          <span>Classmates only · top priority board</span>
+          <h2>Section Status</h2>
+          <span>Hub snapshot</span>
         </div>
-        <div class="card pad">
-          <p class="arena-note" style="margin:0;">
-            Official updates from section officers. Guests cannot view this board.
+        <div class="card pad section-status-card">
+          <p style="margin:0 0 0.75rem;color:rgba(230,241,255,0.88);line-height:1.55;font-size:0.92rem;">
+            Centralized welcome page ito ng BSCS 1-A para sa officers, weekly schedule,
+            directory, section interactions, at mixed-subject reviewer game.
           </p>
-          <div class="ou-filters" id="ouFilters" role="tablist">
-            <button type="button" class="ou-filter active" data-ou="all">All</button>
-            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
-            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
-            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
-            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
+          <div class="stats-grid">
+            <div class="statbox">
+              <small>Freshmen</small>
+              <h3>20</h3>
+              <p>Complete class directory</p>
+            </div>
+            <div class="statbox">
+              <small>Officers</small>
+              <h3>10</h3>
+              <p>Official class leaders</p>
+            </div>
+            <div class="statbox">
+              <small>Question Pool</small>
+              <h3>100</h3>
+              <p>Mixed-subject reviewer set</p>
+            </div>
+            <div class="statbox">
+              <small>Access</small>
+              <h3>24/7</h3>
+              <p>Responsive section hub</p>
+            </div>
           </div>
-          <div class="officer-update-list" id="officerUpdateList">
-            <p class="arena-note">Loading updates…</p>
+          <div class="note-card" style="margin-top:0.75rem;">
+            <strong>Dark Theme Identity</strong>
+            <p>
+              Deep navy blue, slate glassmorphic panels, at neon teal accents ang ginamit para sa
+              premium at modern Computer Science aesthetic.
+            </p>
           </div>
-          <p style="margin:0.75rem 0 0;">
-            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
-          </p>
         </div>
       </section>
 
