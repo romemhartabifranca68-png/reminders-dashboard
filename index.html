@@ -1870,6 +1870,71 @@ main#main > .wrap > section:nth-child(4) { animation-delay: 0.2s; }
   box-shadow: 0 0 20px rgba(255, 196, 94, 0.12);
 }
 
+
+/* ===== Officer Desk + classmate-only updates ===== */
+.officer-updates-section { display: none; }
+body.role-classmate .officer-updates-section,
+body.role-admin .officer-updates-section { display: block; }
+.officer-desk-btn { display: none; }
+body.role-officer .officer-desk-btn,
+body.role-admin .officer-desk-btn { display: inline-flex !important; }
+.officer-update-list { display: grid; gap: 0.55rem; margin-top: 0.55rem; }
+.officer-update-card {
+  border-radius: 14px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(100,255,218,0.18);
+  background: rgba(0,0,0,0.22);
+  animation: riseIn 0.45s ease both;
+}
+.officer-update-card .ou-ch {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd27d;
+}
+.officer-update-card .ou-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #eef6ff;
+  line-height: 1.45;
+}
+.officer-update-card .ou-meta {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+.ou-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+.ou-filter {
+  min-height: 36px;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(100,255,218,0.2);
+  background: rgba(255,255,255,0.03);
+  color: rgba(230,241,255,0.85);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ou-filter.active {
+  border-color: rgba(100,255,218,0.5);
+  background: rgba(100,255,218,0.12);
+  color: #eafffb;
+}
+.ou-shortcut {
+  display: none;
+  margin: 0.55rem 0 0;
+}
+body.role-classmate .ou-shortcut,
+body.role-admin .ou-shortcut { display: block; }
+
 @media (prefers-reduced-motion: reduce) {
   .admin-pin, .top-link, .room-finder, .reveal-on-load,
   main#main > .wrap > section { animation: none !important; }
@@ -2048,6 +2113,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       <div class="nav-links" id="navLinks" aria-label="Section navigation">
         <a href="#vision-mission">Vision &amp; Mission</a>
         <a href="#officers">Officers</a>
+        <a href="#officer-updates">Updates</a>
         <a href="#schedule">Schedule</a>
         <a href="#freshmen">Freshmen</a>
         <a href="dashboard.html">Dashboard</a>
@@ -2106,6 +2172,9 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <a class="btn btn-dashboard" href="dashboard.html">Class Dashboard</a>
           <a class="btn btn-secondary js-smooth" href="#resources">Resources</a>
         </div>
+        <p class="ou-shortcut">
+          <a class="top-link js-smooth" href="#officer-updates" style="display:inline-flex;width:auto;padding:0.55rem 1rem;">Officer Updates · classmates only</a>
+        </p>
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
@@ -2525,6 +2594,9 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
                     <button type="button" class="login-modal-btn" id="openAdminHubBtn" hidden>
                       RST Admin Panel
                     </button>
+                    <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtnLogin" hidden>
+                      Officer Desk
+                    </button>
                   </div>
                   <div id="scholarProfileCard" class="mastery-panel" style="margin-top:0.75rem;" hidden></div>
                 </div>
@@ -2605,6 +2677,32 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+
+      <section id="officer-updates" class="officer-updates-section">
+        <div class="section-title">
+          <h2>Officer Updates</h2>
+          <span>Classmates only · duty-based posts</span>
+        </div>
+        <div class="card pad">
+          <p class="arena-note" style="margin:0;">
+            Official updates from section officers. Guests cannot view this board.
+          </p>
+          <div class="ou-filters" id="ouFilters" role="tablist">
+            <button type="button" class="ou-filter active" data-ou="all">All</button>
+            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
+            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
+            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
+            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
+          </div>
+          <div class="officer-update-list" id="officerUpdateList">
+            <p class="arena-note">Loading updates…</p>
+          </div>
+          <p style="margin:0.75rem 0 0;">
+            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
+          </p>
         </div>
       </section>
 
@@ -2720,7 +2818,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed &amp; coded by <span>RST</span> · BSCS 1-A Section Hub</p>
-        <p class="hub-version">RST Hub v3.5 · BSCS 1-A · LSPU Siniloan</p>
+        <p class="hub-version">RST Hub v3.6 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
