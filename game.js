@@ -3302,6 +3302,51 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     });
   }
 
+  /* One-tap Back to Top (shows after scrolling down) */
+  function initBackToTop() {
+    const btn = $("backToTopBtn");
+    if (!btn) return;
+    const showAfter = 380;
+    let ticking = false;
+
+    const sync = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      btn.classList.toggle("is-visible", y > showAfter);
+      ticking = false;
+    };
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(sync);
+      },
+      { passive: true }
+    );
+
+    bindTap(btn, (event) => {
+      event.preventDefault();
+      try {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (error) {
+        window.scrollTo(0, 0);
+      }
+      // Also focus brand / top for a11y
+      const brand = document.querySelector(".brand, .nav");
+      if (brand && typeof brand.focus === "function") {
+        try {
+          brand.setAttribute("tabindex", "-1");
+          brand.focus({ preventScroll: true });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    });
+
+    sync();
+  }
+
 
 
 
@@ -3471,6 +3516,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       event.preventDefault();
       toggleMute();
     });
+    initBackToTop();
 
     bindTap(elements.startBtn, (event) => {
       event.preventDefault();
