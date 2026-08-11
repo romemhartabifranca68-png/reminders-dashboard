@@ -1633,6 +1633,68 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { s: "ITEC 102", q: "What is recursion in programming?", choices: ["A function calling itself to solve a smaller instance of a problem", "A loop that never runs", "A type of data type", "A file reading method"], answer: "A function calling itself to solve a smaller instance of a problem" },
     { s: "ITEC 102", q: "Why does a recursive function need a base case?", choices: ["To stop the recursive calls and prevent infinite recursion", "To make the function run faster", "To avoid declaring variables", "To skip parameter passing"], answer: "To stop the recursive calls and prevent infinite recursion" },
 
+    /* ===== ITEC 102 · Module: Introduction to C# Programming (Relevo) ===== */
+    { s: "ITEC 102", q: "What is C# (C-Sharp)?", choices: ["A modern, general-purpose programming language developed by Microsoft", "A database management system", "A type of computer hardware", "An operating system by Apple"], answer: "A modern, general-purpose programming language developed by Microsoft" },
+    { s: "ITEC 102", q: "Which company developed the C# programming language?", choices: ["Microsoft", "Google", "Apple", "Oracle"], answer: "Microsoft" },
+    { s: "ITEC 102", q: "Which of the following is a key characteristic of C#?", choices: ["Object-oriented programming language", "Only used for web design", "Not type-safe", "Cannot work with .NET"], answer: "Object-oriented programming language" },
+    { s: "ITEC 102", q: "C# is described as which of the following?", choices: ["Strongly typed", "Weakly typed only", "Not typed at all", "Assembly language only"], answer: "Strongly typed" },
+    { s: "ITEC 102", q: "C# was designed to work primarily with which platform?", choices: [".NET platform", "Only Android SDK", "Only iOS Cocoa", "Only WordPress"], answer: ".NET platform" },
+    { s: "ITEC 102", q: "Who led the development team of C#?", choices: ["Anders Hejlsberg", "Bill Gates", "Linus Torvalds", "James Gosling"], answer: "Anders Hejlsberg" },
+    { s: "ITEC 102", q: "Around what year was C# introduced?", choices: ["2000", "1990", "2010", "1985"], answer: "2000" },
+    { s: "ITEC 102", q: "When was the first official version, C# 1.0, released?", choices: ["2002", "1999", "2012", "2008"], answer: "2002" },
+    { s: "ITEC 102", q: "C# development began in which period?", choices: ["Late 1990s", "Early 1980s", "2015 only", "1970s"], answer: "Late 1990s" },
+    { s: "ITEC 102", q: "C# was created as part of which Microsoft initiative?", choices: [".NET initiative", "Windows Phone only", "Xbox Live only", "MS-DOS initiative"], answer: ".NET initiative" },
+    { s: "ITEC 102", q: "In the relationship between C# and .NET, what is C#?", choices: ["A programming language used to write source code", "The runtime that executes all apps", "A hardware driver", "A file compression tool"], answer: "A programming language used to write source code" },
+    { s: "ITEC 102", q: "In the relationship between C# and .NET, what is .NET?", choices: ["A development platform with libraries, runtime, and tools", "Only a text editor", "A single keyword in C#", "A type of variable"], answer: "A development platform with libraries, runtime, and tools" },
+    { s: "ITEC 102", q: "What does IDE stand for?", choices: ["Integrated Development Environment", "Internal Data Engine", "Internet Download Extension", "Independent Design Element"], answer: "Integrated Development Environment" },
+    { s: "ITEC 102", q: "What is an IDE?", choices: ["A software application that helps programmers write, test, and debug code in one place", "A computer virus scanner only", "A type of printer", "A network cable standard"], answer: "A software application that helps programmers write, test, and debug code in one place" },
+    { s: "ITEC 102", q: "Which of the following is typically included in an IDE?", choices: ["Code editor", "Only a web browser", "Only a calculator", "Only a music player"], answer: "Code editor" },
+    { s: "ITEC 102", q: "In an IDE, what does the compiler or interpreter do?", choices: ["Converts your code into a program that can run", "Deletes all errors automatically without rules", "Connects only to social media", "Formats PowerPoint slides"], answer: "Converts your code into a program that can run" },
+    { s: "ITEC 102", q: "What is the debugger used for in an IDE?", choices: ["Helping find and fix errors", "Increasing screen brightness", "Installing games", "Compressing images"], answer: "Helping find and fix errors" },
+    { s: "ITEC 102", q: "What is SharpDevelop (#develop)?", choices: ["A free and open-source IDE for .NET and C# development", "A Microsoft Office app", "A type of C# keyword", "A database server only"], answer: "A free and open-source IDE for .NET and C# development" },
+    { s: "ITEC 102", q: "What is Microsoft Visual Studio?", choices: ["An Integrated Development Environment (IDE) developed by Microsoft", "A social media platform", "A programming language itself", "A type of computer monitor"], answer: "An Integrated Development Environment (IDE) developed by Microsoft" },
+    { s: "ITEC 102", q: "Visual Studio is commonly used for which kind of programming?", choices: ["C# and .NET programming", "Only HTML coloring", "Only spreadsheet macros", "Only photo editing"], answer: "C# and .NET programming" },
+    { s: "ITEC 102", q: "Which is a correct step when installing Visual Studio?", choices: ["Run the Visual Studio Installer and select a development workload", "Only download a random .txt file", "Install without selecting any components", "Avoid launching Visual Studio after install"], answer: "Run the Visual Studio Installer and select a development workload" },
+    { s: "ITEC 102", q: "Where can you download Visual Studio?", choices: ["https://visualstudio.microsoft.com/downloads/", "Only from a USB without official site", "From random email attachments", "Only from mobile app stores as games"], answer: "https://visualstudio.microsoft.com/downloads/" },
+    { s: "ITEC 102", q: "When creating a C# Console Application in Visual Studio, what should you select first after opening Visual Studio?", choices: ["Create a new project", "Delete all templates", "Close the IDE immediately", "Only open Paint"], answer: "Create a new project" },
+    { s: "ITEC 102", q: "Which project template is used for a basic text-based C# program?", choices: ["Console App", "Empty Excel sheet", "Photoshop document", "PowerPoint template"], answer: "Console App" },
+    { s: "ITEC 102", q: "When creating a Console App, which programming language should you select?", choices: ["C#", "Only Python always", "Only JavaScript always", "Only assembly always"], answer: "C#" },
+    { s: "ITEC 102", q: "After choosing the Console App template, what do you typically enter next?", choices: ["Project name and location", "Your Wi-Fi password only", "A random phone number", "Nothing; it auto-finishes"], answer: "Project name and location" },
+    { s: "ITEC 102", q: "What does 'syntax' refer to in programming?", choices: ["The rules that determine how a programming language must be written", "The speed of the computer fan", "The color of the desktop wallpaper", "The brand of the keyboard"], answer: "The rules that determine how a programming language must be written" },
+    { s: "ITEC 102", q: "Which of the following is part of C# syntax elements?", choices: ["Statements, keywords, identifiers, variables, methods, classes", "Only images and videos", "Only network cables", "Only printer drivers"], answer: "Statements, keywords, identifiers, variables, methods, classes" },
+    { s: "ITEC 102", q: "What is a statement in C#?", choices: ["An instruction that tells the computer to perform an action", "A type of monitor", "A folder on the desktop", "A Wi-Fi standard"], answer: "An instruction that tells the computer to perform an action" },
+    { s: "ITEC 102", q: "What are keywords in C#?", choices: ["Special words with predefined meaning that cannot normally be used as names", "Any random username online", "Folder names only", "Mouse click patterns"], answer: "Special words with predefined meaning that cannot normally be used as names" },
+    { s: "ITEC 102", q: "Which of the following is a C# keyword?", choices: ["int", "helloWorldVar", "myAge123", "studentNameX"], answer: "int" },
+    { s: "ITEC 102", q: "Which of these is also a C# keyword?", choices: ["class", "myClassNameOnly", "dataHolder99", "valueBox"], answer: "class" },
+    { s: "ITEC 102", q: "Which keyword is commonly used for the entry-point method return type in console samples?", choices: ["void", "wifi", "folder", "monitor"], answer: "void" },
+    { s: "ITEC 102", q: "What are identifiers in C#?", choices: ["Names given by the programmer to variables, methods, classes, and other elements", "Only Microsoft product serial numbers", "Only IP addresses", "Only file sizes"], answer: "Names given by the programmer to variables, methods, classes, and other elements" },
+    { s: "ITEC 102", q: "What is a variable?", choices: ["A named storage location used to hold data", "A type of computer virus", "A permanent unchangeable hardware chip only", "A network topology"], answer: "A named storage location used to hold data" },
+    { s: "ITEC 102", q: "A variable is best compared to which everyday idea?", choices: ["A labeled container that stores information", "A locked empty room with no label", "A random internet meme", "A broken keyboard key"], answer: "A labeled container that stores information" },
+    { s: "ITEC 102", q: "What is a method in C#?", choices: ["A block of code that performs a specific task", "A type of hard disk", "A Wi-Fi password", "A monitor resolution setting"], answer: "A block of code that performs a specific task" },
+    { s: "ITEC 102", q: "What are braces { } used for in C#?", choices: ["To define a block of code", "To end every statement only", "To name variables only", "To connect to the internet"], answer: "To define a block of code" },
+    { s: "ITEC 102", q: "What are parentheses ( ) commonly used for in C#?", choices: ["Passing information to methods and writing conditions", "Only drawing circles on screen", "Only closing the IDE", "Only naming projects"], answer: "Passing information to methods and writing conditions" },
+    { s: "ITEC 102", q: "What does a semicolon (;) usually mark in C#?", choices: ["The end of a statement", "The start of a class only", "A comment block only", "A new project template"], answer: "The end of a statement" },
+    { s: "ITEC 102", q: "What does the line 'using System;' do in a basic C# program?", choices: ["Allows the program to use members of the System namespace", "Deletes the System folder", "Installs Visual Studio", "Creates a new user account"], answer: "Allows the program to use members of the System namespace" },
+    { s: "ITEC 102", q: "What does 'class Program' define in a basic C# console structure?", choices: ["A class named Program", "A variable named Program only", "A keyword that ends the app", "A folder path"], answer: "A class named Program" },
+    { s: "ITEC 102", q: "What is Main() in a traditional C# console program?", choices: ["The traditional entry point of the program", "A type of loop only", "A data type for numbers only", "A debugger tool outside the code"], answer: "The traditional entry point of the program" },
+    { s: "ITEC 102", q: "What does Console.WriteLine() do?", choices: ["Displays information in the console", "Deletes console history permanently", "Opens Visual Studio settings", "Compiles the entire .NET runtime"], answer: "Displays information in the console" },
+    { s: "ITEC 102", q: "Which rule is true about C#?", choices: ["C# is case-sensitive", "C# ignores letter case completely", "C# does not use semicolons", "C# cannot use braces"], answer: "C# is case-sensitive" },
+    { s: "ITEC 102", q: "How do C# statements usually end?", choices: ["With a semicolon ;", "With a colon only", "With a period only", "With a hashtag only"], answer: "With a semicolon ;" },
+    { s: "ITEC 102", q: "What do code blocks in C# use?", choices: ["Curly braces { }", "Square brackets only for all blocks", "Angle brackets only", "No symbols at all"], answer: "Curly braces { }" },
+    { s: "ITEC 102", q: "Methods and conditions in C# typically use which symbols?", choices: ["Parentheses ( )", "Only curly braces with no parentheses", "Only quotation marks", "Only commas"], answer: "Parentheses ( )" },
+    { s: "ITEC 102", q: "File names in C# projects usually follow which naming style?", choices: ["Pascal Case (e.g., ComputerScience)", "alllowercasewithnospacesonly", "ONLY_SNAKE_WITH_NUMBERS_999", "random!!!symbols"], answer: "Pascal Case (e.g., ComputerScience)" },
+    { s: "ITEC 102", q: "Which statement correctly displays text on the console?", choices: ["Console.WriteLine(\"Hello\");", "print Hello", "echo Hello;", "System.out.println Hello"], answer: "Console.WriteLine(\"Hello\");" },
+    { s: "ITEC 102", q: "If age is an integer variable, which declaration uses a keyword correctly?", choices: ["int age;", "integer age;", "num age;", "varInteger age;"], answer: "int age;" },
+    { s: "ITEC 102", q: "Why can you not normally use 'class' as a variable name in C#?", choices: ["Because class is a keyword with a predefined meaning", "Because class is too short", "Because C# bans all short names", "Because variables cannot store data"], answer: "Because class is a keyword with a predefined meaning" },
+    { s: "ITEC 102", q: "Which pair correctly matches language vs platform?", choices: ["C# = language; .NET = platform", "C# = platform; .NET = language", "Both are only hardware", "Both are only databases"], answer: "C# = language; .NET = platform" },
+    { s: "ITEC 102", q: "Which IDE is developed by Microsoft and widely used for C#?", choices: ["Visual Studio", "SharpPaint", "Only Notepad with no tools", "Photoshop"], answer: "Visual Studio" },
+    { s: "ITEC 102", q: "Which free/open-source IDE is mentioned for .NET and C# development?", choices: ["SharpDevelop", "Microsoft Word", "Excel Online", "PowerPoint"], answer: "SharpDevelop" },
+    { s: "ITEC 102", q: "Which step comes after selecting the Console App template in Visual Studio?", choices: ["Click Next, then enter project name and location", "Uninstall Visual Studio", "Delete the template", "Switch to a different language only"], answer: "Click Next, then enter project name and location" },
+    { s: "ITEC 102", q: "Before clicking Create for a new Console App, you typically choose what?", choices: ["The framework", "The desktop wallpaper", "The default printer", "The system volume"], answer: "The framework" },
+    { s: "ITEC 102", q: "Which is NOT a typical part of an IDE?", choices: ["A kitchen recipe book", "Code editor", "Debugger", "Build and run tools"], answer: "A kitchen recipe book" },
+    { s: "ITEC 102", q: "C# supports which programming styles mentioned in the module?", choices: ["Structured and object-oriented programming", "Only pure assembly with no structure", "Only drag-and-drop with no code", "Only spreadsheet formulas"], answer: "Structured and object-oriented programming" },
+    { s: "ITEC 102", q: "Which best summarizes why C# is called versatile?", choices: ["It can be used to create different types of applications", "It only prints Hello World forever", "It only runs on one abandoned OS", "It cannot use libraries"], answer: "It can be used to create different types of applications" },
+
     { s: "GEC 101", q: "According to Socrates, what is the self synonymous with?", choices: ["The soul", "The body", "The government", "The community"], answer: "The soul" },
     { s: "GEC 101", q: "What is Socrates' famous statement about self-examination?", choices: ["An unexamined life is not worth living", "I think, therefore I am", "The self is a blank slate", "There is no self"], answer: "An unexamined life is not worth living" },
     { s: "GEC 101", q: "According to Socrates, what does the soul strive for?", choices: ["Wisdom and perfection", "Wealth and power", "Fame and pleasure", "Speed and strength"], answer: "Wisdom and perfection" },
@@ -2575,7 +2637,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         '<span class="mode-title">' + escapeHtml(mode.label) + '</span>' +
         '<span class="mode-desc">' + escapeHtml(mode.description) + '</span>';
 
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         selectMode(mode.id);
       });
 
@@ -2741,7 +2804,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const grid = elements.runTypeGrid || $("runTypeGrid");
     if (!grid) return;
     grid.querySelectorAll("[data-run-type]").forEach((btn) => {
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         selectRunType(btn.getAttribute("data-run-type") || "ranked");
       });
     });
@@ -4794,7 +4858,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       btn.className = "lb-mode-tab" + (tab.id === state.leaderboardMode ? " selected" : "");
       btn.textContent = tab.label;
       btn.setAttribute("aria-pressed", tab.id === state.leaderboardMode ? "true" : "false");
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         if (state.leaderboardMode === tab.id) return;
         state.leaderboardMode = tab.id;
         renderLeaderboard();
