@@ -137,8 +137,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function saveAuthSession(session) {
+    // localStorage = stay signed in after app/tab close (phone home-screen PWA friendly).
+    // We store role/session profile only — NEVER the raw password.
     try {
-      sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+      const payload = {
+        ...session,
+        ts: session.ts || Date.now(),
+        remember: true
+      };
+      localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(payload));
+      // Clear any old sessionStorage copy so we don't dual-source
+      try { sessionStorage.removeItem(AUTH_SESSION_KEY); } catch (e) { /* ignore */ }
     } catch (error) {
       console.warn("[Auth] session persist failed:", error);
     }
@@ -146,10 +155,29 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   function loadAuthSession() {
     try {
-      const raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+      let raw = localStorage.getItem(AUTH_SESSION_KEY);
+      // One-time migrate from older sessionStorage sessions
+      if (!raw) {
+        try {
+          raw = sessionStorage.getItem(AUTH_SESSION_KEY);
+          if (raw) {
+            localStorage.setItem(AUTH_SESSION_KEY, raw);
+            sessionStorage.removeItem(AUTH_SESSION_KEY);
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (!parsed || (parsed.role !== "classmate" && parsed.role !== "guest")) return null;
+      if (!parsed || !parsed.role) return null;
+      if (parsed.role !== "classmate" && parsed.role !== "guest" && parsed.role !== "admin") return null;
+      // Optional: expire after 120 days of inactivity marker
+      const maxAge = 120 * 24 * 60 * 60 * 1000;
+      if (parsed.ts && Date.now() - Number(parsed.ts) > maxAge) {
+        clearAuthSession();
+        return null;
+      }
       return parsed;
     } catch {
       return null;
@@ -157,6 +185,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function clearAuthSession() {
+    try {
+      localStorage.removeItem(AUTH_SESSION_KEY);
+    } catch (error) {
+      /* ignore */
+    }
     try {
       sessionStorage.removeItem(AUTH_SESSION_KEY);
     } catch (error) {
@@ -713,10 +746,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function initAuthGate() {
     const existing = loadAuthSession();
     if (existing) {
-      authState.role = existing.role;
+      authState.role = existing.role === "admin" ? "admin" : existing.role;
       authState.username = existing.username || "";
       authState.displayName = existing.displayName || "";
       authState.isAdmin = !!existing.isAdmin || existing.role === "admin";
+      if (authState.isAdmin) authState.role = "admin";
       authState.guestPlayAllowed = !!existing.guestPlayAllowed || authState.role === "classmate" || authState.role === "admin";
       authState.guestPassCode = existing.guestPassCode || "";
       authState.officerTitle = existing.officerTitle || resolveOfficerProfile(existing.username).title;
@@ -725,6 +759,19 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         : resolveOfficerProfile(existing.username).channels;
       authState.ready = true;
       applyAuthUI();
+      // Refresh saved session timestamp so recurring opens keep stay-signed-in alive
+      saveAuthSession({
+        role: authState.role,
+        isAdmin: authState.isAdmin,
+        username: authState.username,
+        displayName: authState.displayName,
+        guestPlayAllowed: authState.guestPlayAllowed,
+        guestPassCode: authState.guestPassCode || "",
+        officerTitle: authState.officerTitle || "",
+        officerChannels: authState.officerChannels || [],
+        ts: Date.now(),
+        remember: true
+      });
     } else {
       applyAuthUI();
     }
