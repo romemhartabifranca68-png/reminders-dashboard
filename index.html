@@ -1762,6 +1762,33 @@ body.exam-mode .choice { min-height: 52px; }
   font-size: 0.92rem;
 }
 .request-form textarea { min-height: 88px; resize: vertical; }
+
+/* Browse-only guests: lock resource request form (no touch / no write) */
+body.role-guest:not(.guest-play-ok) #resourceRequestForm,
+body.role-guest:not(.guest-play-ok) .request-lock-card {
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.55;
+  filter: grayscale(0.15);
+}
+body.role-guest:not(.guest-play-ok) #resourceRequestForm input,
+body.role-guest:not(.guest-play-ok) #resourceRequestForm textarea,
+body.role-guest:not(.guest-play-ok) #resourceRequestForm button {
+  cursor: not-allowed;
+}
+.req-lock-note {
+  display: none;
+  margin: 0.45rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 210, 125, 0.28);
+  background: rgba(255, 196, 94, 0.08);
+  color: #ffe6b0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+body.role-guest:not(.guest-play-ok) .req-lock-note { display: block; }
 .changelog-box {
   margin-top: 0.75rem;
   padding: 0.75rem 0.85rem;
@@ -1792,53 +1819,116 @@ main#main > .wrap > section:nth-child(2) { animation-delay: 0.1s; }
 main#main > .wrap > section:nth-child(3) { animation-delay: 0.15s; }
 main#main > .wrap > section:nth-child(4) { animation-delay: 0.2s; }
 
-/* ===== Section edge lights (clear box boundaries on phone) ===== */
-.glass, .card, .arena-panel, .today-card, .my-desk, .admin-pin, .note-card, .statbox, .linkcard, .resource-card {
+/* ===== Section edge lights — soft neon rim glow on every box ===== */
+.glass, .card, .arena-panel, .today-card, .my-desk, .admin-pin, .note-card, .statbox, .linkcard, .resource-card,
+.officer, .freshman, .announce, .changelog-box, .duty-item, .padlet-box, .quick-jump {
+  border: 1px solid rgba(100, 255, 218, 0.22);
   box-shadow:
-    0 0 0 1px rgba(100, 255, 218, 0.14),
-    0 10px 36px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 0 0 1px rgba(100, 255, 218, 0.1),
+    0 0 18px rgba(100, 255, 218, 0.12),
+    0 0 36px rgba(0, 229, 255, 0.06),
+    0 12px 36px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 #vision-mission .card {
-  border-color: rgba(100, 255, 218, 0.28);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.2), 0 0 28px rgba(100, 255, 218, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+  border-color: rgba(100, 255, 218, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.18),
+    0 0 22px rgba(100, 255, 218, 0.14),
+    0 0 40px rgba(100, 255, 218, 0.08),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
-#officers .card {
-  border-color: rgba(143, 255, 227, 0.28);
-  box-shadow: 0 0 0 1px rgba(143, 255, 227, 0.18), 0 0 28px rgba(0, 229, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+#officers .card, #officers .officer {
+  border-color: rgba(143, 255, 227, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(143, 255, 227, 0.16),
+    0 0 22px rgba(0, 229, 255, 0.12),
+    0 0 40px rgba(100, 255, 218, 0.07),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 #schedule .card {
-  border-color: rgba(255, 210, 125, 0.28);
-  box-shadow: 0 0 0 1px rgba(255, 210, 125, 0.18), 0 0 28px rgba(255, 196, 94, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+  border-color: rgba(255, 210, 125, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 125, 0.16),
+    0 0 22px rgba(255, 196, 94, 0.14),
+    0 0 40px rgba(255, 196, 94, 0.07),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
-#freshmen .card {
-  border-color: rgba(180, 160, 255, 0.28);
-  box-shadow: 0 0 0 1px rgba(180, 160, 255, 0.18), 0 0 28px rgba(160, 140, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+#freshmen .card, #freshmen .freshman {
+  border-color: rgba(180, 160, 255, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(180, 160, 255, 0.16),
+    0 0 22px rgba(160, 140, 255, 0.12),
+    0 0 40px rgba(160, 140, 255, 0.07),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 #reviewer-arena .arena-panel,
-#reviewer-arena .card {
-  border-color: rgba(100, 255, 218, 0.35);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.25), 0 0 36px rgba(100, 255, 218, 0.12), 0 14px 44px rgba(0,0,0,0.4);
+#reviewer-arena .card,
+#reviewer-arena .arena-shell {
+  border-color: rgba(100, 255, 218, 0.4);
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.22),
+    0 0 28px rgba(100, 255, 218, 0.16),
+    0 0 48px rgba(100, 255, 218, 0.1),
+    0 14px 44px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
-#resources .card {
-  border-color: rgba(0, 229, 255, 0.28);
-  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.18), 0 0 28px rgba(0, 229, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+#resources .card, #resources .resource-card {
+  border-color: rgba(0, 229, 255, 0.34);
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.16),
+    0 0 22px rgba(0, 229, 255, 0.14),
+    0 0 40px rgba(0, 229, 255, 0.08),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
-#freedom-wall .card {
-  border-color: rgba(255, 150, 180, 0.28);
-  box-shadow: 0 0 0 1px rgba(255, 150, 180, 0.16), 0 0 28px rgba(255, 120, 160, 0.07), 0 12px 40px rgba(0,0,0,0.35);
+#freedom-wall .card, #freedom-wall .padlet-box {
+  border-color: rgba(255, 150, 180, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(255, 150, 180, 0.14),
+    0 0 22px rgba(255, 120, 160, 0.12),
+    0 0 40px rgba(255, 120, 160, 0.07),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 #quick-links .linkcard {
-  border-color: rgba(100, 255, 218, 0.22);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.14), 0 8px 28px rgba(0,0,0,0.3);
+  border-color: rgba(100, 255, 218, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.14),
+    0 0 18px rgba(100, 255, 218, 0.12),
+    0 8px 28px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+}
+#officer-updates .card {
+  border-color: rgba(255, 210, 125, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(255, 210, 125, 0.14),
+    0 0 22px rgba(255, 196, 94, 0.12),
+    0 0 40px rgba(255, 196, 94, 0.07),
+    0 12px 40px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .hero-main.glass {
-  border: 1px solid rgba(100, 255, 218, 0.28);
-  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.12), 0 0 40px rgba(100, 255, 218, 0.1), 0 20px 50px rgba(0,0,0,0.4);
+  border: 1px solid rgba(100, 255, 218, 0.32);
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.14),
+    0 0 32px rgba(100, 255, 218, 0.14),
+    0 0 56px rgba(100, 255, 218, 0.08),
+    0 20px 50px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .hero-side.glass {
-  border: 1px solid rgba(0, 229, 255, 0.22);
-  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.1), 0 0 32px rgba(0, 229, 255, 0.08), 0 16px 44px rgba(0,0,0,0.38);
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(0, 229, 255, 0.12),
+    0 0 28px rgba(0, 229, 255, 0.12),
+    0 0 48px rgba(0, 229, 255, 0.07),
+    0 16px 44px rgba(0,0,0,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .section-title h2 {
   text-shadow: 0 0 18px rgba(100, 255, 218, 0.15);
@@ -1955,9 +2045,13 @@ body.role-admin .ou-shortcut {
   margin-top: 1.15rem;
   padding: 0.75rem 0.65rem;
   border-radius: 16px;
-  border: 1px solid rgba(100, 255, 218, 0.14);
+  border: 1px solid rgba(100, 255, 218, 0.18);
   background: linear-gradient(180deg, rgba(100, 255, 218, 0.06), rgba(0, 229, 255, 0.03));
   gap: 0.55rem;
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.08),
+    0 0 18px rgba(100, 255, 218, 0.1),
+    0 10px 28px rgba(0, 0, 0, 0.28);
 }
 .quick-jump a.is-featured {
   padding: 0.7rem 0.95rem;
@@ -1967,13 +2061,13 @@ body.role-admin .ou-shortcut {
   color: #eafffb;
   font-size: 0.86rem;
   font-weight: 800;
-  box-shadow: 0 0 14px rgba(100, 255, 218, 0.12);
+  box-shadow: 0 0 14px rgba(100, 255, 218, 0.14);
 }
 .quick-jump a.is-featured:nth-child(2) {
   border-color: rgba(0, 229, 255, 0.34);
   background: rgba(0, 229, 255, 0.1);
   color: #d9fbff;
-  box-shadow: 0 0 14px rgba(0, 229, 255, 0.12);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.14);
 }
 .nav-links a.nav-logout {
   border-color: rgba(255, 107, 107, 0.35);
@@ -2337,7 +2431,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
                 <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary / Treasurer</span></div>
               </div>
             </div>
-            <div class="resource-card">
+            <div class="resource-card request-lock-card">
               <strong>Request a resource</strong>
               <p>Need a module or reviewer? Send a short request for RST / officers.</p>
               <form class="request-form" id="resourceRequestForm">
@@ -2346,6 +2440,9 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
                 <textarea id="reqNote" maxlength="200" placeholder="Short note (optional)"></textarea>
                 <button type="submit" class="btn btn-primary" style="min-height:46px;">Send request</button>
               </form>
+              <p class="req-lock-note" id="reqLockNote">
+                Guest · Browse only — hindi pwede mag-submit ng resource request. Mag-sign in as classmate o gumamit ng Guest Pass from RST Admin.
+              </p>
               <p class="arena-note" id="reqStatus" style="margin:0.45rem 0 0;"></p>
             </div>
           </div>
