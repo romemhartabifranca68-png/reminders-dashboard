@@ -1116,6 +1116,53 @@ footer { padding: 1.2rem 0 2rem; position: relative; z-index: 1; }
   opacity: 0.85;
 }
 
+/* Back to top — one tap from bottom of page */
+.back-to-top-btn {
+  position: fixed;
+  right: 0.75rem;
+  bottom: calc(4.1rem + var(--safe-b));
+  z-index: 650;
+  width: 48px;
+  height: 48px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+  font-weight: 900;
+  border: 1px solid rgba(100, 255, 218, 0.4);
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.22), rgba(0, 229, 255, 0.14));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow), 0 0 18px rgba(100, 255, 218, 0.22);
+  color: #eafffb;
+  cursor: pointer;
+  touch-action: manipulation;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.92);
+  transition: opacity 0.22s ease, transform 0.22s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.back-to-top-btn.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.back-to-top-btn:hover,
+.back-to-top-btn:focus-visible {
+  border-color: rgba(100, 255, 218, 0.65);
+  box-shadow: var(--shadow), 0 0 24px rgba(100, 255, 218, 0.35);
+  outline: none;
+}
+.back-to-top-btn:active {
+  transform: scale(0.94);
+}
+body.arena-playing .back-to-top-btn,
+body.arena-gameover .back-to-top-btn {
+  display: none !important;
+}
+
 /* =====================================================================
    NEW FEATURE 3: Boss Question subject-hack mechanic.
 ===================================================================== */
@@ -2380,8 +2427,8 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
         <div class="quick-jump" aria-label="Quick jump links">
-          <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
           <a class="js-smooth is-featured" href="#resources">Resources Vault</a>
+          <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
           <a class="js-smooth" href="#reviewer-arena">Reviewer Arena</a>
           <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
           <a class="js-smooth" href="#officers">Class Officers</a>
@@ -2436,32 +2483,6 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
 
   <main id="main">
     <div class="wrap">
-      <section id="officer-updates" class="officer-updates-section">
-        <div class="section-title">
-          <h2>Officer Updates</h2>
-          <span>Classmates only · top priority board</span>
-        </div>
-        <div class="card pad">
-          <p class="arena-note" style="margin:0;">
-            Official updates from section officers. Guests cannot view this board.
-          </p>
-          <div class="ou-filters" id="ouFilters" role="tablist">
-            <button type="button" class="ou-filter active" data-ou="all">All</button>
-            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
-            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
-            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
-            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
-          </div>
-          <div class="officer-update-list" id="officerUpdateList">
-            <p class="arena-note">Loading updates…</p>
-          </div>
-          <p style="margin:0.75rem 0 0;">
-            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
-          </p>
-        </div>
-      </section>
-
-
       <section id="resources">
         <div class="section-title">
           <h2>Resources Vault</h2>
@@ -2506,6 +2527,32 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
             <strong>What’s new · RST Hub</strong><br/>
             Admin pin · top quick links · Command Center · Reviewer Arena modes · classmate access · mobile polish
           </div>
+        </div>
+      </section>
+
+
+      <section id="officer-updates" class="officer-updates-section">
+        <div class="section-title">
+          <h2>Officer Updates</h2>
+          <span>Classmates only · top priority board</span>
+        </div>
+        <div class="card pad">
+          <p class="arena-note" style="margin:0;">
+            Official updates from section officers. Guests cannot view this board.
+          </p>
+          <div class="ou-filters" id="ouFilters" role="tablist">
+            <button type="button" class="ou-filter active" data-ou="all">All</button>
+            <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
+            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
+            <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
+            <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
+          </div>
+          <div class="officer-update-list" id="officerUpdateList">
+            <p class="arena-note">Loading updates…</p>
+          </div>
+          <p style="margin:0.75rem 0 0;">
+            <button type="button" class="login-modal-btn officer-desk-btn" id="openOfficerDeskBtn">Officer Desk · Post update</button>
+          </p>
         </div>
       </section>
 
@@ -3034,6 +3081,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
   <canvas id="confettiCanvas" hidden></canvas>
 
   <!-- NEW FEATURE 2: Retro Web Audio FX mute toggle (site-wide, thumb-reachable) -->
+  <button type="button" id="backToTopBtn" class="back-to-top-btn" aria-label="Back to top" title="Back to top">↑</button>
   <button type="button" id="muteToggleBtn" class="mute-toggle-btn" aria-label="Toggle sound effects" aria-pressed="false">🔊</button>
 
   <script type="module" src="game.js"></script>
