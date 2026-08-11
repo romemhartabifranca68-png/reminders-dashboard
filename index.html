@@ -1643,6 +1643,160 @@ body.exam-mode .choice { min-height: 52px; }
   pointer-events: none;
 }
 
+
+/* ===== v3.4 Mobile pro shell: pin, top links, motion ===== */
+.admin-pin {
+  display: none;
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255,210,125,0.35);
+  background: linear-gradient(135deg, rgba(255,210,125,0.14), rgba(100,255,218,0.06));
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  animation: pinIn 0.55s ease both;
+}
+.admin-pin.is-visible { display: block; }
+.admin-pin .pin-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffd27d;
+  margin-bottom: 0.35rem;
+}
+.admin-pin .pin-body {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #f2fffb;
+}
+.top-links {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+}
+@media (min-width: 400px) {
+  .top-links { grid-template-columns: repeat(3, 1fr); }
+}
+.top-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0.55rem 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(100,255,218,0.22);
+  background: rgba(100,255,218,0.07);
+  color: #eafffb !important;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  animation: riseIn 0.5s ease both;
+}
+.top-link:nth-child(2) { animation-delay: 0.06s; }
+.top-link:nth-child(3) { animation-delay: 0.12s; }
+.top-link:active { transform: scale(0.97); }
+.top-link:hover, .top-link:focus-visible {
+  border-color: rgba(100,255,218,0.5);
+  box-shadow: 0 0 20px rgba(100,255,218,0.15);
+}
+.room-finder {
+  margin-top: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(100,255,218,0.16);
+  background: rgba(0,229,255,0.05);
+  animation: riseIn 0.55s ease 0.1s both;
+}
+.room-finder .rf-label {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.room-finder .rf-value {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #eafffb;
+}
+.duty-roster {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+.duty-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(0,0,0,0.2);
+  font-size: 0.8rem;
+}
+.duty-item strong { color: #eafffb; }
+.duty-item span { color: var(--muted); font-weight: 700; text-align: right; }
+.request-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+.request-form input, .request-form textarea {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid rgba(100,255,218,0.18);
+  background: rgba(0,0,0,0.28);
+  color: var(--text);
+  padding: 0.7rem 0.85rem;
+  font-size: 0.92rem;
+}
+.request-form textarea { min-height: 88px; resize: vertical; }
+.changelog-box {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid rgba(100,255,218,0.12);
+  background: rgba(255,255,255,0.02);
+  font-size: 0.8rem;
+  color: rgba(230,241,255,0.8);
+  line-height: 1.45;
+}
+.changelog-box strong { color: var(--accent); }
+@keyframes pinIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.reveal-on-load {
+  animation: riseIn 0.55s ease both;
+}
+main#main > .wrap > section {
+  animation: riseIn 0.5s ease both;
+}
+main#main > .wrap > section:nth-child(1) { animation-delay: 0.05s; }
+main#main > .wrap > section:nth-child(2) { animation-delay: 0.1s; }
+main#main > .wrap > section:nth-child(3) { animation-delay: 0.15s; }
+main#main > .wrap > section:nth-child(4) { animation-delay: 0.2s; }
+@media (prefers-reduced-motion: reduce) {
+  .admin-pin, .top-link, .room-finder, .reveal-on-load,
+  main#main > .wrap > section { animation: none !important; }
+}
+body.exam-week #freedom-wall { display: none; }
+body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !important; }
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -1844,21 +1998,30 @@ body.exam-mode .choice { min-height: 52px; }
           </div>
         </div>
 
-        <div class="announce" role="status" aria-live="polite">
+        <div class="admin-pin" id="adminPin" role="status" aria-live="polite">
+          <div class="pin-label">&#128204; RST PIN · SECTION ANNOUNCEMENT</div>
+          <p class="pin-body" id="adminPinBody">Loading…</p>
+        </div>
+
+        <div class="top-links" aria-label="Essential links">
+          <a class="top-link" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">Google Drive</a>
+          <a class="top-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
+          <a class="top-link" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
+        </div>
+
+        <div class="announce reveal-on-load" role="status" aria-live="polite">
           <p>
-            <strong>Welcome, BSCS 1-A Freshmen.</strong> Dito ninyo makikita ang section
-            officers, weekly schedule, reviewer arena, freedom wall, at quick links para sa
-            inyong class resources.
+            <strong>Welcome, BSCS 1-A.</strong> Section hub for schedule, officers, Reviewer Arena, and class resources — built for phones first.
           </p>
         </div>
 
         <div class="today-strip" id="todayStrip" aria-label="Today on BSCS 1-A">
-          <!-- Filled by game.js: announcements + exam countdown -->
+          <!-- Command Center filled by game.js -->
         </div>
 
         <div class="hero-actions">
           <a class="btn btn-primary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
-          <a class="btn btn-secondary" href="dashboard.html">Class Dashboard</a>
+          <a class="btn btn-secondary js-smooth" href="#resources">Resources Vault</a>
         </div>
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
@@ -2371,7 +2534,7 @@ body.exam-mode .choice { min-height: 52px; }
           <div class="resources-grid">
             <div class="resource-card">
               <strong>ITEC 101 / 102</strong>
-              <p>Programming modules, sample traces, and lab notes. Ask officers for the latest Drive folder.</p>
+              <p>Programming modules, sample traces, and lab notes. Open Drive from the top links.</p>
               <p><a class="js-smooth" href="#reviewer-arena">Open Arena · Study Plan</a></p>
             </div>
             <div class="resource-card">
@@ -2379,13 +2542,29 @@ body.exam-mode .choice { min-height: 52px; }
               <p>Reading packs and reviewer sets. Use Subject Mode then Practice for low-pressure drills.</p>
             </div>
             <div class="resource-card">
-              <strong>Section links</strong>
-              <p>FB page, GC, and official LSPU portals live in Quick Links below. Bookmark this hub on your phone.</p>
+              <strong>Officer duty (this term)</strong>
+              <div class="duty-roster" id="dutyRoster">
+                <div class="duty-item"><strong>Academics / modules</strong><span>Academic Committee</span></div>
+                <div class="duty-item"><strong>Hub / tech issues</strong><span>Tech Manager · RST</span></div>
+                <div class="duty-item"><strong>Section announcements</strong><span>President / PIO</span></div>
+                <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary / Treasurer</span></div>
+              </div>
             </div>
             <div class="resource-card">
-              <strong>Code Lab Lite</strong>
-              <p>In Arena, pick <em>ITEC 102</em> or <em>ITEC 101</em> + Practice/Study Plan for output-tracing and logic drills. Mistake Notebook saves wrong items.</p>
+              <strong>Request a resource</strong>
+              <p>Need a module or reviewer? Send a short request for RST / officers.</p>
+              <form class="request-form" id="resourceRequestForm">
+                <input id="reqName" type="text" maxlength="40" placeholder="Your name (optional)" />
+                <input id="reqTopic" type="text" maxlength="80" placeholder="What do you need?" required />
+                <textarea id="reqNote" maxlength="200" placeholder="Short note (optional)"></textarea>
+                <button type="submit" class="btn btn-primary" style="min-height:46px;">Send request</button>
+              </form>
+              <p class="arena-note" id="reqStatus" style="margin:0.45rem 0 0;"></p>
             </div>
+          </div>
+          <div class="changelog-box">
+            <strong>What’s new · RST Hub</strong><br/>
+            Admin pin · top quick links · Command Center · Reviewer Arena modes · classmate access · mobile polish
           </div>
         </div>
       </section>
@@ -2454,7 +2633,7 @@ body.exam-mode .choice { min-height: 52px; }
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed &amp; coded by <span>RST</span> · BSCS 1-A Section Hub</p>
-        <p class="hub-version">RST Hub v3.2 · BSCS 1-A · LSPU Siniloan</p>
+        <p class="hub-version">RST Hub v3.4 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
