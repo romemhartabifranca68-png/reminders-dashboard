@@ -1631,6 +1631,18 @@ body.exam-mode .choice { min-height: 52px; }
   color: var(--accent);
 }
 
+.arena-input[readonly] {
+  opacity: 0.92;
+  border-color: rgba(100,255,218,0.35);
+  background: rgba(100,255,218,0.06);
+  color: #eafffb;
+  font-weight: 800;
+  caret-color: transparent;
+}
+.arena-input.is-name-locked {
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -2172,16 +2184,20 @@ body.exam-mode .choice { min-height: 52px; }
                 <div id="loginView" class="view active">
                   <h3>Initialize Arena Session</h3>
                   <p class="sysline">[SYSTEM READY] Enter your codename and pick an avatar to begin.</p>
-                  <label class="hidden-label" for="usernameInput">Enter your username</label>
+                  <p class="field-title" id="usernameFieldTitle">Arena display name</p>
+                  <label class="hidden-label" for="usernameInput">Arena display name</label>
                   <div class="input-wrap">
                     <input
                       id="usernameInput" enterkeyhint="done" inputmode="text" autocomplete="nickname"
                       class="arena-input"
                       type="text"
                       maxlength="22"
-                      placeholder="Enter your username"
+                      placeholder="Guest display name"
                     />
                   </div>
+                  <p class="arena-note" id="usernameFieldHint" style="margin-top:0.35rem;">
+                    Classmates: surname is locked from your login. Guests: type a display name, then Done.
+                  </p>
 
                   <p class="hidden-label" id="avatarLabel">Choose your avatar</p>
                   <div class="avatar-grid" id="avatarGrid" role="radiogroup" aria-labelledby="avatarLabel"></div>
