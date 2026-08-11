@@ -66,6 +66,28 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const SEASON_FIN_START = "2026-10-16";
   const SEASON_FIN_END = "2027-01-15";
   const COMPANY_NAME = "RST";
+  /* Duty channels officers may post to (classmates-only feed). */
+  const OFFICER_ROLES = {
+    oclarino: { title: "President", channels: ["announcements", "academics", "events"] },
+    baldemor: { title: "Vice President", channels: ["announcements", "academics", "events"] },
+    flores: { title: "Secretary", channels: ["events", "announcements"] },
+    bacero: { title: "Treasurer", channels: ["events"] },
+    lumacad: { title: "Auditor", channels: ["events", "academics"] },
+    cainto: { title: "P.I.O.", channels: ["announcements"] },
+    tabifranca: { title: "Technical Manager", channels: ["tech", "announcements", "academics", "events"] },
+    cinena: { title: "Representative", channels: ["announcements", "academics"] },
+    guia: { title: "P.O. Boy", channels: ["events"] },
+    calamba: { title: "P.O. Girl", channels: ["events"] }
+  };
+  const OFFICER_UPDATES_PATH = "hub_config/officer_updates";
+  const OFFICER_UPDATES_LOCAL = "bscs1a_officer_updates_v1";
+  const CHANNEL_LABELS = {
+    announcements: "Announcements",
+    academics: "Academics / modules",
+    events: "Events & docs",
+    tech: "Hub / tech"
+  };
+
   const STUDY_PLAN_COUNT = 10;
   const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
 
@@ -98,7 +120,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     displayName: "",
     ready: false,
     isAdmin: false,
-    guestPlayAllowed: false, // true if guest has valid pass or global enable
+    officerTitle: "",
+    officerChannels: [],
+    guestPlayAllowed: false,
     guestPassCode: ""
   };
 
@@ -151,6 +175,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function isAdmin() {
     return !!authState.isAdmin || authState.role === "admin";
   }
+
+  function isOfficer() {
+    return isAdmin() || (authState.officerChannels && authState.officerChannels.length > 0);
+  }
+
+  function resolveOfficerProfile(username) {
+    const key = String(username || "").toLowerCase();
+    const row = OFFICER_ROLES[key];
+    if (!row) return { title: "", channels: [] };
+    if (key === ADMIN_USERNAME) {
+      return { title: row.title, channels: ["tech", "announcements", "academics", "events"] };
+    }
+    return { title: row.title, channels: row.channels.slice() };
+  }
+
 
   function canPlayArena() {
     if (isClassmate() || isAdmin()) return true;
@@ -227,6 +266,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     document.body.classList.toggle("role-classmate", authState.role === "classmate" || authState.role === "admin");
     document.body.classList.toggle("role-guest", authState.role === "guest");
     document.body.classList.toggle("role-admin", isAdmin());
+    document.body.classList.toggle("role-officer", isOfficer());
     document.body.classList.toggle("guest-play-ok", !!(isGuest() && authState.guestPlayAllowed));
 
     const gate = $("authGate");
@@ -270,6 +310,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     const adminBtn = $("openAdminHubBtn");
     if (adminBtn) adminBtn.hidden = !isAdmin();
+    const odLogin = $("openOfficerDeskBtnLogin");
+    if (odLogin) odLogin.hidden = !isOfficer();
+    document.querySelectorAll(".officer-desk-btn").forEach((btn) => {
+      if (btn.id === "openOfficerDeskBtnLogin") return;
+      // section button visible via CSS body.role-officer
+    });
+    if (typeof renderOfficerUpdates === "function") renderOfficerUpdates();
 
     // Show admin code field when username is tabifranca
     const adminField = $("adminCodeField");
@@ -319,13 +366,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     authState.username = entry.username;
     authState.displayName = entry.displayName;
     authState.ready = true;
-    authState.guestPlayAllowed = true; // classmates always can play
+    authState.guestPlayAllowed = true;
+    const officer = resolveOfficerProfile(entry.username);
+    authState.officerTitle = officer.title;
+    authState.officerChannels = officer.channels;
     saveAuthSession({
       role: authState.role,
       isAdmin: elevatedAdmin,
       username: entry.username,
       displayName: entry.displayName,
       guestPlayAllowed: true,
+      officerTitle: officer.title,
+      officerChannels: officer.channels,
       ts: Date.now()
     });
     // Fire-and-forget login log for RST Admin dashboard
@@ -631,6 +683,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     authState.displayName = "";
     authState.ready = false;
     authState.isAdmin = false;
+    authState.officerTitle = "";
+    authState.officerChannels = [];
     authState.guestPlayAllowed = false;
     authState.guestPassCode = "";
     applyAuthUI();
@@ -657,6 +711,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       authState.isAdmin = !!existing.isAdmin || existing.role === "admin";
       authState.guestPlayAllowed = !!existing.guestPlayAllowed || authState.role === "classmate" || authState.role === "admin";
       authState.guestPassCode = existing.guestPassCode || "";
+      authState.officerTitle = existing.officerTitle || resolveOfficerProfile(existing.username).title;
+      authState.officerChannels = Array.isArray(existing.officerChannels)
+        ? existing.officerChannels
+        : resolveOfficerProfile(existing.username).channels;
       authState.ready = true;
       applyAuthUI();
     } else {
@@ -2730,6 +2788,169 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
 
+
+  let officerUpdateFilter = "all";
+
+  async function fetchOfficerUpdates() {
+    let list = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, OFFICER_UPDATES_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((id) => {
+            const row = val[id];
+            if (row && typeof row === "object") list.push({ id, ...row });
+          });
+        }
+      } catch (error) {
+        console.warn("[Officers] fetch updates failed:", error);
+      }
+    }
+    if (!list.length) {
+      try {
+        const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+        Object.keys(local).forEach((id) => list.push({ id, ...local[id] }));
+      } catch (error) {
+        list = [];
+      }
+    }
+    return list.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  async function publishOfficerUpdate(channel, message) {
+    if (!isOfficer()) throw new Error("Officers only");
+    const allowed = isAdmin()
+      ? ["announcements", "academics", "events", "tech"]
+      : (authState.officerChannels || []);
+    if (allowed.indexOf(channel) < 0) throw new Error("Channel not allowed for your duty");
+    const textValue = String(message || "").trim().slice(0, 280);
+    if (!textValue) throw new Error("Empty message");
+    const id = "ou_" + Date.now() + "_" + (authState.username || "x");
+    const payload = {
+      channel,
+      text: textValue,
+      by: authState.username,
+      byName: authState.displayName || authState.username,
+      roleTitle: authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"),
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      local[id] = payload;
+      localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id), payload);
+    }
+    return payload;
+  }
+
+  async function renderOfficerUpdates() {
+    const host = $("officerUpdateList");
+    if (!host) return;
+    if (!(isClassmate() || isAdmin())) {
+      host.innerHTML = `<p class="arena-note">Classmates only.</p>`;
+      return;
+    }
+    host.innerHTML = `<p class="arena-note">Loading updates…</p>`;
+    const rows = await fetchOfficerUpdates();
+    const filtered = officerUpdateFilter === "all"
+      ? rows
+      : rows.filter((r) => r.channel === officerUpdateFilter);
+    if (!filtered.length) {
+      host.innerHTML = `<p class="arena-note">No updates yet in this channel. Officers can post from Officer Desk.</p>`;
+      return;
+    }
+    host.innerHTML = filtered.slice(0, 40).map((r) => {
+      const when = formatLoginStamp(r.ts);
+      const ch = CHANNEL_LABELS[r.channel] || r.channel;
+      return `<article class="officer-update-card">
+        <div class="ou-ch">${escapeHtml(ch)}</div>
+        <p class="ou-text">${escapeHtml(r.text || "")}</p>
+        <div class="ou-meta">${escapeHtml(r.roleTitle || "Officer")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+      </article>`;
+    }).join("");
+  }
+
+  function openOfficerDesk() {
+    if (!isOfficer()) {
+      showShareToast && showShareToast("Officers only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.officer-desk");
+    if (existing) existing.remove();
+    const channels = isAdmin()
+      ? ["announcements", "academics", "events", "tech"]
+      : (authState.officerChannels || []);
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay officer-desk";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    const opts = channels.map((c) =>
+      `<option value="${c}">${CHANNEL_LABELS[c] || c}</option>`
+    ).join("");
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Officer Desk</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
+        ${escapeHtml(authState.officerTitle || "Officer")} · post only to your duty channels. Visible to classmates only.
+      </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">CHANNEL</label>
+      <select id="odChannel" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;">${opts}</select>
+      <textarea id="odMessage" maxlength="280" placeholder="Short update for the section…" style="width:100%;min-height:96px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button type="button" class="lifeline-btn" id="odPublish">Publish</button>
+        <button type="button" class="lifeline-btn" id="odClose">Close</button>
+      </div>
+      <p id="odStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#odStatus");
+    bindTap(panel.querySelector("#odClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#odPublish"), async (e) => {
+      e.preventDefault();
+      const ch = panel.querySelector("#odChannel").value;
+      const msg = panel.querySelector("#odMessage").value;
+      try {
+        await publishOfficerUpdate(ch, msg);
+        status.textContent = "Published. Classmates can see it under Officer Updates.";
+        panel.querySelector("#odMessage").value = "";
+        renderOfficerUpdates();
+      } catch (error) {
+        status.textContent = error.message || "Publish failed";
+      }
+    });
+  }
+
+  function initOfficerUpdatesUI() {
+    const filters = $("ouFilters");
+    if (filters) {
+      filters.querySelectorAll("[data-ou]").forEach((btn) => {
+        bindTap(btn, (event) => {
+          event.preventDefault();
+          officerUpdateFilter = btn.getAttribute("data-ou") || "all";
+          filters.querySelectorAll("[data-ou]").forEach((b) => b.classList.toggle("active", b === btn));
+          renderOfficerUpdates();
+        });
+      });
+    }
+    const deskBtns = ["openOfficerDeskBtn", "openOfficerDeskBtnLogin"];
+    deskBtns.forEach((id) => {
+      const btn = $(id);
+      if (btn) {
+        bindTap(btn, (event) => {
+          event.preventDefault();
+          openOfficerDesk();
+        });
+      }
+    });
+  }
+
   async function loadAdminPin() {
     const pin = $("adminPin");
     const body = $("adminPinBody");
@@ -3087,6 +3308,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     loadAdminPin();
     applyExamWeekMode();
     initResourceRequestForm();
+    initOfficerUpdatesUI();
+    renderOfficerUpdates();
     registerPwa();
     updateHud();
     setView("loginView");
