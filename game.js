@@ -385,6 +385,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     const adminBtn = $("openAdminHubBtn");
     if (adminBtn) adminBtn.hidden = !isAdmin();
+    const adminBtnTop = $("openAdminHubBtnTop");
+    if (adminBtnTop) adminBtnTop.hidden = !isAdmin();
     const odLogin = $("openOfficerDeskBtnLogin");
     if (odLogin) odLogin.hidden = !isOfficer();
     document.querySelectorAll(".officer-desk-btn").forEach((btn) => {
@@ -923,6 +925,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         openRstAdminPanel();
       });
     }
+    const adminHubBtnTop = $("openAdminHubBtnTop");
+    if (adminHubBtnTop) {
+      bindTap(adminHubBtnTop, (event) => {
+        event.preventDefault();
+        openRstAdminPanel();
+      });
+    }
   }
 
   /* ---------------- RST Admin Panel: guest play control ---------------- */
@@ -941,11 +950,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${COMPANY_NAME} Admin · Pin, guests, login activity.
+        ${COMPANY_NAME} Admin · Pin, deadlines, guests, login activity.
       </p>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
       <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
       <button type="button" class="lifeline-btn" id="adminSavePin" style="margin-bottom:0.75rem;">Publish pin</button>
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">LIVE DEADLINES</h4>
+      <div class="deadline-add-row">
+        <input id="adminDeadlineName" type="text" maxlength="80" placeholder="Deadline title" />
+        <input id="adminDeadlineDate" type="date" />
+        <button type="button" class="lifeline-btn" id="adminAddDeadline">Add</button>
+      </div>
+      <div id="adminDeadlineList" style="max-height:22vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">RESOURCE REQUESTS</h4>
       <div id="adminRequestList" style="max-height:28vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
@@ -1054,6 +1070,36 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       } catch (error) {
         status.textContent = "Pin saved locally (cloud write failed).";
         console.warn(error);
+      }
+    });
+
+    const dlHost = panel.querySelector("#adminDeadlineList");
+    const renderAdminDeadlines = async () => {
+      if (!dlHost) return;
+      const rows = await fetchLiveDeadlines();
+      if (!rows.length) {
+        dlHost.innerHTML = `<span style="color:var(--muted)">No live deadlines yet. Fallback list still shows on home.</span>`;
+        return;
+      }
+      dlHost.innerHTML = rows
+        .slice()
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        .map((d) => `<div style="padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;gap:0.5rem;"><span>${escapeHtml(d.name)}</span><strong style="color:#ffd27d;white-space:nowrap;">${escapeHtml(d.date)}</strong></div>`)
+        .join("");
+    };
+    renderAdminDeadlines();
+    bindTap(panel.querySelector("#adminAddDeadline"), async (e) => {
+      e.preventDefault();
+      const nameEl = panel.querySelector("#adminDeadlineName");
+      const dateEl = panel.querySelector("#adminDeadlineDate");
+      try {
+        await saveLiveDeadline(nameEl && nameEl.value, dateEl && dateEl.value);
+        if (nameEl) nameEl.value = "";
+        status.textContent = "Deadline added to live board.";
+        await renderAdminDeadlines();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Failed to add deadline.";
       }
     });
 
@@ -2195,15 +2241,49 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   /* ---------------- Bind helper: click + touch without double-fire ---------------- */
+  /* Ignores touchend after finger moved (scroll) so accidental game taps stop. */
   function bindTap(el, handler) {
     if (!el) return;
     let touched = false;
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    const MOVE_THRESH = 14;
+
+    el.addEventListener(
+      "touchstart",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        if (
+          Math.abs(t.clientX - startX) > MOVE_THRESH ||
+          Math.abs(t.clientY - startY) > MOVE_THRESH
+        ) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
     el.addEventListener(
       "touchend",
       (event) => {
+        if (moved) return;
         touched = true;
         handler(event);
-        window.setTimeout(() => { touched = false; }, 400);
+        window.setTimeout(() => {
+          touched = false;
+        }, 400);
       },
       { passive: false }
     );
@@ -2220,8 +2300,39 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     let lastTap = 0;
     let armed = false;
     const armClass = "double-tap-armed";
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    const MOVE_THRESH = 14;
+
+    el.addEventListener(
+      "touchstart",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        if (
+          Math.abs(t.clientX - startX) > MOVE_THRESH ||
+          Math.abs(t.clientY - startY) > MOVE_THRESH
+        ) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
 
     const onTap = (event) => {
+      if (event.type === "touchend" && moved) return;
       event.preventDefault();
       const now = Date.now();
       if (armed && now - lastTap <= gap) {
@@ -2388,6 +2499,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
             if (el !== target) el.classList.remove("menu-revealed");
           });
           target.classList.add("menu-revealed");
+        }
+        // Opening Officer Updates clears the "new update" badge
+        if (id === "officer-updates" && (isClassmate() || isAdmin())) {
+          fetchOfficerUpdates().then((rows) => {
+            if (rows[0]) markOfficerUpdatesSeen(rows[0].ts);
+            else markOfficerUpdatesSeen(Date.now());
+          }).catch(() => markOfficerUpdatesSeen(Date.now()));
         }
 
         // Allow layout to apply before scrolling
@@ -2768,13 +2886,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { text: "Check the Freedom Wall for section shout-outs and study tips." }
   ];
 
-  // Editable deadline radar (YYYY-MM-DD). Update these as the term goes.
+  // Fallback deadline radar (YYYY-MM-DD). Live board from Firebase overrides when present.
   const SECTION_DEADLINES = [
     { name: "ITEC 102 Quiz window", date: "2026-08-25" },
     { name: "GEC reading check", date: "2026-08-28" },
     { name: "Midterm focus block", date: "2026-09-15" },
     { name: "Finals season opens", date: "2026-10-16" }
   ];
+  const DEADLINES_PATH = "hub_config/deadlines";
+  const DEADLINES_LOCAL_KEY = "bscs1a_deadlines_v1";
+  const OFFICER_SEEN_KEY = "bscs1a_officer_updates_seen_ts_v1";
+  const OFFICER_BADGE_KEY = "bscs1a_officer_updates_latest_ts_v1";
 
   // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
   const NEXT_EXAM_DATE = "2026-09-15";
@@ -2856,7 +2978,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
-  function renderTodayStrip() {
+  async function renderTodayStrip() {
     const host = elements.todayStrip || $("todayStrip");
     if (!host) return;
 
@@ -2875,8 +2997,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const nextClass = getNextClassInfo();
     const daily = getDailyStatusInfo();
     const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
-
-    const deadlinesHtml = buildDeadlineRadarHtml();
+    const liveDeadlines = await fetchLiveDeadlines();
+    const deadlinesHtml = buildDeadlineRadarHtml(liveDeadlines);
     host.innerHTML =
       `<div class="today-card command-center">` +
         `<h3>Command Center · RST</h3>` +
@@ -2892,25 +3014,130 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         buildQotdHtml() +
       `</div>`;
     refreshSectionPulse();
+    refreshOfficerUpdateBadge();
   }
 
-  function buildDeadlineRadarHtml() {
+  function buildDeadlineRadarHtml(deadlines) {
+    const source = Array.isArray(deadlines) && deadlines.length ? deadlines : SECTION_DEADLINES;
     const today = new Date();
-    today.setHours(0,0,0,0);
-    const rows = (SECTION_DEADLINES || []).map((d) => {
-      const target = new Date(d.date + "T00:00:00");
-      const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
-      let when = d.date;
-      if (!Number.isNaN(diff)) {
-        if (diff < 0) when = "Passed";
-        else if (diff === 0) when = "Today";
-        else if (diff === 1) when = "Tomorrow";
-        else when = `${diff}d left`;
-      }
-      return `<li><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-when">${escapeHtml(when)}</span></li>`;
-    }).join("");
+    today.setHours(0, 0, 0, 0);
+    const rows = (source || [])
+      .slice()
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .map((d) => {
+        const target = new Date(d.date + "T00:00:00");
+        const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+        let when = d.date;
+        if (!Number.isNaN(diff)) {
+          if (diff < 0) when = "Passed";
+          else if (diff === 0) when = "Today";
+          else if (diff === 1) when = "Tomorrow";
+          else when = `${diff}d left`;
+        }
+        return `<li><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-when">${escapeHtml(when)}</span></li>`;
+      })
+      .join("");
     if (!rows) return "";
     return `<div style="margin-top:0.55rem;"><span class="cmd-label" style="display:block;margin-bottom:0.25rem;">DEADLINE RADAR</span><ul class="deadline-list">${rows}</ul></div>`;
+  }
+
+  async function fetchLiveDeadlines() {
+    let list = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, DEADLINES_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((id) => {
+            const row = val[id];
+            if (row && row.name && row.date) list.push({ id, name: row.name, date: row.date });
+          });
+        }
+      } catch (error) {
+        console.warn("[Arena] live deadlines fetch failed:", error);
+      }
+    }
+    if (!list.length) {
+      try {
+        const local = JSON.parse(localStorage.getItem(DEADLINES_LOCAL_KEY) || "[]");
+        if (Array.isArray(local)) list = local.filter((d) => d && d.name && d.date);
+      } catch (error) {
+        list = [];
+      }
+    }
+    return list;
+  }
+
+  async function saveLiveDeadline(name, date) {
+    const payload = {
+      name: String(name || "").trim().slice(0, 80),
+      date: String(date || "").trim(),
+      ts: Date.now(),
+      by: authState.username || "admin"
+    };
+    if (!payload.name || !/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+      throw new Error("Need title + date (YYYY-MM-DD)");
+    }
+    const id = "dl_" + Date.now();
+    try {
+      const local = JSON.parse(localStorage.getItem(DEADLINES_LOCAL_KEY) || "[]");
+      const arr = Array.isArray(local) ? local : [];
+      arr.push({ id, ...payload });
+      localStorage.setItem(DEADLINES_LOCAL_KEY, JSON.stringify(arr.slice(-30)));
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await set(ref(db, DEADLINES_PATH + "/" + id), payload);
+    }
+    return payload;
+  }
+
+  function getOfficerSeenTs() {
+    try {
+      return Number(localStorage.getItem(OFFICER_SEEN_KEY) || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function markOfficerUpdatesSeen(ts) {
+    try {
+      const value = Number(ts || Date.now());
+      localStorage.setItem(OFFICER_SEEN_KEY, String(value));
+      localStorage.setItem(OFFICER_BADGE_KEY, String(value));
+    } catch (error) {
+      /* ignore */
+    }
+    const badge = $("navUpdateBadge");
+    if (badge) badge.hidden = true;
+  }
+
+  async function refreshOfficerUpdateBadge() {
+    const badge = $("navUpdateBadge");
+    if (!badge) return;
+    if (!(isClassmate() || isAdmin())) {
+      badge.hidden = true;
+      return;
+    }
+    try {
+      const rows = await fetchOfficerUpdates();
+      if (!rows.length) {
+        badge.hidden = true;
+        return;
+      }
+      const latest = Number(rows[0].ts || 0);
+      const seen = getOfficerSeenTs();
+      if (latest > seen) {
+        badge.hidden = false;
+        badge.textContent = "•";
+        badge.title = "New Officer Update";
+      } else {
+        badge.hidden = true;
+      }
+    } catch (error) {
+      badge.hidden = true;
+    }
   }
 
   async function refreshSectionPulse() {
@@ -3074,6 +3301,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (!host) return;
     if (!(isClassmate() || isAdmin())) {
       host.innerHTML = `<p class="arena-note">Classmates only.</p>`;
+      refreshOfficerUpdateBadge();
       return;
     }
     host.innerHTML = `<p class="arena-note">Loading updates…</p>`;
@@ -3083,6 +3311,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       : rows.filter((r) => r.channel === officerUpdateFilter);
     if (!filtered.length) {
       host.innerHTML = `<p class="arena-note">No updates yet in this channel. Officers can post from Officer Desk.</p>`;
+      refreshOfficerUpdateBadge();
       return;
     }
     host.innerHTML = filtered.slice(0, 40).map((r) => {
@@ -3094,6 +3323,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <div class="ou-meta">${escapeHtml(r.roleTitle || "Officer")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
       </article>`;
     }).join("");
+    refreshOfficerUpdateBadge();
   }
 
   function openOfficerDesk() {
