@@ -55,7 +55,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const HUB_CONFIG_PATH = "hub_config";
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
   const LOGIN_LOG_PATH = "hub_logins";
+  const LOGIN_LOG_EVENTS_PATH = "hub_login_events";
   const LOGIN_LOG_LOCAL_KEY = "bscs1a_login_log_v1";
+  const NOTEBOOK_KEY = "bscs1a_mistake_notebook_v1";
+  const SEASON_MID_START = "2026-08-01";
+  const SEASON_MID_END = "2026-10-15";
+  const SEASON_FIN_START = "2026-10-16";
+  const SEASON_FIN_END = "2027-01-15";
   const COMPANY_NAME = "RST";
   const STUDY_PLAN_COUNT = 10;
   const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
@@ -303,13 +309,147 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     if (db && entry.username) {
       try {
-        // One node per classmate = latest login (easy for admin to scan)
+        // Latest login per classmate
         await set(ref(db, `${LOGIN_LOG_PATH}/${entry.username}`), entry);
+        // Full event history (append-style key)
+        const eventId = `${entry.username}_${entry.ts}`;
+        await set(ref(db, `${LOGIN_LOG_EVENTS_PATH}/${eventId}`), entry);
       } catch (error) {
         console.warn("[Auth] Firebase login log write failed:", error);
       }
     }
   }
+
+  async function fetchClassmateLoginEvents(limitN) {
+    const limit = Math.max(5, Math.min(80, Number(limitN) || 40));
+    let events = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, LOGIN_LOG_EVENTS_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((key) => {
+            const row = val[key];
+            if (row && typeof row === "object") events.push({ id: key, ...row });
+          });
+        }
+      } catch (error) {
+        console.warn("[Auth] events read failed:", error);
+      }
+    }
+    if (!events.length) {
+      try {
+        const store = JSON.parse(localStorage.getItem(LOGIN_LOG_LOCAL_KEY) || "{}");
+        events = Array.isArray(store.events) ? store.events.slice() : [];
+      } catch (error) {
+        events = [];
+      }
+    }
+    return events
+      .slice()
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0))
+      .slice(0, limit);
+  }
+
+  function countActiveThisWeek(logRows) {
+    const weekAgo = Date.now() - 7 * 86400000;
+    const seen = new Set();
+    (logRows || []).forEach((row) => {
+      if (Number(row.ts || 0) >= weekAgo && row.username) seen.add(row.username);
+    });
+    return seen.size;
+  }
+
+  /* ---------------- Mistake Notebook (persistent) ---------------- */
+  function loadNotebook() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(NOTEBOOK_KEY) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveNotebookEntry(question) {
+    if (!question) return;
+    try {
+      const list = loadNotebook().filter((m) => !(m.s === question.s && m.q === question.q));
+      list.unshift({
+        s: question.s,
+        q: question.q,
+        a: question.answer,
+        ts: Date.now()
+      });
+      localStorage.setItem(NOTEBOOK_KEY, JSON.stringify(list.slice(0, 60)));
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function openMistakeNotebook() {
+    const existing = document.querySelector(".admin-overlay.notebook-overlay");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay notebook-overlay";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    const items = loadNotebook();
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Mistake Notebook</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">Saved wrong answers on this device. Use for focused review.</p>
+      <div class="notebook-list" id="notebookList"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button type="button" class="lifeline-btn" id="notebookClear">Clear all</button>
+        <button type="button" class="lifeline-btn" id="notebookClose">Close</button>
+      </div>`;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const listEl = panel.querySelector("#notebookList");
+    if (!items.length) {
+      listEl.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">Wala pang saved mistakes. Magkamali sa Practice para mapuno ito.</p>`;
+    } else {
+      listEl.innerHTML = items.map((m) => `
+        <div class="notebook-item">
+          <strong style="color:#ffd7a3;">${escapeHtml(m.s || "")}</strong><br/>
+          ${escapeHtml(m.q || "")}<br/>
+          <span style="color:var(--accent);font-weight:800;">Answer: ${escapeHtml(m.a || "")}</span>
+        </div>`).join("");
+    }
+    bindTap(panel.querySelector("#notebookClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#notebookClear"), (e) => {
+      e.preventDefault();
+      if (window.confirm("Clear entire mistake notebook?")) {
+        localStorage.removeItem(NOTEBOOK_KEY);
+        overlay.remove();
+        showShareToast && showShareToast("Notebook cleared");
+      }
+    });
+  }
+
+  function initNotebookButton() {
+    const btn = $("openNotebookBtn");
+    if (!btn) return;
+    bindTap(btn, (event) => {
+      event.preventDefault();
+      openMistakeNotebook();
+    });
+  }
+
+  function getCurrentSeasonKey() {
+    const today = getLocalDateKey(); // YYYYMMDD
+    const iso = `${today.slice(0,4)}-${today.slice(4,6)}-${today.slice(6,8)}`;
+    if (iso >= SEASON_MID_START && iso <= SEASON_MID_END) return "season_midterms";
+    if (iso >= SEASON_FIN_START && iso <= SEASON_FIN_END) return "season_finals";
+    return null;
+  }
+
+  function getSeasonLabel(key) {
+    if (key === "season_midterms") return "Season · Midterms";
+    if (key === "season_finals") return "Season · Finals";
+    return "Season";
+  }
+
 
   async function fetchClassmateLoginLog() {
     const list = [];
@@ -352,6 +492,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     try {
       const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
       if (local[code] && local[code].active) {
+        if (local[code].expiresAt && Number(local[code].expiresAt) < Date.now()) {
+          return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+        }
         return { ok: true, allowed: true, code, source: "local" };
       }
     } catch (error) {
@@ -369,6 +512,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         if (passSnap.exists()) {
           const val = passSnap.val();
           if (val && val.active !== false) {
+            if (val.expiresAt && Number(val.expiresAt) < Date.now()) {
+              return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+            }
             return { ok: true, allowed: true, code, source: "firebase" };
           }
         }
@@ -567,7 +713,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        Rome Mhar S. Tabifranca · ${COMPANY_NAME}. Guest access + classmate login activity.
+        ${COMPANY_NAME} Admin · Guest access + classmate login activity.
       </p>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
       <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
@@ -602,12 +748,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     async function renderAdminLoginLog() {
       if (!logHost) return;
       logHost.textContent = "Loading login activity…";
-      const rows = await fetchClassmateLoginLog();
-      if (!rows.length) {
-        logHost.innerHTML = `<span style="color:var(--muted)">No classmate logins recorded yet.</span>`;
+      const latest = await fetchClassmateLoginLog();
+      const events = await fetchClassmateLoginEvents(40);
+      const weekly = countActiveThisWeek(events.length ? events : latest);
+      const statsHtml = `<div class="admin-stat-row">
+          <div class="admin-stat"><b>${weekly}</b><span>Active this week</span></div>
+          <div class="admin-stat"><b>${latest.length}</b><span>Unique logins</span></div>
+        </div>`;
+      if (!events.length && !latest.length) {
+        logHost.innerHTML = statsHtml + `<span style="color:var(--muted)">No classmate logins recorded yet.</span>`;
         return;
       }
-      logHost.innerHTML = rows.map((row) => {
+      const eventHtml = (events.length ? events : latest).map((row) => {
         const when = formatLoginStamp(row.ts);
         const role = row.role === "admin" ? "ADMIN" : "CLASSMATE";
         const name = escapeHtml(row.displayName || row.username || "Unknown");
@@ -618,6 +770,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           <div style="color:var(--accent);margin-top:0.15rem;font-weight:700;">${escapeHtml(when)}</div>
         </div>`;
       }).join("");
+      logHost.innerHTML = statsHtml +
+        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.35rem 0 0.25rem;letter-spacing:0.05em;">FULL HISTORY (newest first)</div>` +
+        eventHtml;
     }
 
     // Load global flag + login log
@@ -667,7 +822,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
         passInput.value = code;
       }
-      const payload = { active: true, createdBy: ADMIN_USERNAME, company: COMPANY_NAME, ts: Date.now() };
+      const payload = {
+        active: true,
+        createdBy: ADMIN_USERNAME,
+        company: COMPANY_NAME,
+        ts: Date.now(),
+        expiresAt: Date.now() + 7 * 86400000 // 7 days
+      };
       try {
         const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
         local[code] = payload;
@@ -743,7 +904,165 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         Role: ${roleLabel}<br/>
         Mastery coverage: ${subjects.length} subject(s) · avg ${avg}%
       </p>`;
+    renderMyDesk();
   }
+
+  function loadBadges() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(BADGES_KEY) || "{}");
+      return raw && typeof raw === "object" ? raw : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function unlockBadge(id) {
+    const badges = loadBadges();
+    if (badges[id]) return;
+    badges[id] = { ts: Date.now() };
+    try {
+      localStorage.setItem(BADGES_KEY, JSON.stringify(badges));
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function evaluateBadgesOnEnd() {
+    if (state.isDaily && state.score > 0) unlockBadge("daily_clear");
+    if ((state.bestStreak || 0) >= 5) unlockBadge("streak_5");
+    if ((state.bestStreak || 0) >= 10) unlockBadge("streak_10");
+    if (!state.isPractice && !state.isDaily && state.score >= 150) unlockBadge("ranked_150");
+    const mastery = loadMastery();
+    Object.keys(mastery).forEach((s) => {
+      const e = mastery[s];
+      if (e && e.total >= 5 && e.correct / e.total >= 0.8) unlockBadge("mastery_80");
+    });
+    try {
+      const key = "bscs1a_daily_streak_v1";
+      const today = getLocalDateKey();
+      const prev = JSON.parse(localStorage.getItem(key) || "null");
+      if (state.isDaily) {
+        let streak = 1;
+        if (prev && prev.date) {
+          // naive consecutive calendar day check via stored last date
+          const y = Number(prev.date.slice(0,4)), m = Number(prev.date.slice(4,6))-1, d = Number(prev.date.slice(6,8));
+          const last = new Date(y,m,d);
+          const now = new Date();
+          const diff = Math.round((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate()) - Date.UTC(last.getFullYear(),last.getMonth(),last.getDate()))/86400000);
+          if (diff === 1) streak = Number(prev.streak || 1) + 1;
+          else if (diff === 0) streak = Number(prev.streak || 1);
+        }
+        localStorage.setItem(key, JSON.stringify({ date: today, streak }));
+        if (streak >= 7) unlockBadge("daily_7");
+      }
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function renderBadgeRow(host) {
+    if (!host) return;
+    const owned = loadBadges();
+    const defs = [
+      { id: "daily_clear", label: "Daily Clear" },
+      { id: "daily_7", label: "7-Day Daily" },
+      { id: "streak_5", label: "Streak 5" },
+      { id: "streak_10", label: "Streak 10" },
+      { id: "ranked_150", label: "Ranked 150+" },
+      { id: "mastery_80", label: "Mastery 80%" }
+    ];
+    host.innerHTML = defs.map((b) =>
+      `<span class="badge-pill${owned[b.id] ? "" : " is-locked"}">${escapeHtml(b.label)}</span>`
+    ).join("");
+  }
+
+  function renderMyDesk() {
+    const card = $("myDeskCard");
+    const grid = $("myDeskGrid");
+    const badges = $("badgeRow");
+    if (!card || !grid) return;
+    if (!authState.role || (authState.role === "guest" && !authState.guestPlayAllowed)) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const nextClass = getNextClassInfo();
+    const daily = getDailyStatusInfo();
+    const mastery = loadMastery();
+    const subjects = Object.keys(mastery);
+    let avg = 0;
+    if (subjects.length) {
+      avg = Math.round(subjects.reduce((sum, s) => {
+        const e = mastery[s];
+        return sum + (e.total ? (e.correct / e.total) * 100 : 0);
+      }, 0) / subjects.length);
+    }
+    grid.innerHTML = `
+      <div class="my-desk-tile"><span class="k">Next class</span><span class="v">${escapeHtml(nextClass.value)}</span></div>
+      <div class="my-desk-tile"><span class="k">Daily</span><span class="v">${escapeHtml(daily.value)}</span></div>
+      <div class="my-desk-tile"><span class="k">Mastery avg</span><span class="v">${avg}%</span></div>
+      <div class="my-desk-tile"><span class="k">Notebook</span><span class="v">${loadNotebook().length} saved</span></div>`;
+    renderBadgeRow(badges);
+  }
+
+  function initStudyRooms() {
+    const host = $("studyRooms");
+    if (!host) return;
+    host.innerHTML = "";
+    const rooms = (typeof AVAILABLE_SUBJECTS !== "undefined" ? AVAILABLE_SUBJECTS : []).slice();
+    // Prefer common course codes first if present
+    rooms.sort((a, b) => String(a).localeCompare(String(b)));
+    rooms.forEach((subject) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "study-room-btn";
+      btn.textContent = subject;
+      btn.dataset.subject = subject;
+      bindTap(btn, (event) => {
+        event.preventDefault();
+        // Map subject label to mode id when possible
+        const mode = (GAME_MODES || []).find((m) =>
+          m.id === subject || m.label === subject || String(m.label).includes(subject) || String(m.id).toLowerCase() === String(subject).toLowerCase().replace(/\s+/g, "_")
+        );
+        if (mode) selectMode(mode.id);
+        else {
+          // Fuzzy: mode id from subject string
+          const guess = String(subject).toLowerCase().replace(/[^a-z0-9]+/g, "_");
+          const mode2 = (GAME_MODES || []).find((m) => m.id === guess || m.id.includes(guess.slice(0, 6)));
+          if (mode2) selectMode(mode2.id);
+        }
+        if (authState.role === "guest") selectRunType("practice");
+        else selectRunType(state.runType === "ranked" ? "ranked" : "practice");
+        host.querySelectorAll(".study-room-btn").forEach((b) => b.classList.toggle("selected", b === btn));
+        if (elements.loginStatus) {
+          elements.loginStatus.textContent = `Study Room: ${subject}. Choose Ranked/Practice/Study Plan then start.`;
+        }
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  function initExamModeToggle() {
+    const toggle = $("examModeToggle");
+    if (!toggle) return;
+    try {
+      toggle.checked = localStorage.getItem("bscs1a_exam_mode_v1") === "1";
+      document.body.classList.toggle("exam-mode", toggle.checked);
+    } catch (error) {
+      /* ignore */
+    }
+    toggle.addEventListener("change", () => {
+      const on = !!toggle.checked;
+      document.body.classList.toggle("exam-mode", on);
+      try {
+        localStorage.setItem("bscs1a_exam_mode_v1", on ? "1" : "0");
+      } catch (error) {
+        /* ignore */
+      }
+      showShareToast && showShareToast(on ? "Exam Mode on" : "Exam Mode off");
+    });
+  }
+
 
 
   /* SECURITY: no hardcoded admin passcode lives in the frontend anymore.
@@ -1294,6 +1613,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function modeToBoardKey(modeId) {
     if (modeId === LEADERBOARD_DAILY_ID || modeId === "daily") {
       return DAILY_LEADERBOARD_PREFIX + getLocalDateKey();
+    }
+    if (modeId === "season_midterms" || modeId === "season_finals") {
+      return modeId;
     }
     const mode = getModeConfig(modeId);
     if (mode.id === RANDOM_MODE_ID) return "random";
@@ -1874,6 +2196,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     } catch (error) {
       /* ignore */
     }
+    saveNotebookEntry(question);
   }
 
   function buildStudyPlanPool() {
@@ -2090,8 +2413,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { text: "Check the Freedom Wall for section shout-outs and study tips." }
   ];
 
+  // Editable deadline radar (YYYY-MM-DD). Update these as the term goes.
+  const SECTION_DEADLINES = [
+    { name: "ITEC 102 Quiz window", date: "2026-08-25" },
+    { name: "GEC reading check", date: "2026-08-28" },
+    { name: "Midterm focus block", date: "2026-09-15" },
+    { name: "Finals season opens", date: "2026-10-16" }
+  ];
+
   // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
   const NEXT_EXAM_DATE = "2026-09-15";
+  const BADGES_KEY = "bscs1a_badges_v1";
 
   /* Weekly schedule snapshot for Command Center "next class" */
   const WEEKLY_SCHEDULE = {
@@ -2189,6 +2521,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const daily = getDailyStatusInfo();
     const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
 
+    const deadlinesHtml = buildDeadlineRadarHtml();
     host.innerHTML =
       `<div class="today-card command-center">` +
         `<h3>Command Center · RST</h3>` +
@@ -2196,9 +2529,58 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           `<div class="cmd-tile"><span class="cmd-label">Next class</span><span class="cmd-value">${escapeHtml(nextClass.value)}</span><span class="cmd-sub">${escapeHtml(nextClass.sub)}</span></div>` +
           `<div class="cmd-tile"><span class="cmd-label">Daily Challenge</span><span class="cmd-value">${escapeHtml(daily.value)}</span><span class="cmd-sub">${escapeHtml(daily.sub)}</span></div>` +
         `</div>` +
+        `<div class="pulse-line" id="sectionPulseLine">Section Pulse · loading…</div>` +
+        deadlinesHtml +
         `<ul style="margin-top:0.65rem">${items}</ul>` +
         countdownHtml +
+        buildQotdHtml() +
       `</div>`;
+    refreshSectionPulse();
+  }
+
+  function buildDeadlineRadarHtml() {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const rows = (SECTION_DEADLINES || []).map((d) => {
+      const target = new Date(d.date + "T00:00:00");
+      const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+      let when = d.date;
+      if (!Number.isNaN(diff)) {
+        if (diff < 0) when = "Passed";
+        else if (diff === 0) when = "Today";
+        else if (diff === 1) when = "Tomorrow";
+        else when = `${diff}d left`;
+      }
+      return `<li><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-when">${escapeHtml(when)}</span></li>`;
+    }).join("");
+    if (!rows) return "";
+    return `<div style="margin-top:0.55rem;"><span class="cmd-label" style="display:block;margin-bottom:0.25rem;">DEADLINE RADAR</span><ul class="deadline-list">${rows}</ul></div>`;
+  }
+
+  async function refreshSectionPulse() {
+    const el = $("sectionPulseLine");
+    if (!el) return;
+    try {
+      const events = await fetchClassmateLoginEvents(40);
+      const latest = await fetchClassmateLoginLog();
+      const weekly = countActiveThisWeek(events.length ? events : latest);
+      let dailyPlays = 0;
+      try {
+        // Best-effort: count local daily done flag only on this device is not global.
+        // Pulse emphasizes login activity which is section-wide via Firebase.
+      } catch (e) { /* ignore */ }
+      el.textContent = `Section Pulse · ${weekly} classmate${weekly === 1 ? "" : "s"} active this week · ${latest.length} unique logins tracked`;
+    } catch (error) {
+      el.textContent = "Section Pulse · online when classmates sign in";
+    }
+  }
+
+  function buildQotdHtml() {
+    if (!questionBank.length) return "";
+    const seed = hashStringToSeed("qotd-" + getLocalDateKey());
+    const q = seededShuffle(questionBank, seed)[0];
+    if (!q) return "";
+    return `<div class="qotd-card"><strong>QUESTION OF THE DAY · RST</strong>${escapeHtml(q.s)} — ${escapeHtml(q.q)}</div>`;
   }
 
   function registerPwa() {
@@ -2362,6 +2744,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     initAuthGate();
+    initNotebookButton();
+    initExamModeToggle();
     initWelcomeModal();
     initMatrixBackground();
     initNav();
@@ -2434,6 +2818,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     migrateLegacyScores().then(() => renderLeaderboard());
     renderMasteryBars();
     renderTodayStrip();
+    initStudyRooms();
+    renderMyDesk();
     registerPwa();
     updateHud();
     setView("loginView");
@@ -2591,9 +2977,24 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function startTimer() {
     stopTimer();
     // NEW FEATURE: Boss Questions run on a slashed 15s clock instead of 25s.
-    state.activeTimeLimit = state.bossQuestionActive ? BOSS_TIME_LIMIT : QUESTION_TIME_LIMIT;
+    if (state.bossQuestionActive) {
+      state.activeTimeLimit = BOSS_TIME_LIMIT;
+    } else if (state.isPractice || state.runType === "study") {
+      const custom = getSelectedPracticeTimerSeconds();
+      state.activeTimeLimit = custom; // 0 = timer off
+    } else {
+      state.activeTimeLimit = QUESTION_TIME_LIMIT;
+    }
     state.timer = state.activeTimeLimit;
+    if (state.activeTimeLimit === 0) {
+      state.timer = 0;
+    }
     renderTimerBar();
+
+    // Timer off (Practice): no countdown / no timeout pressure
+    if (state.activeTimeLimit === 0) {
+      return;
+    }
 
     state.timerId = setInterval(() => {
       state.timer -= 1;
@@ -2606,6 +3007,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   function renderTimerBar() {
+    if (!state.activeTimeLimit) {
+      elements.timerBarFill.style.width = "100%";
+      elements.timerBarFill.style.background = "#64ffda";
+      elements.timerNum.textContent = "OFF";
+      return;
+    }
     const limit = state.activeTimeLimit || QUESTION_TIME_LIMIT;
     const pct = Math.max(0, (state.timer / limit) * 100);
     elements.timerBarFill.style.width = `${pct}%`;
@@ -3046,7 +3453,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       return;
     }
     if (!canPlayArena()) {
-      elements.loginStatus.textContent = "Guest browse-only: Arena locked. Request a Guest Pass from RST Admin (Tabifranca).";
+      elements.loginStatus.textContent = "Guest browse-only: Arena locked. Request a Guest Pass from RST Admin.";
       return;
     }
     // Guests with pass: Practice / Study only
@@ -3283,6 +3690,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           return;
         }
         await set(entryRef, entry);
+        if (!state.isDaily) {
+          const season = getCurrentSeasonKey();
+          if (season) {
+            try {
+              const seasonRef = ref(db, `${FIREBASE_TABLE}/${season}/${key}`);
+              const seasonSnap = await get(seasonRef);
+              if (!seasonSnap.exists() || Number(seasonSnap.val().score || 0) < state.score) {
+                await set(seasonRef, entry);
+              }
+            } catch (seasonErr) {
+              console.warn("[Arena] season board write skipped:", seasonErr);
+            }
+          }
+        }
         return;
       } catch (error) {
         console.warn("[Arena] Firebase write failed, saving locally instead:", error);
@@ -3318,6 +3739,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         label: mode.id === RANDOM_MODE_ID ? "RANDOM" : mode.label
       }))
     ];
+    const seasonKey = getCurrentSeasonKey();
+    if (seasonKey) {
+      tabDefs.push({ id: seasonKey, label: seasonKey === "season_midterms" ? "MIDTERMS" : "FINALS" });
+    }
 
     tabDefs.forEach((tab) => {
       const btn = document.createElement("button");
@@ -3341,12 +3766,17 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     // Keep tabs + title in sync with the board being viewed.
     renderLeaderboardModeTabs();
     const isDailyBoard = state.leaderboardMode === LEADERBOARD_DAILY_ID;
+    const isSeasonBoard = state.leaderboardMode === "season_midterms" || state.leaderboardMode === "season_finals";
     const mode = isDailyBoard
       ? { id: LEADERBOARD_DAILY_ID, label: "Daily Challenge (" + getLocalDateKey() + ")" }
+      : isSeasonBoard
+        ? { id: state.leaderboardMode, label: getSeasonLabel(state.leaderboardMode) }
       : getModeConfig(state.leaderboardMode);
     if (elements.lbTitle) {
       elements.lbTitle.textContent = isDailyBoard
         ? "Top Arena Challengers \u00b7 DAILY"
+        : isSeasonBoard
+          ? ("Top Arena Challengers \u00b7 " + String(mode.label).toUpperCase())
         : mode.id === RANDOM_MODE_ID
           ? "Top Arena Challengers \u00b7 RANDOM"
           : `Top Arena Challengers \u00b7 ${mode.label}`;
@@ -3355,6 +3785,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (note) {
       note.textContent = isDailyBoard
         ? "Top 10 \u00b7 Today's shared Daily Challenge board"
+        : isSeasonBoard
+          ? "Top 10 \u00b7 Season board (ranked runs this term)"
         : mode.id === RANDOM_MODE_ID
           ? "Top 10 \u00b7 Random / All Subjects board"
           : `Top 10 \u00b7 ${mode.label} only`;
@@ -3826,6 +4258,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     elements.finalScore.textContent = String(state.score);
     elements.finalRank.textContent = getRank(state.score);
+    evaluateBadgesOnEnd();
     updateGameOverDisplay(reason);
     setView("gameOverView");
 
@@ -3853,7 +4286,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       `Badge: ${getRank(state.score)}`,
       `Accuracy: ${accuracy} · Best streak: ${state.bestStreak || 0}`,
       `Mistakes: ${state.mistakes.length}`,
-      "— RST · Rome Mhar S. Tabifranca · LSPU Siniloan"
+      "— Built by RST · BSCS 1-A · LSPU Siniloan"
     ];
     return lines.join("\n");
   }
