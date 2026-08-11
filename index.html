@@ -2091,10 +2091,42 @@ body.role-admin .ou-top-board { display: block; }
 }
 body.role-classmate .section-status-panel,
 body.role-admin .section-status-panel { display: none; }
-body.role-classmate .section-status-lower,
-body.role-admin .section-status-lower { display: block; }
+/* Section Status lower block: guests keep hero panel only; classmates open via menu */
 .section-status-lower { display: none; }
 body.role-guest .section-status-lower { display: none; }
+
+/*
+  Classmate scroll cleanup: hide long static sections from main feed.
+  Still reachable via hamburger menu (JS adds .menu-revealed).
+  Guests keep the full page layout unchanged.
+*/
+body.role-classmate #section-status,
+body.role-admin #section-status,
+body.role-classmate #vision-mission,
+body.role-admin #vision-mission,
+body.role-classmate #officers,
+body.role-admin #officers,
+body.role-classmate #freshmen,
+body.role-admin #freshmen,
+body.role-classmate #quick-links,
+body.role-admin #quick-links {
+  display: none !important;
+}
+
+body.role-classmate #section-status.menu-revealed,
+body.role-admin #section-status.menu-revealed,
+body.role-classmate #vision-mission.menu-revealed,
+body.role-admin #vision-mission.menu-revealed,
+body.role-classmate #officers.menu-revealed,
+body.role-admin #officers.menu-revealed,
+body.role-classmate #freshmen.menu-revealed,
+body.role-admin #freshmen.menu-revealed,
+body.role-classmate #quick-links.menu-revealed,
+body.role-admin #quick-links.menu-revealed {
+  display: block !important;
+  scroll-margin-top: 4.5rem;
+  animation: riseIn 0.4s ease both;
+}
 #officer-updates .card {
   border-color: rgba(255, 210, 125, 0.32);
   box-shadow:
@@ -2468,15 +2500,16 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </button>
 
       <div class="nav-links" id="navLinks" aria-label="Section navigation">
+        <a href="#officer-updates">Updates</a>
+        <a href="#resources">Resources</a>
+        <a href="#reviewer-arena">Reviewer Arena</a>
+        <a href="#schedule">Schedule</a>
+        <a href="#freedom-wall">Freedom Wall</a>
         <a href="#vision-mission">Vision &amp; Mission</a>
         <a href="#officers">Officers</a>
-        <a href="#officer-updates">Updates</a>
-        <a href="#schedule">Schedule</a>
         <a href="#freshmen">Freshmen</a>
+        <a href="#quick-links">Quick Links</a>
         <a href="dashboard.html" class="locked-for-guest" data-lock="classmate">Dashboard</a>
-        <a href="#reviewer-arena">Reviewer Arena</a>
-        <a href="#resources">Resources</a>
-        <a href="#freedom-wall">Freedom Wall</a>
         <a class="fb-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">🌐 CCS | BS Computer Science - 1A SC | Siniloan</a>
         <a href="#" class="nav-logout" id="navLogoutLink" hidden role="button">Log out</a>
       </div>
