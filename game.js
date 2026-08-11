@@ -155,6 +155,69 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return false;
   }
 
+  /** Classmate/admin arena name = roster surname (before comma) or username. */
+  function classmateArenaName() {
+    const dn = String(authState.displayName || "");
+    if (dn.includes(",")) {
+      return dn.split(",")[0].trim();
+    }
+    if (dn.trim()) return dn.trim().slice(0, 22);
+    return String(authState.username || "").toUpperCase().slice(0, 22);
+  }
+
+  function syncArenaUsernameField() {
+    const input = elements.usernameInput || $("usernameInput");
+    const title = $("usernameFieldTitle");
+    const hint = $("usernameFieldHint");
+    if (!input) return;
+
+    if (isClassmate() || isAdmin()) {
+      const name = classmateArenaName();
+      input.value = name;
+      input.readOnly = true;
+      input.classList.add("is-name-locked");
+      input.setAttribute("aria-readonly", "true");
+      if (title) title.textContent = "Your arena name (from login)";
+      if (hint) {
+        hint.textContent = "Locked to your classmate surname. Choose mode / run type, then START.";
+      }
+      input.blur();
+    } else if (isGuest()) {
+      input.readOnly = false;
+      input.classList.remove("is-name-locked");
+      input.removeAttribute("aria-readonly");
+      if (!input.value) input.placeholder = "Guest display name";
+      if (title) title.textContent = "Guest display name";
+      if (hint) {
+        hint.textContent = "Type a name, tap Done on the keyboard, then pick mode. Name stays fixed after Done.";
+      }
+    } else {
+      input.readOnly = false;
+      input.classList.remove("is-name-locked");
+    }
+  }
+
+  /** Guest: confirm typed name, dismiss keyboard, lock field until they clear. */
+  function confirmGuestDisplayName() {
+    const input = elements.usernameInput || $("usernameInput");
+    if (!input || !isGuest()) return;
+    const cleaned = sanitizeUsername(input.value || "");
+    if (!cleaned) {
+      if (elements.loginStatus) {
+        elements.loginStatus.textContent = "Ilagay muna ang guest display name, tapos Done.";
+      }
+      return;
+    }
+    input.value = cleaned;
+    input.readOnly = true;
+    input.classList.add("is-name-locked");
+    input.blur();
+    if (elements.loginStatus) {
+      elements.loginStatus.textContent = "Name locked. Pumili ng mode / run type, then START.";
+    }
+  }
+
+
 
   function applyAuthUI() {
     document.body.classList.toggle("authed", !!authState.role);
@@ -214,6 +277,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     if (typeof renderScholarProfile === "function") renderScholarProfile();
+    if (typeof syncArenaUsernameField === "function") syncArenaUsernameField();
 
     // Guests with play permission default to Practice; locked guests stay out of run types
     if (authState.role === "guest" && authState.guestPlayAllowed && typeof selectRunType === "function") {
@@ -2844,13 +2908,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     elements.usernameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        elements.usernameInput.blur(); // dismiss mobile keyboard
-        startGame();
+        if (isClassmate() || isAdmin()) {
+          elements.usernameInput.blur();
+          if (elements.loginStatus) {
+            elements.loginStatus.textContent = "Name locked from login. Pumili ng mode, then START.";
+          }
+          return;
+        }
+        // Guest: lock name + dismiss keyboard, then choose mode (do not auto-start)
+        confirmGuestDisplayName();
       }
     });
-    // After typing, tapping elsewhere already blurs; also dismiss when user hits mobile "Done".
-    elements.usernameInput.addEventListener("focusout", () => {
-      // no-op placeholder keeps intentional blur path clear for mobile browsers
+    // Prevent focus bounce: if name is locked, ignore focus attempts from accidental taps
+    elements.usernameInput.addEventListener("focus", (event) => {
+      if (elements.usernameInput.readOnly || elements.usernameInput.classList.contains("is-name-locked")) {
+        elements.usernameInput.blur();
+      }
     });
 
     // Live-clean the field as the user types: letters and spaces only.
@@ -3516,11 +3589,16 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       return;
     }
 
-    const raw = elements.usernameInput.value || "";
+    if ((isClassmate() || isAdmin()) && !(elements.usernameInput.value || "").trim()) {
+      syncArenaUsernameField();
+    }
+    const raw = elements.usernameInput.value || ((isClassmate() || isAdmin()) ? classmateArenaName() : "");
     const cleaned = sanitizeUsername(raw);
 
     if (!cleaned) {
-      elements.loginStatus.textContent = "Kailangan ng username bago simulan ang challenge.";
+      elements.loginStatus.textContent = isGuest()
+        ? "Ilagay at i-Done ang guest display name bago mag-START."
+        : "Kailangan ng username bago simulan ang challenge.";
       return;
     }
     if (containsBadWord(cleaned)) {
@@ -3562,7 +3640,6 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       return;
     }
     stopTimer();
-    elements.usernameInput.value = "";
     state.username = "";
     state.bestScore = 0;
     state.isRetryMistakes = false;
@@ -3573,10 +3650,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     // NEW FEATURE: a fresh arena run returns to RANDOM / ALL SUBJECTS by
     // default rather than silently keeping whatever mode was last played.
     selectMode(RANDOM_MODE_ID);
-    selectRunType(false);
-    elements.loginStatus.textContent = "Enter your username to begin the reviewer challenge.";
+    selectRunType(isGuest() ? "practice" : "ranked");
     setView("loginView");
-    elements.usernameInput.focus();
+    syncArenaUsernameField();
+    if (isGuest()) {
+      elements.usernameInput.value = "";
+      elements.usernameInput.readOnly = false;
+      elements.usernameInput.classList.remove("is-name-locked");
+      elements.loginStatus.textContent = "Guest: type a display name, tap Done, then pick mode.";
+      // do not auto-focus — avoids keyboard covering mode list
+    } else {
+      elements.loginStatus.textContent = "Classmate name locked. Pumili ng mode / run type, then START.";
+    }
   }
 
   /* ---------------- Leaderboard (Firebase + local fallback) ----------------
