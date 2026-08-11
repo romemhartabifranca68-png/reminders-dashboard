@@ -2365,6 +2365,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
     }
 
+    const menuOnlyIds = {
+      "section-status": true,
+      "vision-mission": true,
+      "officers": true,
+      "freshmen": true,
+      "quick-links": true
+    };
+
     document.querySelectorAll(".js-smooth, .nav-links a").forEach((a) => {
       a.addEventListener("click", (event) => {
         const href = a.getAttribute("href") || "";
@@ -2372,12 +2380,30 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         const target = document.querySelector(href);
         if (!target) return;
         event.preventDefault();
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // Classmates: reveal menu-only sections that are hidden from main scroll
+        const id = href.slice(1);
+        if (menuOnlyIds[id] && (isClassmate() || isAdmin())) {
+          document.querySelectorAll(".menu-revealed").forEach((el) => {
+            if (el !== target) el.classList.remove("menu-revealed");
+          });
+          target.classList.add("menu-revealed");
+        }
+
+        // Allow layout to apply before scrolling
+        window.requestAnimationFrame(() => {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
         if (links) {
           links.classList.remove("open");
           if (toggle) toggle.setAttribute("aria-expanded", "false");
         }
-        history.replaceState(null, "", href);
+        try {
+          history.replaceState(null, "", href);
+        } catch (error) {
+          /* ignore */
+        }
       });
     });
   }
