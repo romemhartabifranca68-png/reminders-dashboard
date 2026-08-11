@@ -338,6 +338,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     const logoutBtn = $("logoutBtn");
     if (logoutBtn) logoutBtn.hidden = !authState.role;
+    const navLogout = $("navLogoutLink");
+    if (navLogout) navLogout.hidden = !authState.role;
 
     const guestBanner = $("guestBanner");
     if (guestBanner) {
@@ -864,6 +866,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       bindTap(logoutBtn, (event) => {
         event.preventDefault();
         if (window.confirm("Sign out of the Section Hub?")) {
+          signOutHub();
+        }
+      });
+    }
+
+    const navLogoutLink = $("navLogoutLink");
+    if (navLogoutLink) {
+      bindTap(navLogoutLink, (event) => {
+        event.preventDefault();
+        if (window.confirm("Sign out of the Section Hub?")) {
+          const navLinks = $("navLinks");
+          if (navLinks) navLinks.classList.remove("open");
+          const navToggle = $("navToggle");
+          if (navToggle) navToggle.setAttribute("aria-expanded", "false");
           signOutHub();
         }
       });
