@@ -1680,8 +1680,9 @@ body.exam-mode .choice { min-height: 52px; }
   gap: 0.45rem;
   margin: 0 0 0.85rem;
 }
-@media (min-width: 400px) {
-  .top-links { grid-template-columns: repeat(3, 1fr); }
+.top-links { grid-template-columns: 1fr 1fr; }
+@media (min-width: 520px) {
+  .top-links { grid-template-columns: repeat(4, 1fr); }
 }
 .top-link {
   display: flex;
@@ -1790,6 +1791,85 @@ main#main > .wrap > section:nth-child(1) { animation-delay: 0.05s; }
 main#main > .wrap > section:nth-child(2) { animation-delay: 0.1s; }
 main#main > .wrap > section:nth-child(3) { animation-delay: 0.15s; }
 main#main > .wrap > section:nth-child(4) { animation-delay: 0.2s; }
+
+/* ===== Section edge lights (clear box boundaries on phone) ===== */
+.glass, .card, .arena-panel, .today-card, .my-desk, .admin-pin, .note-card, .statbox, .linkcard, .resource-card {
+  box-shadow:
+    0 0 0 1px rgba(100, 255, 218, 0.14),
+    0 10px 36px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+#vision-mission .card {
+  border-color: rgba(100, 255, 218, 0.28);
+  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.2), 0 0 28px rgba(100, 255, 218, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+}
+#officers .card {
+  border-color: rgba(143, 255, 227, 0.28);
+  box-shadow: 0 0 0 1px rgba(143, 255, 227, 0.18), 0 0 28px rgba(0, 229, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+}
+#schedule .card {
+  border-color: rgba(255, 210, 125, 0.28);
+  box-shadow: 0 0 0 1px rgba(255, 210, 125, 0.18), 0 0 28px rgba(255, 196, 94, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+}
+#freshmen .card {
+  border-color: rgba(180, 160, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(180, 160, 255, 0.18), 0 0 28px rgba(160, 140, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+}
+#reviewer-arena .arena-panel,
+#reviewer-arena .card {
+  border-color: rgba(100, 255, 218, 0.35);
+  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.25), 0 0 36px rgba(100, 255, 218, 0.12), 0 14px 44px rgba(0,0,0,0.4);
+}
+#resources .card {
+  border-color: rgba(0, 229, 255, 0.28);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.18), 0 0 28px rgba(0, 229, 255, 0.08), 0 12px 40px rgba(0,0,0,0.35);
+}
+#freedom-wall .card {
+  border-color: rgba(255, 150, 180, 0.28);
+  box-shadow: 0 0 0 1px rgba(255, 150, 180, 0.16), 0 0 28px rgba(255, 120, 160, 0.07), 0 12px 40px rgba(0,0,0,0.35);
+}
+#quick-links .linkcard {
+  border-color: rgba(100, 255, 218, 0.22);
+  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.14), 0 8px 28px rgba(0,0,0,0.3);
+}
+.hero-main.glass {
+  border: 1px solid rgba(100, 255, 218, 0.28);
+  box-shadow: 0 0 0 1px rgba(100, 255, 218, 0.12), 0 0 40px rgba(100, 255, 218, 0.1), 0 20px 50px rgba(0,0,0,0.4);
+}
+.hero-side.glass {
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.1), 0 0 32px rgba(0, 229, 255, 0.08), 0 16px 44px rgba(0,0,0,0.38);
+}
+.section-title h2 {
+  text-shadow: 0 0 18px rgba(100, 255, 218, 0.15);
+}
+.section-title {
+  position: relative;
+  padding-left: 0.75rem;
+  border-left: 3px solid rgba(100, 255, 218, 0.55);
+  margin-bottom: 0.85rem;
+}
+#officers .section-title { border-left-color: rgba(143, 255, 227, 0.7); }
+#schedule .section-title { border-left-color: rgba(255, 210, 125, 0.75); }
+#freshmen .section-title { border-left-color: rgba(180, 160, 255, 0.7); }
+#reviewer-arena .section-title { border-left-color: rgba(100, 255, 218, 0.85); }
+#resources .section-title { border-left-color: rgba(0, 229, 255, 0.75); }
+#freedom-wall .section-title { border-left-color: rgba(255, 150, 180, 0.7); }
+#quick-links .section-title { border-left-color: rgba(100, 255, 218, 0.55); }
+#vision-mission .section-title { border-left-color: rgba(100, 255, 218, 0.55); }
+.top-link.is-dashboard {
+  border-color: rgba(255, 210, 125, 0.45);
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.14), rgba(100, 255, 218, 0.08));
+  color: #ffe6b0 !important;
+  box-shadow: 0 0 18px rgba(255, 196, 94, 0.12);
+}
+.btn-dashboard {
+  border: 1px solid rgba(255, 210, 125, 0.4) !important;
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.2), rgba(100, 255, 218, 0.12)) !important;
+  color: #ffe9c2 !important;
+  box-shadow: 0 0 20px rgba(255, 196, 94, 0.12);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .admin-pin, .top-link, .room-finder, .reveal-on-load,
   main#main > .wrap > section { animation: none !important; }
@@ -1970,6 +2050,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <a href="#officers">Officers</a>
         <a href="#schedule">Schedule</a>
         <a href="#freshmen">Freshmen</a>
+        <a href="dashboard.html">Dashboard</a>
         <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#resources">Resources</a>
         <a href="#freedom-wall">Freedom Wall</a>
@@ -2004,6 +2085,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="top-links" aria-label="Essential links">
+          <a class="top-link is-dashboard" href="dashboard.html">Class Dashboard</a>
           <a class="top-link" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">Google Drive</a>
           <a class="top-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
           <a class="top-link" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
@@ -2021,7 +2103,8 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
 
         <div class="hero-actions">
           <a class="btn btn-primary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
-          <a class="btn btn-secondary js-smooth" href="#resources">Resources Vault</a>
+          <a class="btn btn-dashboard" href="dashboard.html">Class Dashboard</a>
+          <a class="btn btn-secondary js-smooth" href="#resources">Resources</a>
         </div>
         <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
 
@@ -2608,6 +2691,10 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="quick-grid">
+          <a class="linkcard" href="dashboard.html">
+            <strong>Class Dashboard</strong>
+            <p>Assignment &amp; project timers, deadlines, and section dashboard tools.</p>
+          </a>
           <a class="linkcard" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">
             <strong>Google Drive Link</strong>
             <p>Open your shared reviewer files, modules, and section resources.</p>
@@ -2633,7 +2720,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed &amp; coded by <span>RST</span> · BSCS 1-A Section Hub</p>
-        <p class="hub-version">RST Hub v3.4 · BSCS 1-A · LSPU Siniloan</p>
+        <p class="hub-version">RST Hub v3.5 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
