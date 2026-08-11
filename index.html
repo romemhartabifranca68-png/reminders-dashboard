@@ -1262,13 +1262,69 @@ body.boss-active #gameView.active {
 .guest-banner {
   position: relative; z-index: 1; margin: 0.75rem auto 0;
   width: min(var(--max), calc(100% - 1.25rem));
-  padding: 0.75rem 0.9rem; border-radius: 14px;
-  border: 1px solid rgba(255,210,125,0.28);
-  background: rgba(255, 196, 94, 0.08);
-  color: #ffe6b0; font-size: 0.84rem; line-height: 1.45; font-weight: 700;
+  padding: 0.85rem 1rem; border-radius: 16px;
+  border: 1px solid rgba(255,210,125,0.32);
+  background: linear-gradient(180deg, rgba(255, 196, 94, 0.12), rgba(255, 196, 94, 0.06));
+  color: #ffe6b0; font-size: 0.84rem; line-height: 1.5; font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(255, 210, 125, 0.12), 0 0 22px rgba(255, 196, 94, 0.1);
 }
 .guest-banner[hidden] { display: none !important; }
+.guest-banner .gb-title {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #fff2d0;
+}
+.guest-banner .gb-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: rgba(255, 230, 176, 0.92);
+}
+.guest-banner .gb-list li { margin: 0.15rem 0; }
+.guest-banner .gb-ok {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(100, 255, 218, 0.92);
+  font-weight: 700;
+}
 body.role-guest .classmate-only { opacity: 0.55; }
+
+/* Classmate-only: Class Dashboard + Google Drive locked for ALL guests */
+body.role-guest a.locked-for-guest,
+body.role-guest .locked-for-guest {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  opacity: 0.42;
+  filter: grayscale(0.25);
+  position: relative;
+}
+body.role-guest a.locked-for-guest::after {
+  content: "🔒 Classmates only";
+  position: absolute;
+  left: 50%;
+  bottom: 0.35rem;
+  transform: translateX(-50%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffd27d;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+body.role-guest a.top-link.locked-for-guest {
+  padding-bottom: 1.35rem;
+}
+body.role-guest a.btn.locked-for-guest {
+  padding-bottom: 1.45rem;
+}
+body.role-guest a.linkcard.locked-for-guest {
+  padding-bottom: 1.6rem;
+}
 body.role-guest .run-type-card[data-run-type="ranked"],
 body.role-guest .run-type-card[data-run-type="daily"] {
   opacity: 0.45; position: relative;
@@ -2263,7 +2319,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <a href="#officer-updates">Updates</a>
         <a href="#schedule">Schedule</a>
         <a href="#freshmen">Freshmen</a>
-        <a href="dashboard.html">Dashboard</a>
+        <a href="dashboard.html" class="locked-for-guest" data-lock="classmate">Dashboard</a>
         <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#resources">Resources</a>
         <a href="#freedom-wall">Freedom Wall</a>
@@ -2299,8 +2355,8 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="top-links" aria-label="Essential links">
-          <a class="top-link is-dashboard" href="dashboard.html">Class Dashboard</a>
-          <a class="top-link" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">Google Drive</a>
+          <a class="top-link is-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
+          <a class="top-link locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
           <a class="top-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
           <a class="top-link" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
         </div>
@@ -2317,7 +2373,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
 
         <div class="hero-actions">
           <a class="btn btn-primary js-smooth" href="#reviewer-arena">Enter Reviewer Arena</a>
-          <a class="btn btn-dashboard" href="dashboard.html">Class Dashboard</a>
+          <a class="btn btn-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
           <a class="btn btn-secondary js-smooth" href="#resources">Resources</a>
           <a class="btn btn-officer-updates ou-shortcut js-smooth" href="#officer-updates">Officer Updates · classmates only</a>
         </div>
@@ -2941,11 +2997,11 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="quick-grid">
-          <a class="linkcard" href="dashboard.html">
+          <a class="linkcard locked-for-guest" href="dashboard.html" data-lock="classmate">
             <strong>Class Dashboard</strong>
             <p>Assignment &amp; project timers, deadlines, and section dashboard tools.</p>
           </a>
-          <a class="linkcard" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer">
+          <a class="linkcard locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">
             <strong>Google Drive Link</strong>
             <p>Open your shared reviewer files, modules, and section resources.</p>
           </a>
