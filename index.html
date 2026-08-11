@@ -1614,6 +1614,23 @@ body.exam-mode .choice { min-height: 52px; }
   line-height: 1.4;
 }
 
+.mode-card.double-tap-armed,
+.lb-mode-tab.double-tap-armed,
+.run-type-card.double-tap-armed {
+  outline: 2px solid rgba(100,255,218,0.65);
+  box-shadow: 0 0 18px rgba(100,255,218,0.25);
+}
+.mode-card.double-tap-armed::after,
+.run-type-card.double-tap-armed::after {
+  content: "tap again";
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
@@ -1716,7 +1733,7 @@ body.exam-mode .choice { min-height: 52px; }
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="welcomeQuote">
       <span class="modal-tag">SYSTEM_BOOT :: BSCS_1A</span>
       <p class="modal-quote" id="welcomeQuote">Loading quote...</p>
-      <p class="modal-signature">&mdash; Built by RST</p>
+      <p class="modal-signature" id="welcomeSignature">&mdash; Built by RST</p>
       <button class="modal-enter" id="welcomeEnterBtn" type="button">Enter Reviewer Arena</button>
     </div>
   </div>
@@ -2158,7 +2175,7 @@ body.exam-mode .choice { min-height: 52px; }
                   <label class="hidden-label" for="usernameInput">Enter your username</label>
                   <div class="input-wrap">
                     <input
-                      id="usernameInput"
+                      id="usernameInput" enterkeyhint="done" inputmode="text" autocomplete="nickname"
                       class="arena-input"
                       type="text"
                       maxlength="22"
@@ -2368,9 +2385,23 @@ body.exam-mode .choice { min-height: 52px; }
             <strong>Wall rules:</strong> respect classmates · no doxxing · keep it academic/section-related · Admin (RST) may moderate.
           </p>
           <div class="padlet-box">
-            <div class="padlet-embed" style="border:1px solid rgba(0,0,0,0.1);border-radius:2px;box-sizing:border-box;overflow:hidden;position:relative;width:100%;background:#F4F4F4">
-              <iframe src="https://padlet.com/embed/dbsy286cnt50z3om" frameborder="0" allow="camera;microphone;geolocation;display-capture;clipboard-write" style="width:100%;height:70dvh;min-height:420px;display:block;padding:0;margin:0"></iframe>
+            <div class="padlet-embed" id="padletEmbed" style="border:1px solid rgba(100,255,218,0.15);border-radius:14px;box-sizing:border-box;overflow:hidden;position:relative;width:100%;background:rgba(0,0,0,0.25);min-height:420px;">
+              <iframe
+                id="padletFrame"
+                title="BSCS 1-A Freedom Wall Padlet"
+                src="https://padlet.com/embed/dbsy286cnt50z3om"
+                frameborder="0"
+                allow="camera;microphone;geolocation;display-capture;clipboard-write;fullscreen"
+                allowfullscreen
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                style="width:100%;height:70dvh;min-height:420px;display:block;padding:0;margin:0;border:0;background:transparent;"
+              ></iframe>
             </div>
+            <p class="arena-note" style="margin:0.65rem 0 0;">
+              Kung hindi mag-load ang wall sa loob ng app,
+              <a href="https://padlet.com/embed/dbsy286cnt50z3om" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:800;">open the Freedom Wall on Padlet</a>.
+            </p>
           </div>
         </div>
       </section>
@@ -2407,7 +2438,7 @@ body.exam-mode .choice { min-height: 52px; }
           cyberpunk theme for a modern Computer Science identity.
         </p>
         <p>Designed &amp; coded by <span>RST</span> · BSCS 1-A Section Hub</p>
-        <p class="hub-version">RST Hub v3.1 · BSCS 1-A · LSPU Siniloan</p>
+        <p class="hub-version">RST Hub v3.2 · BSCS 1-A · LSPU Siniloan</p>
       </div>
     </div>
   </footer>
