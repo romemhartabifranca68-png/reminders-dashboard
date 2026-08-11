@@ -53,6 +53,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const ADMIN_USERNAME = "tabifranca";
   const ADMIN_CODE_HASH = "0468c056fcc1b0b733d4df0731d0bbb2180ff90e764f4972b5c423e8642b406a"; // RST-ADMIN-HUB-2026
   const HUB_CONFIG_PATH = "hub_config";
+  const ANNOUNCEMENT_PATH = "hub_config/announcement";
+  const RESOURCE_REQ_PATH = "hub_config/resource_requests";
+  const ANNOUNCEMENT_LOCAL_KEY = "bscs1a_admin_pin_v1";
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
   const LOGIN_LOG_PATH = "hub_logins";
   const LOGIN_LOG_EVENTS_PATH = "hub_login_events";
@@ -777,8 +780,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${COMPANY_NAME} Admin · Guest access + classmate login activity.
+        ${COMPANY_NAME} Admin · Pin, guests, login activity.
       </p>
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
+      <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
+      <button type="button" class="lifeline-btn" id="adminSavePin" style="margin-bottom:0.75rem;">Publish pin</button>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
       <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
         Loading login activity…
@@ -858,6 +864,34 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       e.preventDefault();
       await renderAdminLoginLog();
       status.textContent = "Login log refreshed.";
+    });
+
+    const pinInput = panel.querySelector("#adminPinInput");
+    try {
+      const localPin = localStorage.getItem(ANNOUNCEMENT_LOCAL_KEY) || "";
+      if (pinInput && localPin) pinInput.value = localPin;
+    } catch (error) { /* ignore */ }
+    (async () => {
+      try {
+        if (db && pinInput) {
+          const snap = await get(ref(db, ANNOUNCEMENT_PATH));
+          if (snap.exists()) {
+            const val = snap.val();
+            pinInput.value = typeof val === "string" ? val : (val && val.text) || pinInput.value;
+          }
+        }
+      } catch (error) { /* ignore */ }
+    })();
+
+    bindTap(panel.querySelector("#adminSavePin"), async (e) => {
+      e.preventDefault();
+      try {
+        await saveAdminPin(pinInput ? pinInput.value : "");
+        status.textContent = "Section pin published on home.";
+      } catch (error) {
+        status.textContent = "Pin saved locally (cloud write failed).";
+        console.warn(error);
+      }
     });
 
     bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
@@ -2640,6 +2674,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           `<div class="cmd-tile"><span class="cmd-label">Next class</span><span class="cmd-value">${escapeHtml(nextClass.value)}</span><span class="cmd-sub">${escapeHtml(nextClass.sub)}</span></div>` +
           `<div class="cmd-tile"><span class="cmd-label">Daily Challenge</span><span class="cmd-value">${escapeHtml(daily.value)}</span><span class="cmd-sub">${escapeHtml(daily.sub)}</span></div>` +
         `</div>` +
+        `<div class="room-finder"><div class="rf-label">Room finder · today</div><div class="rf-value">${escapeHtml(nextClass.value)} · ${escapeHtml(nextClass.sub)}</div></div>` +
         `<div class="pulse-line" id="sectionPulseLine">Section Pulse · loading…</div>` +
         deadlinesHtml +
         `<ul style="margin-top:0.65rem">${items}</ul>` +
@@ -2692,6 +2727,109 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const q = seededShuffle(questionBank, seed)[0];
     if (!q) return "";
     return `<div class="qotd-card"><strong>QUESTION OF THE DAY · RST</strong>${escapeHtml(q.s)} — ${escapeHtml(q.q)}</div>`;
+  }
+
+
+  async function loadAdminPin() {
+    const pin = $("adminPin");
+    const body = $("adminPinBody");
+    if (!pin || !body) return;
+    let message = "";
+    try {
+      if (db) {
+        const snap = await get(ref(db, ANNOUNCEMENT_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          message = typeof val === "string" ? val : (val && val.text) || "";
+        }
+      }
+    } catch (error) {
+      console.warn("[Hub] announcement fetch failed:", error);
+    }
+    if (!message) {
+      try {
+        message = localStorage.getItem(ANNOUNCEMENT_LOCAL_KEY) || "";
+      } catch (error) {
+        message = "";
+      }
+    }
+    if (!message) {
+      message = "Welcome to BSCS 1-A · RST Hub. Check Command Center for class & Daily status.";
+    }
+    body.textContent = message;
+    pin.classList.add("is-visible");
+  }
+
+  async function saveAdminPin(textValue) {
+    const cleaned = String(textValue || "").trim().slice(0, 240);
+    try {
+      localStorage.setItem(ANNOUNCEMENT_LOCAL_KEY, cleaned);
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await set(ref(db, ANNOUNCEMENT_PATH), {
+        text: cleaned,
+        updatedBy: authState.username || ADMIN_USERNAME,
+        ts: Date.now(),
+        company: COMPANY_NAME
+      });
+    }
+    await loadAdminPin();
+  }
+
+  function applyExamWeekMode() {
+    try {
+      if (!NEXT_EXAM_DATE) return;
+      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+      if (Number.isNaN(target.getTime())) return;
+      const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
+      // Auto exam-week focus within 14 days of exam date
+      const on = diffDays >= 0 && diffDays <= 14;
+      document.body.classList.toggle("exam-week", on);
+      if (on && !document.body.classList.contains("exam-mode")) {
+        // soft nudge only via class; user can still use Exam Mode toggle in arena
+      }
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function initResourceRequestForm() {
+    const form = $("resourceRequestForm");
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const topic = String(($("reqTopic") && $("reqTopic").value) || "").trim();
+      const name = String(($("reqName") && $("reqName").value) || "").trim().slice(0, 40);
+      const note = String(($("reqNote") && $("reqNote").value) || "").trim().slice(0, 200);
+      const status = $("reqStatus");
+      if (!topic) {
+        if (status) status.textContent = "Ilagay kung ano ang kailangan mo.";
+        return;
+      }
+      const payload = {
+        topic,
+        name: name || "Anonymous",
+        note,
+        ts: Date.now(),
+        by: authState.username || "guest"
+      };
+      try {
+        const key = "req_" + Date.now();
+        const local = JSON.parse(localStorage.getItem("bscs1a_resource_reqs_v1") || "{}");
+        local[key] = payload;
+        localStorage.setItem("bscs1a_resource_reqs_v1", JSON.stringify(local));
+        if (db) {
+          await set(ref(db, RESOURCE_REQ_PATH + "/" + key), payload);
+        }
+        if (status) status.textContent = "Request sent. RST / officers can review it.";
+        form.reset();
+      } catch (error) {
+        if (status) status.textContent = "Saved on this device (cloud sync failed).";
+        console.warn(error);
+      }
+    });
   }
 
   function registerPwa() {
@@ -2946,6 +3084,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     renderTodayStrip();
     initStudyRooms();
     renderMyDesk();
+    loadAdminPin();
+    applyExamWeekMode();
+    initResourceRequestForm();
     registerPwa();
     updateHud();
     setView("loginView");
