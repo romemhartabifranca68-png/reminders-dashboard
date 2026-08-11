@@ -1931,6 +1931,51 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     });
   }
 
+  /* Require two taps within window — reduces accidental mode/LB switches on phone. */
+  function bindDoubleTap(el, handler, gapMs) {
+    if (!el) return;
+    const gap = typeof gapMs === "number" ? gapMs : 420;
+    let lastTap = 0;
+    let armed = false;
+    const armClass = "double-tap-armed";
+
+    const onTap = (event) => {
+      event.preventDefault();
+      const now = Date.now();
+      if (armed && now - lastTap <= gap) {
+        armed = false;
+        lastTap = 0;
+        el.classList.remove(armClass);
+        handler(event);
+        return;
+      }
+      armed = true;
+      lastTap = now;
+      el.classList.add(armClass);
+      window.setTimeout(() => {
+        if (Date.now() - lastTap >= gap - 20) {
+          armed = false;
+          el.classList.remove(armClass);
+        }
+      }, gap);
+    };
+
+    let touched = false;
+    el.addEventListener(
+      "touchend",
+      (event) => {
+        touched = true;
+        onTap(event);
+        window.setTimeout(() => { touched = false; }, 400);
+      },
+      { passive: false }
+    );
+    el.addEventListener("click", (event) => {
+      if (touched) return;
+      onTap(event);
+    });
+  }
+
   /* ---------------- Welcome modal ---------------- */
   function initWelcomeModal() {
     const modal = $("welcomeModal");
@@ -1940,6 +1985,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     const quote = cyberpunkGreetingQuotes[Math.floor(Math.random() * cyberpunkGreetingQuotes.length)];
     quoteEl.textContent = quote.text;
+
+    // Developer credit is always RST only (never full personal name).
+    const sig = $("welcomeSignature") || document.querySelector(".modal-signature");
+    if (sig) sig.textContent = "— Built by RST";
 
     const dismiss = () => {
       modal.setAttribute("hidden", "hidden");
@@ -2100,8 +2149,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         '<span class="mode-title">' + escapeHtml(mode.label) + '</span>' +
         '<span class="mode-desc">' + escapeHtml(mode.description) + '</span>';
 
-      bindTap(btn, (event) => {
-        event.preventDefault();
+      bindDoubleTap(btn, (event) => {
         selectMode(mode.id);
       });
 
@@ -2267,8 +2315,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const grid = elements.runTypeGrid || $("runTypeGrid");
     if (!grid) return;
     grid.querySelectorAll("[data-run-type]").forEach((btn) => {
-      bindTap(btn, (event) => {
-        event.preventDefault();
+      bindDoubleTap(btn, (event) => {
         selectRunType(btn.getAttribute("data-run-type") || "ranked");
       });
     });
@@ -2764,6 +2811,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     bindTap(elements.startBtn, (event) => {
       event.preventDefault();
+      if (elements.usernameInput) elements.usernameInput.blur();
       startGame();
     });
 
@@ -2796,8 +2844,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     elements.usernameInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
+        elements.usernameInput.blur(); // dismiss mobile keyboard
         startGame();
       }
+    });
+    // After typing, tapping elsewhere already blurs; also dismiss when user hits mobile "Done".
+    elements.usernameInput.addEventListener("focusout", () => {
+      // no-op placeholder keeps intentional blur path clear for mobile browsers
     });
 
     // Live-clean the field as the user types: letters and spaces only.
@@ -3750,8 +3803,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       btn.className = "lb-mode-tab" + (tab.id === state.leaderboardMode ? " selected" : "");
       btn.textContent = tab.label;
       btn.setAttribute("aria-pressed", tab.id === state.leaderboardMode ? "true" : "false");
-      bindTap(btn, (event) => {
-        event.preventDefault();
+      bindDoubleTap(btn, (event) => {
         if (state.leaderboardMode === tab.id) return;
         state.leaderboardMode = tab.id;
         renderLeaderboard();
