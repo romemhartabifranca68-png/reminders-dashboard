@@ -361,6 +361,35 @@
             gap: 12px;
         }
 
+        .task-check-label {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.45rem;
+            flex: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
+        .task-done-check {
+            margin-top: 0.2rem;
+            width: 1.05rem;
+            height: 1.05rem;
+            accent-color: #38bdf8;
+            flex: 0 0 auto;
+        }
+        .task-item.personal-done {
+            opacity: 0.72;
+            border-color: rgba(56, 189, 248, 0.35);
+        }
+        .task-item.personal-done .task-name {
+            text-decoration: line-through;
+            color: rgba(248, 250, 252, 0.75);
+        }
+        .personal-done-hint {
+            margin-top: 0.25rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: rgba(125, 211, 252, 0.9);
+        }
         .task-item {
             padding: 14px;
             border-radius: 16px;
@@ -855,7 +884,38 @@
             }
         }
 
+        const PERSONAL_DONE_KEY = "bscs1a_dashboard_personal_done_v1";
+
+        function loadPersonalDoneMap() {
+            try {
+                const session = JSON.parse(localStorage.getItem("bscs1a_hub_session_v1") || "null");
+                const user = (session && session.username) ? String(session.username).toLowerCase() : "anon";
+                const all = JSON.parse(localStorage.getItem(PERSONAL_DONE_KEY) || "{}");
+                return { user, map: all[user] || {} };
+            } catch (e) {
+                return { user: "anon", map: {} };
+            }
+        }
+
+        function isPersonalDone(taskKey) {
+            const { map } = loadPersonalDoneMap();
+            return !!map[taskKey];
+        }
+
+        function setPersonalDone(taskKey, done) {
+            try {
+                const session = JSON.parse(localStorage.getItem("bscs1a_hub_session_v1") || "null");
+                const user = (session && session.username) ? String(session.username).toLowerCase() : "anon";
+                const all = JSON.parse(localStorage.getItem(PERSONAL_DONE_KEY) || "{}");
+                if (!all[user]) all[user] = {};
+                if (done) all[user][taskKey] = Date.now();
+                else delete all[user][taskKey];
+                localStorage.setItem(PERSONAL_DONE_KEY, JSON.stringify(all));
+            } catch (e) { /* ignore */ }
+        }
+
         function canEditDashboard() {
+
             const session = loadAuthSession();
             if (!session) return false;
             const user = String(session.username || "").toLowerCase();
@@ -1237,16 +1297,23 @@
                             .map(tag => `<span class="mini-badge">${escapeHtml(tag)}</span>`)
                             .join("");
 
+                        const taskKey = `${subject.subject || "S"}::${task.title || "T"}::${task.due || ""}`;
+                        const mineDone = isPersonalDone(taskKey);
+                        const personalClass = mineDone ? " personal-done" : "";
                         return `
-                            <div class="${taskClasses}">
+                            <div class="${taskClasses}${personalClass}" data-task-key="${escapeHtml(taskKey)}">
                                 <div class="task-top">
-                                    <div class="task-name">${escapeHtml(task.title)}</div>
+                                    <label class="task-check-label">
+                                        <input type="checkbox" class="task-done-check" data-task-key="${escapeHtml(taskKey)}" ${mineDone ? "checked" : ""} />
+                                        <span class="task-name">${escapeHtml(task.title)}</span>
+                                    </label>
                                     <div class="task-timer">${escapeHtml(timeInfo.text)}</div>
                                 </div>
                                 <div class="task-meta">
                                     <div>Due: ${escapeHtml(formatDue(task.due))}</div>
                                     <div>Note: ${escapeHtml(task.note || "No extra note")}</div>
                                     ${peopleLine}
+                                    <div class="personal-done-hint">${mineDone ? "✓ Marked done on this device" : "Tap checkbox when finished"}</div>
                                 </div>
                                 <div class="task-badges">${badges}</div>
                                 <div class="progress-wrap">
@@ -1443,6 +1510,20 @@
         }
 
         function bindEditorButtons() {
+            document.querySelectorAll(".task-done-check").forEach((box) => {
+                box.onchange = () => {
+                    const key = box.getAttribute("data-task-key");
+                    setPersonalDone(key, box.checked);
+                    const card = box.closest(".task-item");
+                    if (card) card.classList.toggle("personal-done", box.checked);
+                    const hint = card && card.querySelector(".personal-done-hint");
+                    if (hint) {
+                        hint.textContent = box.checked
+                            ? "✓ Marked done on this device"
+                            : "Tap checkbox when finished";
+                    }
+                };
+            });
             document.querySelectorAll("[data-edit-task]").forEach((btn) => {
                 btn.onclick = () => {
                     openTaskModal({
