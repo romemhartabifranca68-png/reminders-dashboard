@@ -4255,7 +4255,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">SUBJECT / SLOT</label>
       <select id="attSubjSelect" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;"></select>
       <div id="attStatsBox" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;margin-bottom:0.65rem;"></div>
-      <div id="attRosterBox" style="max-height:42vh;overflow:auto;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
+      <div id="attRosterBox" style="max-height:min(52vh,420px);overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.12);border-radius:12px;padding:0.35rem 0.55rem;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
         <button type="button" class="lifeline-btn" id="attShareBtn">Copy / share list</button>
         <button type="button" class="lifeline-btn" id="attMgrClose">Close</button>
@@ -4332,15 +4332,23 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <div class="admin-stat"><b>${stats.selfMarked}</b><span>Self-marked</span></div>
         <div class="admin-stat"><b>${opensCount}</b><span>PWA opens (day)</span></div>
       `;
-      box.innerHTML = CLASSMATE_ROSTER.map((c) => {
+      const roster = CLASSMATE_ROSTER.slice().sort((a, b) =>
+        String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), "en", { sensitivity: "base" })
+      );
+      box.innerHTML = `<div style="font-size:0.72rem;font-weight:800;color:#7ee7d4;margin:0 0 0.35rem;letter-spacing:0.04em;">FULL SECTION ROSTER · ${roster.length} classmates (officers included)</div>` +
+      roster.map((c) => {
         const rec = records[c.username] || {};
         const st = rec.finalStatus || rec.status || "unmarked";
         const self = rec.selfMarked ? " · self-tap" : "";
         const staff = rec.lockedByStaff ? ` · staff: ${escapeHtml(rec.editedByName || rec.editedBy || "")}` : "";
         const color = st === "present" ? "#7ee7d4" : st === "absent" ? "#ffb4b4" : st === "late" ? "#ffd27d" : "var(--muted)";
+        const officer = OFFICER_ROLES[c.username];
+        const roleTag = officer
+          ? `<span style="display:inline-block;margin-left:0.35rem;padding:0.1rem 0.4rem;border-radius:999px;border:1px solid rgba(255,210,125,0.35);color:#ffe6b0;font-size:0.62rem;font-weight:900;letter-spacing:0.04em;">${escapeHtml(officer.title)}</span>`
+          : "";
         return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="flex:1;min-width:140px;">
-            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}</div>
+            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}${roleTag}</div>
             <div style="font-size:0.7rem;color:${color};font-weight:800;">${escapeHtml(String(st).toUpperCase())}${self}${staff}</div>
           </div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">
