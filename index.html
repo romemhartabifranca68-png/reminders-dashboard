@@ -178,7 +178,25 @@ img { display: block; max-width: 100%; }
   display: none; width: 100%; flex-wrap: wrap; gap: 0.45rem;
   padding-top: 0.6rem; order: 3;
 }
-.nav-links.open { display: flex; }
+.nav-links.open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.15rem;
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.35rem 0.65rem;
+  border-radius: 16px;
+  border: 1px solid rgba(100, 255, 218, 0.18);
+  background: rgba(6, 14, 28, 0.92);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.nav-links.open a {
+  width: 100%;
+  justify-content: flex-start;
+}
 .nav-links a {
   padding: 0.6rem 0.85rem; border-radius: 999px;
   border: 1px solid rgba(100, 255, 218, 0.12); background: rgba(255, 255, 255, 0.03);
@@ -2360,25 +2378,50 @@ body.role-admin .officer-desk-btn { display: inline-flex !important; }
 .ou-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.45rem;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  padding-bottom: 0.15rem;
+  -webkit-overflow-scrolling: touch;
 }
 .ou-filter {
-  min-height: 38px;
-  padding: 0.4rem 0.75rem;
+  min-height: 34px;
+  padding: 0.32rem 0.65rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 210, 125, 0.28);
   background: rgba(255, 255, 255, 0.04);
   color: rgba(255, 242, 220, 0.9);
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
 }
 .ou-filter.active {
   border-color: rgba(255, 210, 125, 0.55);
   background: linear-gradient(135deg, rgba(255, 210, 125, 0.28), rgba(100, 255, 218, 0.14));
   color: #fff8e8;
   box-shadow: 0 0 14px rgba(255, 196, 94, 0.2);
+}
+.ou-filter[data-ou^="itec"],
+.ou-filter[data-ou^="gec"],
+.ou-filter[data-ou="pi100"],
+.ou-filter[data-ou="komfil"],
+.ou-filter[data-ou="pathfit"],
+.ou-filter[data-ou="nstp"] {
+  border-color: rgba(100, 255, 218, 0.28);
+  color: rgba(220, 255, 248, 0.92);
+}
+.ou-filter[data-ou^="itec"].active,
+.ou-filter[data-ou^="gec"].active,
+.ou-filter[data-ou="pi100"].active,
+.ou-filter[data-ou="komfil"].active,
+.ou-filter[data-ou="pathfit"].active,
+.ou-filter[data-ou="nstp"].active {
+  border-color: rgba(100, 255, 218, 0.55);
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.22), rgba(0, 229, 255, 0.12));
+  color: #eafffb;
+  box-shadow: 0 0 12px rgba(100, 255, 218, 0.18);
 }
 .ou-shortcut {
   display: none !important;
@@ -2468,9 +2511,18 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
 }
 
 @media (min-width: 860px) {
-  .nav-toggle { display: none; }
-  .nav-links { display: flex; width: auto; padding-top: 0; order: 0; justify-content: flex-end; }
-  .nav-inner { flex-wrap: nowrap; }
+  /* Keep hamburger on tablet/laptop — full nav strip was eating vertical space */
+  .nav-toggle { display: inline-flex; }
+  .nav-links {
+    display: none;
+    width: 100%;
+    order: 3;
+    justify-content: flex-start;
+  }
+  .nav-links.open {
+    display: flex;
+  }
+  .nav-inner { flex-wrap: wrap; }
   .hero-shell { grid-template-columns: 1.2fr 0.85fr; align-items: stretch; }
   .hero-top { grid-template-columns: 120px 1fr; }
   .logo-shell { width: 112px; height: 112px; }
@@ -2729,9 +2781,16 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <div class="ou-filters" id="ouFilters" role="tablist">
             <button type="button" class="ou-filter active" data-ou="all">All</button>
             <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
-            <button type="button" class="ou-filter" data-ou="academics">Academics</button>
             <button type="button" class="ou-filter" data-ou="events">Events &amp; docs</button>
             <button type="button" class="ou-filter" data-ou="tech">Hub / tech</button>
+            <button type="button" class="ou-filter" data-ou="itec101">ITEC 101</button>
+            <button type="button" class="ou-filter" data-ou="itec102">ITEC 102</button>
+            <button type="button" class="ou-filter" data-ou="gec101">GEC 101</button>
+            <button type="button" class="ou-filter" data-ou="gec102">GEC 102</button>
+            <button type="button" class="ou-filter" data-ou="pi100">P.I. 100</button>
+            <button type="button" class="ou-filter" data-ou="komfil">KOMFIL</button>
+            <button type="button" class="ou-filter" data-ou="pathfit">PATHFIT</button>
+            <button type="button" class="ou-filter" data-ou="nstp">NSTP 1</button>
           </div>
           <div class="officer-update-list ou-feed" id="officerUpdateList">
             <p class="arena-note">Loading updates…</p>
