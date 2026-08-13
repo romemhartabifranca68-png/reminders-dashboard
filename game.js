@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-analytics.js";
-import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 (function () {
   const firebaseConfig = {
@@ -51,6 +51,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   ===================================================================== */
   const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
   const ADMIN_USERNAME = "tabifranca";
+  const AUTH_SESSIONS_PATH = "hub_config/auth_sessions";
+  const PASSWORD_OVERRIDES_PATH = "hub_config/password_overrides";
+  let sessionWatchUnsub = null;
+  let localSessionId = null;
   const ADMIN_CODE_HASH = "0468c056fcc1b0b733d4df0731d0bbb2180ff90e764f4972b5c423e8642b406a"; // RST-ADMIN-HUB-2026
   const HUB_CONFIG_PATH = "hub_config";
   const ANNOUNCEMENT_PATH = "hub_config/announcement";
@@ -211,6 +215,97 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
+  function makeSessionId() {
+    return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  async function getPasswordOverrideHash(username) {
+    const user = String(username || "").toLowerCase();
+    if (!user) return null;
+    if (db) {
+      try {
+        const snap = await get(ref(db, PASSWORD_OVERRIDES_PATH + "/" + user));
+        if (snap.exists() && snap.val() && snap.val().hash) {
+          return String(snap.val().hash);
+        }
+      } catch (error) {
+        console.warn("[Auth] password override read failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_pw_overrides_v1") || "{}");
+      if (local[user] && local[user].hash) return String(local[user].hash);
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  async function getEffectivePasswordHash(username, rosterHash) {
+    const override = await getPasswordOverrideHash(username);
+    return override || rosterHash;
+  }
+
+  async function claimAuthSession(username) {
+    const user = String(username || "").toLowerCase();
+    if (!user) return null;
+    const sessionId = makeSessionId();
+    localSessionId = sessionId;
+    const payload = {
+      sessionId,
+      username: user,
+      displayName: authState.displayName || user,
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
+    try {
+      localStorage.setItem("bscs1a_local_session_id_v1", sessionId);
+    } catch (e) { /* ignore */ }
+    if (db) {
+      try {
+        await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), payload);
+      } catch (error) {
+        console.warn("[Auth] session claim failed:", error);
+      }
+    }
+    return sessionId;
+  }
+
+  function stopSessionWatch() {
+    if (typeof sessionWatchUnsub === "function") {
+      try { sessionWatchUnsub(); } catch (e) { /* ignore */ }
+    }
+    sessionWatchUnsub = null;
+  }
+
+  function startSessionWatch(username) {
+    stopSessionWatch();
+    const user = String(username || "").toLowerCase();
+    if (!user || !db) return;
+    try {
+      localSessionId = localSessionId || localStorage.getItem("bscs1a_local_session_id_v1");
+    } catch (e) { /* ignore */ }
+    if (!localSessionId) return;
+
+    const sessionRef = ref(db, AUTH_SESSIONS_PATH + "/" + user);
+    sessionWatchUnsub = onValue(sessionRef, (snap) => {
+      if (!snap.exists()) return;
+      const val = snap.val() || {};
+      const remoteId = val.sessionId;
+      if (!remoteId || !localSessionId) return;
+      if (String(remoteId) !== String(localSessionId)) {
+        // Another device/login claimed this account
+        stopSessionWatch();
+        signOutHub(true);
+        if (typeof showShareToast === "function") {
+          showShareToast("Signed out — account was used on another device.");
+        } else {
+          window.alert("Signed out — ang account mo ay ginamit sa ibang device.");
+        }
+      }
+    }, (error) => {
+      console.warn("[Auth] session watch error:", error);
+    });
+  }
+
   function isClassmate() {
     return authState.role === "classmate" || authState.role === "admin";
   }
@@ -354,6 +449,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (logoutBtn) logoutBtn.hidden = !authState.role;
     const navLogout = $("navLogoutLink");
     if (navLogout) navLogout.hidden = !authState.role;
+    const navPw = $("navChangePasswordLink");
+    if (navPw) {
+      navPw.hidden = !(authState.role === "classmate" || authState.role === "admin");
+    }
 
     // Lock resource request form for browse-only guests (no Guest Pass)
     const reqForm = $("resourceRequestForm");
@@ -449,8 +548,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       return { ok: false, message: "Hindi makita ang username sa classmate roster." };
     }
     const hash = await sha256Hex(password);
-    if (hash !== entry.hash) {
-      return { ok: false, message: "Maling password. I-check ulit ang credentials from RST / Tech Manager." };
+    const expected = await getEffectivePasswordHash(username, entry.hash);
+    if (hash !== expected) {
+      return { ok: false, message: "Maling password. I-check ulit ang credentials, o i-reset via change password after a valid login." };
     }
 
     let elevatedAdmin = false;
@@ -472,6 +572,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const officer = resolveOfficerProfile(entry.username);
     authState.officerTitle = officer.title;
     authState.officerChannels = officer.channels;
+    const sessionId = await claimAuthSession(entry.username);
     saveAuthSession({
       role: authState.role,
       isAdmin: elevatedAdmin,
@@ -480,8 +581,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       guestPlayAllowed: true,
       officerTitle: officer.title,
       officerChannels: officer.channels,
+      sessionId: sessionId || localSessionId,
       ts: Date.now()
     });
+    startSessionWatch(entry.username);
     // Fire-and-forget login log for RST Admin dashboard
     recordClassmateLogin({
       username: entry.username,
@@ -489,6 +592,95 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       role: elevatedAdmin ? "admin" : "classmate"
     }).catch((error) => console.warn("[Auth] login log failed:", error));
     return { ok: true, admin: elevatedAdmin };
+  }
+
+  async function changeClassmatePassword(currentPassword, newPassword, confirmPassword) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Sign in first");
+    const user = String(authState.username || "").toLowerCase();
+    if (!user) throw new Error("No account");
+    const entry = CLASSMATE_ROSTER.find((row) => row.username === user);
+    if (!entry) throw new Error("Account not in roster");
+    const cur = String(currentPassword || "");
+    const next = String(newPassword || "");
+    const conf = String(confirmPassword || "");
+    if (next.length < 6) throw new Error("New password must be at least 6 characters");
+    if (next !== conf) throw new Error("New password confirmation does not match");
+    if (next === cur) throw new Error("New password must be different");
+    const curHash = await sha256Hex(cur);
+    const expected = await getEffectivePasswordHash(user, entry.hash);
+    if (curHash !== expected) throw new Error("Current password is incorrect");
+    const newHash = await sha256Hex(next);
+    const payload = {
+      hash: newHash,
+      updatedAt: Date.now(),
+      updatedBy: user
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_pw_overrides_v1") || "{}");
+      local[user] = payload;
+      localStorage.setItem("bscs1a_pw_overrides_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, PASSWORD_OVERRIDES_PATH + "/" + user), payload);
+    }
+    // Re-claim session so other devices using old login still get kicked on next claim; keep this device
+    await claimAuthSession(user);
+    startSessionWatch(user);
+    return true;
+  }
+
+  function openChangePasswordModal() {
+    if (!(isClassmate() || isAdmin())) {
+      if (typeof showShareToast === "function") showShareToast("Sign in first");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.change-password");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay change-password";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Change password</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        Account: <strong style="color:var(--text);">${escapeHtml(authState.username || "")}</strong><br>
+        One account = one active device. Kapag may nag-login sa iba, auto sign-out dito.
+      </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">CURRENT PASSWORD</label>
+      <input id="pwCur" type="password" autocomplete="current-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.5rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">NEW PASSWORD</label>
+      <input id="pwNew" type="password" autocomplete="new-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.5rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">CONFIRM NEW PASSWORD</label>
+      <input id="pwConf" type="password" autocomplete="new-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.65rem;" />
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="pwSave">Save new password</button>
+        <button type="button" class="lifeline-btn" id="pwClose">Close</button>
+      </div>
+      <p id="pwStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#pwStatus");
+    bindTap(panel.querySelector("#pwClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#pwSave"), async (e) => {
+      e.preventDefault();
+      try {
+        status.textContent = "Saving…";
+        await changeClassmatePassword(
+          panel.querySelector("#pwCur").value,
+          panel.querySelector("#pwNew").value,
+          panel.querySelector("#pwConf").value
+        );
+        status.textContent = "Password updated. Use the new password next login.";
+        panel.querySelector("#pwCur").value = "";
+        panel.querySelector("#pwNew").value = "";
+        panel.querySelector("#pwConf").value = "";
+        if (typeof showShareToast === "function") showShareToast("Password changed");
+      } catch (error) {
+        status.textContent = error.message || "Failed";
+      }
+    });
   }
 
   function formatLoginStamp(ts) {
@@ -957,8 +1149,11 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
 
-  function signOutHub() {
+  function signOutHub(kicked) {
+    stopSessionWatch();
     clearAuthSession();
+    localSessionId = null;
+    try { localStorage.removeItem("bscs1a_local_session_id_v1"); } catch (e) { /* ignore */ }
     authState.role = null;
     authState.username = "";
     authState.displayName = "";
@@ -979,7 +1174,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const gate = $("authGate");
     if (gate) {
       gate.hidden = false;
-      document.body.classList.remove("authed", "role-guest", "role-classmate");
+      document.body.classList.remove("authed", "role-guest", "role-classmate", "role-admin");
+    }
+    if (kicked) {
+      /* toast handled by caller */
     }
   }
 
@@ -999,19 +1197,49 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         : resolveOfficerProfile(existing.username).channels;
       authState.ready = true;
       applyAuthUI();
-      // Refresh saved session timestamp so recurring opens keep stay-signed-in alive
-      saveAuthSession({
-        role: authState.role,
-        isAdmin: authState.isAdmin,
-        username: authState.username,
-        displayName: authState.displayName,
-        guestPlayAllowed: authState.guestPlayAllowed,
-        guestPassCode: authState.guestPassCode || "",
-        officerTitle: authState.officerTitle || "",
-        officerChannels: authState.officerChannels || [],
-        ts: Date.now(),
-        remember: true
-      });
+      // Restore single-device session watch (or claim if older session has no id)
+      if ((authState.role === "classmate" || authState.role === "admin") && authState.username) {
+        (async () => {
+          try {
+            if (existing.sessionId) {
+              localSessionId = existing.sessionId;
+              try { localStorage.setItem("bscs1a_local_session_id_v1", localSessionId); } catch (e) { /* ignore */ }
+              startSessionWatch(authState.username);
+            } else {
+              await claimAuthSession(authState.username);
+              startSessionWatch(authState.username);
+            }
+          } catch (e) {
+            console.warn("[Auth] session restore watch failed:", e);
+          }
+          saveAuthSession({
+            role: authState.role,
+            isAdmin: authState.isAdmin,
+            username: authState.username,
+            displayName: authState.displayName,
+            guestPlayAllowed: authState.guestPlayAllowed,
+            guestPassCode: authState.guestPassCode || "",
+            officerTitle: authState.officerTitle || "",
+            officerChannels: authState.officerChannels || [],
+            sessionId: localSessionId || existing.sessionId || null,
+            ts: Date.now(),
+            remember: true
+          });
+        })();
+      } else {
+        saveAuthSession({
+          role: authState.role,
+          isAdmin: authState.isAdmin,
+          username: authState.username,
+          displayName: authState.displayName,
+          guestPlayAllowed: authState.guestPlayAllowed,
+          guestPassCode: authState.guestPassCode || "",
+          officerTitle: authState.officerTitle || "",
+          officerChannels: authState.officerChannels || [],
+          ts: Date.now(),
+          remember: true
+        });
+      }
     } else {
       applyAuthUI();
     }
@@ -1118,6 +1346,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         const navToggle = $("navToggle");
         if (navToggle) navToggle.setAttribute("aria-expanded", "false");
         if (typeof openFinanceHub === "function") openFinanceHub();
+      });
+    }
+
+    const navChangePasswordLink = $("navChangePasswordLink");
+    if (navChangePasswordLink) {
+      bindTap(navChangePasswordLink, (event) => {
+        event.preventDefault();
+        const navLinks = $("navLinks");
+        if (navLinks) navLinks.classList.remove("open");
+        const navToggle = $("navToggle");
+        if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+        openChangePasswordModal();
       });
     }
 
