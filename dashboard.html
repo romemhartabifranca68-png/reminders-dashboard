@@ -183,34 +183,81 @@
         }
 
         .stat-card {
-            padding: 18px;
-            border-radius: 20px;
-            background: var(--glass);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--shadow);
+            position: relative;
+            padding: 20px 18px 18px;
+            border-radius: 22px;
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+            overflow: hidden;
+        }
+        .stat-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            border-radius: 22px 0 0 22px;
+            background: linear-gradient(180deg, #38bdf8, #8b5cf6);
+        }
+        .stat-card.stat-all::before { background: linear-gradient(180deg, #38bdf8, #22d3ee); }
+        .stat-card.stat-urgent::before { background: linear-gradient(180deg, #fb7185, #ef4444); }
+        .stat-card.stat-nearest::before { background: linear-gradient(180deg, #fbbf24, #f59e0b); }
+
+        .stat-card.stat-all {
+            background: linear-gradient(155deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.35));
+            border-color: rgba(56, 189, 248, 0.4);
+            box-shadow: 0 12px 30px rgba(56, 189, 248, 0.12), 0 10px 28px rgba(0, 0, 0, 0.2);
+        }
+        .stat-card.stat-urgent {
+            background: linear-gradient(155deg, rgba(239, 68, 68, 0.2), rgba(15, 23, 42, 0.35));
+            border-color: rgba(248, 113, 113, 0.42);
+            box-shadow: 0 12px 30px rgba(239, 68, 68, 0.14), 0 10px 28px rgba(0, 0, 0, 0.2);
+        }
+        .stat-card.stat-nearest {
+            background: linear-gradient(155deg, rgba(245, 158, 11, 0.2), rgba(15, 23, 42, 0.35));
+            border-color: rgba(251, 191, 36, 0.42);
+            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.14), 0 10px 28px rgba(0, 0, 0, 0.2);
         }
 
         .stat-label {
-            font-size: 0.85rem;
-            color: var(--muted);
-            margin-bottom: 8px;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: rgba(248, 250, 252, 0.88);
+            margin-bottom: 10px;
         }
 
         .stat-value {
-            font-size: 1.7rem;
-            font-weight: 800;
+            font-size: clamp(2rem, 6vw, 2.45rem);
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
         }
+        .stat-card.stat-all .stat-value { color: #7dd3fc; text-shadow: 0 0 18px rgba(56, 189, 248, 0.35); }
+        .stat-card.stat-urgent .stat-value { color: #fda4af; text-shadow: 0 0 18px rgba(239, 68, 68, 0.35); }
+        .stat-card.stat-nearest .stat-value { color: #fde68a; text-shadow: 0 0 18px rgba(245, 158, 11, 0.35); }
 
         .stat-sub {
-            margin-top: 6px;
-            color: var(--muted);
-            font-size: 0.9rem;
-            line-height: 1.4;
+            margin-top: 10px;
+            color: rgba(248, 250, 252, 0.9);
+            font-size: 0.92rem;
+            font-weight: 600;
+            line-height: 1.45;
         }
 
         .next-deadline {
             margin-bottom: 18px;
-            padding: 18px;
+            padding: 20px 18px;
+            border: 1px solid rgba(56, 189, 248, 0.35) !important;
+            background:
+                linear-gradient(145deg, rgba(56, 189, 248, 0.16), rgba(139, 92, 246, 0.1) 50%, rgba(15, 23, 42, 0.4)),
+                var(--glass) !important;
+            box-shadow: 0 14px 34px rgba(56, 189, 248, 0.12), var(--shadow) !important;
         }
 
         .next-deadline h2,
@@ -219,24 +266,39 @@
             margin: 0 0 14px;
             font-size: 1.25rem;
         }
+        .next-deadline h2 {
+            font-size: 1.15rem;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            color: #e0f2fe;
+        }
 
         .next-box {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid var(--glass-border);
+            background: rgba(2, 6, 23, 0.35);
+            border: 1px solid rgba(125, 211, 252, 0.28);
             border-radius: 18px;
-            padding: 16px;
+            padding: 16px 16px 16px 18px;
+            border-left: 5px solid #38bdf8;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
         }
 
         .next-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            margin-bottom: 8px;
+            font-size: 1.12rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            line-height: 1.4;
+            color: #f8fafc;
         }
 
         .next-meta {
-            color: var(--muted);
-            line-height: 1.6;
-            font-size: 0.95rem;
+            color: rgba(248, 250, 252, 0.92);
+            line-height: 1.7;
+            font-size: 0.98rem;
+            font-weight: 600;
+        }
+        .next-meta strong {
+            color: #7dd3fc;
+            font-weight: 800;
         }
 
         .tasks-panel {
@@ -586,27 +648,27 @@
         </section>
 
         <section class="overview" id="overview">
-            <div class="stat-card">
-                <div class="stat-label">All Task</div>
+            <div class="stat-card stat-all">
+                <div class="stat-label">All Tasks</div>
                 <div class="stat-value" id="totalTasks">0</div>
-                <div class="stat-sub">E update ko nalang to pag may bagong task;)</div>
+                <div class="stat-sub">Total active schoolworks na may deadline</div>
             </div>
 
-            <div class="stat-card">
+            <div class="stat-card stat-urgent">
                 <div class="stat-label">Urgent Tasks</div>
                 <div class="stat-value" id="urgentTasks">0</div>
-                <div class="stat-sub">Kung ilan yong malapit na deadline sa loob ng 3 days</div>
+                <div class="stat-sub">Due within the next 3 days — unahin muna</div>
             </div>
 
-            <div class="stat-card">
-                <div class="stat-label">The Nearest Deadline</div>
+            <div class="stat-card stat-nearest">
+                <div class="stat-label">Nearest Deadline</div>
                 <div class="stat-value" id="nearestDate">--</div>
                 <div class="stat-sub" id="nearestLabel">Loading...</div>
             </div>
         </section>
 
         <section class="glass-panel next-deadline">
-            <h2>Next Deadline</h2>
+            <h2>Next Deadline · Focus this first</h2>
             <div class="next-box">
                 <div class="next-title" id="nextDeadlineTitle">Loading...</div>
                 <div class="next-meta" id="nextDeadlineMeta">Please wait...</div>
@@ -620,9 +682,12 @@
 
         <section class="glass-panel quote-panel">
             <h2>Motivation</h2>
-            <p class="quote-text">"Believe you can and you're halfway there."</p>
-            <div class="quote-author">- Theodore Roosevelt</div>
-            <div class="footer-note">"Stay focused, brilliant classmates."- Rome</div>
+            <p class="quote-text" id="quoteText">"Believe you can and you're halfway there."</p>
+            <div class="quote-author" id="quoteAuthor">- Theodore Roosevelt</div>
+            <div class="footer-note" id="quoteFooter">"Stay focused, brilliant classmates." — Rome</div>
+            <div class="edit-actions" id="quoteEditActions" style="display:none;justify-content:center;margin-top:12px;">
+                <button type="button" class="edit-btn" id="editQuoteBtn">Edit quotes</button>
+            </div>
         </section>
     </div>
 
@@ -651,8 +716,17 @@
         const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
         const DASHBOARD_PATH = "hub_config/dashboard_tasks";
         const DASHBOARD_LOCAL_KEY = "bscs1a_dashboard_tasks_v1";
+        const QUOTES_PATH = "hub_config/dashboard_quotes";
+        const QUOTES_LOCAL_KEY = "bscs1a_dashboard_quotes_v1";
         const ADMIN_USERNAMES = new Set(["tabifranca"]);
         const PIO_USERNAMES = new Set(["cainto"]); // P.I.O.
+
+        const DEFAULT_QUOTES = {
+            text: '"Believe you can and you\'re halfway there."',
+            author: "- Theodore Roosevelt",
+            footer: '"Stay focused, brilliant classmates." — Rome'
+        };
+        let quoteData = { ...DEFAULT_QUOTES };
 
         const DEFAULT_SUBJECT_DATA = [
             {
@@ -805,6 +879,116 @@
             }
             const btn = document.getElementById("toggleEditModeBtn");
             if (btn) btn.textContent = editMode ? "Disable editing" : "Enable editing";
+            const quoteActions = document.getElementById("quoteEditActions");
+            if (quoteActions) quoteActions.style.display = allowed ? "flex" : "none";
+        }
+
+        function renderQuotes() {
+            const t = document.getElementById("quoteText");
+            const a = document.getElementById("quoteAuthor");
+            const f = document.getElementById("quoteFooter");
+            if (t) t.textContent = quoteData.text || DEFAULT_QUOTES.text;
+            if (a) a.textContent = quoteData.author || DEFAULT_QUOTES.author;
+            if (f) f.textContent = quoteData.footer || DEFAULT_QUOTES.footer;
+        }
+
+        async function loadQuotes() {
+            if (db) {
+                try {
+                    const snap = await get(ref(db, QUOTES_PATH));
+                    if (snap.exists()) {
+                        const val = snap.val();
+                        if (val && typeof val === "object") {
+                            quoteData = {
+                                text: val.text || DEFAULT_QUOTES.text,
+                                author: val.author || DEFAULT_QUOTES.author,
+                                footer: val.footer || DEFAULT_QUOTES.footer
+                            };
+                            try {
+                                localStorage.setItem(QUOTES_LOCAL_KEY, JSON.stringify(quoteData));
+                            } catch (e) { /* ignore */ }
+                            renderQuotes();
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.warn("[Dashboard] quotes load failed:", error);
+                }
+            }
+            try {
+                const local = JSON.parse(localStorage.getItem(QUOTES_LOCAL_KEY) || "null");
+                if (local && local.text) quoteData = local;
+            } catch (e) { /* ignore */ }
+            renderQuotes();
+        }
+
+        async function saveQuotes(next) {
+            if (!canEditDashboard()) throw new Error("Not allowed");
+            quoteData = {
+                text: String(next.text || "").trim() || DEFAULT_QUOTES.text,
+                author: String(next.author || "").trim() || DEFAULT_QUOTES.author,
+                footer: String(next.footer || "").trim() || DEFAULT_QUOTES.footer
+            };
+            try {
+                localStorage.setItem(QUOTES_LOCAL_KEY, JSON.stringify(quoteData));
+            } catch (e) { /* ignore */ }
+            if (db) {
+                await set(ref(db, QUOTES_PATH), {
+                    ...quoteData,
+                    updatedAt: Date.now(),
+                    updatedBy: (loadAuthSession() || {}).username || "editor"
+                });
+            }
+            renderQuotes();
+        }
+
+        function openQuoteModal() {
+            if (!canEditDashboard()) return;
+            document.querySelectorAll(".edit-modal-overlay").forEach((el) => el.remove());
+            const overlay = document.createElement("div");
+            overlay.className = "edit-modal-overlay";
+            overlay.innerHTML = `
+                <div class="edit-modal" role="dialog" aria-modal="true">
+                    <h3>Edit motivation quotes</h3>
+                    <div class="edit-field">
+                        <label>Main quote</label>
+                        <textarea id="eqText" maxlength="240">${escapeHtml(quoteData.text || "")}</textarea>
+                    </div>
+                    <div class="edit-field">
+                        <label>Author line</label>
+                        <input id="eqAuthor" type="text" maxlength="80" value="${escapeHtml(quoteData.author || "")}" />
+                    </div>
+                    <div class="edit-field">
+                        <label>Footer note</label>
+                        <input id="eqFooter" type="text" maxlength="120" value="${escapeHtml(quoteData.footer || "")}" />
+                    </div>
+                    <div class="edit-modal-actions">
+                        <button type="button" class="edit-btn" id="eqSave">Save quotes</button>
+                        <button type="button" class="edit-btn" id="eqCancel">Cancel</button>
+                    </div>
+                    <div class="edit-status" id="eqStatus"></div>
+                </div>`;
+            document.body.appendChild(overlay);
+            overlay.addEventListener("click", (e) => {
+                if (e.target === overlay) overlay.remove();
+            });
+            overlay.querySelector("#eqCancel").addEventListener("click", () => overlay.remove());
+            overlay.querySelector("#eqSave").addEventListener("click", async () => {
+                const status = overlay.querySelector("#eqStatus");
+                try {
+                    status.textContent = "Saving…";
+                    await saveQuotes({
+                        text: overlay.querySelector("#eqText").value,
+                        author: overlay.querySelector("#eqAuthor").value,
+                        footer: overlay.querySelector("#eqFooter").value
+                    });
+                    overlay.remove();
+                    setEditStatus("Quotes updated for the section.");
+                } catch (error) {
+                    status.textContent = "Saved on this device only (cloud write failed).";
+                    console.warn(error);
+                }
+            });
         }
 
         async function loadDashboardData() {
@@ -989,12 +1173,12 @@
                     month: "short",
                     day: "numeric"
                 });
-                document.getElementById("nearestLabel").innerText = `${nearest.subject} - ${nearest.title}`;
-                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon || ""} ${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nearestLabel").innerText = `${nearest.subject} · ${nearest.title}`;
+                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon || "📌"} ${nearest.subject} — ${nearest.title}`;
                 document.getElementById("nextDeadlineMeta").innerHTML = `
-                    Due: ${formatDue(nearest.due)}<br>
-                    Course: ${nearest.fullName}<br>
-                    Details: ${nearest.note || "No additional note"}
+                    <strong>Due:</strong> ${escapeHtml(formatDue(nearest.due))}<br>
+                    <strong>Course:</strong> ${escapeHtml(nearest.fullName || nearest.subject)}<br>
+                    <strong>Details:</strong> ${escapeHtml(nearest.note || "No additional note")}
                 `;
             } else {
                 document.getElementById("nearestDate").innerText = "Done";
@@ -1355,16 +1539,22 @@
                 reloadBtn.addEventListener("click", async () => {
                     setEditStatus("Reloading…");
                     const source = await loadDashboardData();
+                    await loadQuotes();
                     refreshDashboard();
                     setEditStatus(`Loaded from ${source}.`);
                 });
+            }
+            const editQuoteBtn = document.getElementById("editQuoteBtn");
+            if (editQuoteBtn) {
+                editQuoteBtn.addEventListener("click", openQuoteModal);
             }
         }
 
         loadTheme();
         initEditorControls();
         applyEditorAccess();
-        loadDashboardData().then((source) => {
+        renderQuotes();
+        Promise.all([loadDashboardData(), loadQuotes()]).then(([source]) => {
             refreshDashboard();
             if (canEditDashboard()) {
                 setEditStatus(`Editor available · data from ${source}.`);
