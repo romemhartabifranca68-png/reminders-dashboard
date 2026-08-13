@@ -83,10 +83,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const OFFICER_UPDATES_LOCAL = "bscs1a_officer_updates_v1";
   const CHANNEL_LABELS = {
     announcements: "Announcements",
-    academics: "Academics / modules",
     events: "Events & docs",
-    tech: "Hub / tech"
+    tech: "Hub / tech",
+    itec101: "ITEC 101",
+    itec102: "ITEC 102",
+    gec101: "GEC 101",
+    gec102: "GEC 102",
+    pi100: "P.I. 100",
+    komfil: "KOMFIL",
+    pathfit: "PATHFIT",
+    nstp: "NSTP 1"
   };
+  const ALL_OFFICER_CHANNELS = Object.keys(CHANNEL_LABELS);
+  /* Auto-remove officer posts older than this (ms). 14 days. */
+  const OFFICER_UPDATE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
   const STUDY_PLAN_COUNT = 10;
   const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
@@ -3302,6 +3312,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }).join("");
   }
 
+  async function pruneExpiredOfficerUpdates(rows) {
+    const now = Date.now();
+    const keep = [];
+    const expired = [];
+    (rows || []).forEach((row) => {
+      const age = now - Number(row.ts || 0);
+      if (Number(row.ts) && age > OFFICER_UPDATE_MAX_AGE_MS) expired.push(row);
+      else keep.push(row);
+    });
+    if (!expired.length) return keep;
+
+    // Clean local mirror
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      expired.forEach((row) => {
+        if (row.id && local[row.id]) delete local[row.id];
+      });
+      localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+    } catch (error) {
+      /* ignore */
+    }
+
+    // Cloud delete (best-effort; works when rules allow writer)
+    if (db) {
+      expired.forEach((row) => {
+        if (!row.id) return;
+        set(ref(db, OFFICER_UPDATES_PATH + "/" + row.id), null).catch(() => {});
+      });
+    }
+    return keep;
+  }
+
   async function fetchOfficerUpdates() {
     let list = [];
     if (db) {
@@ -3326,14 +3368,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         list = [];
       }
     }
+    list = await pruneExpiredOfficerUpdates(list);
     return list.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function getAllowedOfficerChannels() {
+    if (isAdmin()) return ALL_OFFICER_CHANNELS.slice();
+    const duty = authState.officerChannels || [];
+    const subjects = ALL_OFFICER_CHANNELS.filter((c) =>
+      ["itec101", "itec102", "gec101", "gec102", "pi100", "komfil", "pathfit", "nstp"].indexOf(c) >= 0
+    );
+    return Array.from(new Set(duty.concat(subjects)));
   }
 
   async function publishOfficerUpdate(channel, message) {
     if (!isOfficer()) throw new Error("Officers only");
-    const allowed = isAdmin()
-      ? ["announcements", "academics", "events", "tech"]
-      : (authState.officerChannels || []);
+    const allowed = getAllowedOfficerChannels();
     if (allowed.indexOf(channel) < 0) throw new Error("Channel not allowed for your duty");
     const textValue = String(message || "").trim().slice(0, 280);
     if (!textValue) throw new Error("Empty message");
@@ -3397,9 +3447,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     const existing = document.querySelector(".admin-overlay.officer-desk");
     if (existing) existing.remove();
-    const channels = isAdmin()
-      ? ["announcements", "academics", "events", "tech"]
-      : (authState.officerChannels || []);
+    const channels = getAllowedOfficerChannels();
     const overlay = document.createElement("div");
     overlay.className = "admin-overlay officer-desk";
     const panel = document.createElement("div");
@@ -3410,7 +3458,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">Officer Desk</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${escapeHtml(authState.officerTitle || "Officer")} · post only to your duty channels. Visible to classmates only.
+        ${escapeHtml(authState.officerTitle || "Officer")} · duty + subject channels. Posts auto-clear after 14 days. Classmates only.
       </p>
       <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">CHANNEL</label>
       <select id="odChannel" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;">${opts}</select>
