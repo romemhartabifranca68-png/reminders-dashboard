@@ -1503,8 +1503,23 @@ body.role-guest.guest-play-ok #startBtn {
   margin-top: 0.55rem;
   font-size: 0.75rem;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.55;
 }
+.pwa-help-btn {
+  display: inline-flex;
+  align-items: center;
+  margin: 0.35rem 0.3rem 0 0;
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(100, 255, 218, 0.35);
+  background: rgba(100, 255, 218, 0.1);
+  color: #b8fff0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pwa-help-btn[hidden] { display: none !important; }
 .result-hero {
   text-align: center;
   margin-bottom: 0.75rem;
@@ -2333,13 +2348,36 @@ body.role-admin #quick-links.menu-revealed {
   box-shadow: 0 0 18px rgba(255, 196, 94, 0.12);
 }
 
+.shortcut-hint {
+  display: none;
+  margin: 0 0 0.45rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(100, 255, 218, 0.35);
+  background: rgba(100, 255, 218, 0.08);
+  color: #b8fff0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+body.role-classmate .shortcut-hint.cm-only-hint,
+body.role-admin .shortcut-hint.cm-only-hint {
+  display: block;
+}
+
 /* Classmate home strip: section shortcuts first; Drive/FB/Portal in menu only */
 .cm-primary-link { display: none; }
 body.role-classmate .cm-primary-link,
 body.role-admin .cm-primary-link {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.12rem;
+  min-height: 46px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.78rem;
 }
 body.role-classmate .guest-primary-link,
 body.role-admin .guest-primary-link {
@@ -2347,6 +2385,69 @@ body.role-admin .guest-primary-link {
 }
 body.role-guest .cm-primary-link {
   display: none !important;
+}
+
+.cm-primary-link .tl-kicker {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  line-height: 1;
+}
+.cm-primary-link .tl-title {
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+/* Bright per-shortcut colors (same size) */
+body.role-classmate .top-link-ou,
+body.role-admin .top-link-ou {
+  border-color: rgba(100, 255, 218, 0.65) !important;
+  background: linear-gradient(145deg, rgba(100, 255, 218, 0.32), rgba(0, 229, 255, 0.14)) !important;
+  color: #eafffb !important;
+  box-shadow: 0 0 18px rgba(100, 255, 218, 0.35), 0 0 4px rgba(100, 255, 218, 0.5);
+}
+body.role-classmate .top-link-ou .tl-kicker,
+body.role-admin .top-link-ou .tl-kicker { color: #9ffff0; }
+
+body.role-classmate .top-link-sched,
+body.role-admin .top-link-sched {
+  border-color: rgba(125, 211, 252, 0.7) !important;
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.34), rgba(99, 102, 241, 0.16)) !important;
+  color: #e0f2fe !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35), 0 0 4px rgba(56, 189, 248, 0.5);
+}
+body.role-classmate .top-link-sched .tl-kicker,
+body.role-admin .top-link-sched .tl-kicker { color: #bae6fd; }
+
+body.role-classmate .top-link-res,
+body.role-admin .top-link-res {
+  border-color: rgba(167, 139, 250, 0.7) !important;
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.34), rgba(236, 72, 153, 0.12)) !important;
+  color: #f3e8ff !important;
+  box-shadow: 0 0 18px rgba(139, 92, 246, 0.35), 0 0 4px rgba(167, 139, 250, 0.5);
+}
+body.role-classmate .top-link-res .tl-kicker,
+body.role-admin .top-link-res .tl-kicker { color: #e9d5ff; }
+
+body.role-classmate .top-link-dash,
+body.role-admin .top-link-dash {
+  border-color: rgba(251, 191, 36, 0.75) !important;
+  background: linear-gradient(145deg, rgba(251, 191, 36, 0.36), rgba(245, 158, 11, 0.16)) !important;
+  color: #fff7ed !important;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.4), 0 0 4px rgba(252, 211, 77, 0.55);
+}
+body.role-classmate .top-link-dash .tl-kicker,
+body.role-admin .top-link-dash .tl-kicker { color: #fde68a; }
+
+body.role-classmate .cm-primary-link:hover,
+body.role-classmate .cm-primary-link:focus-visible,
+body.role-admin .cm-primary-link:hover,
+body.role-admin .cm-primary-link:focus-visible {
+  transform: translateY(-1px) scale(1.01);
+  filter: brightness(1.08);
 }
 
 .nav-group-label {
@@ -2770,12 +2871,25 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <p class="pin-body" id="adminPinBody">Loading…</p>
         </div>
 
-        <div class="top-links" aria-label="Essential links">
+        <p class="shortcut-hint cm-only-hint" id="shortcutHint">⚡ Tap a shortcut · quick jump to important pages</p>
+        <div class="top-links" aria-label="Essential shortcuts">
           <!-- Classmates / Admin: primary section shortcuts first -->
-          <a class="top-link cm-primary-link js-smooth" href="#officer-updates">Officer Updates</a>
-          <a class="top-link cm-primary-link js-smooth" href="#schedule">Schedule</a>
-          <a class="top-link cm-primary-link js-smooth" href="#resources">Resources</a>
-          <a class="top-link cm-primary-link is-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
+          <a class="top-link cm-primary-link top-link-ou js-smooth" href="#officer-updates">
+            <span class="tl-kicker">Shortcut</span>
+            <span class="tl-title">Officer Updates</span>
+          </a>
+          <a class="top-link cm-primary-link top-link-sched js-smooth" href="#schedule">
+            <span class="tl-kicker">Shortcut</span>
+            <span class="tl-title">Schedule</span>
+          </a>
+          <a class="top-link cm-primary-link top-link-res js-smooth" href="#resources">
+            <span class="tl-kicker">Shortcut</span>
+            <span class="tl-title">Resources</span>
+          </a>
+          <a class="top-link cm-primary-link top-link-dash is-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">
+            <span class="tl-kicker">Shortcut</span>
+            <span class="tl-title">Class Dashboard</span>
+          </a>
           <!-- Guests: external / public links stay on the home strip -->
           <a class="top-link guest-primary-link locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
           <a class="top-link guest-primary-link locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
@@ -2799,7 +2913,12 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <a class="btn btn-secondary js-smooth" href="#resources">Resources</a>
           <a class="btn btn-officer-updates ou-shortcut js-smooth" href="#officer-updates">Officer Updates · classmates only</a>
         </div>
-        <p class="pwa-tip" id="pwaTip">Tip: sa phone, buksan ang browser menu → <strong>Add to Home Screen</strong> para maging RST app-like.</p>
+        <p class="pwa-tip" id="pwaTip">
+          <strong>iPhone:</strong> buksan sa <strong>Safari</strong> (hindi Chrome) → Share button (□↑) → <strong>Add to Home Screen</strong>.
+          <strong>Android:</strong> Chrome menu ⋮ → <strong>Install app</strong> / Add to Home screen.
+          <button type="button" class="pwa-help-btn" id="pwaHelpBtn">How to install</button>
+          <button type="button" class="pwa-help-btn" id="enableNotifBtn" hidden>Enable alerts</button>
+        </p>
 
         <div class="quick-jump" aria-label="Quick jump links">
           <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
@@ -2899,15 +3018,6 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
         <div class="card pad">
           <div class="resources-grid">
-            <div class="resource-card">
-              <strong>ITEC 101 / 102</strong>
-              <p>Programming modules, sample traces, and lab notes. Open Drive from the top links.</p>
-              <p><a class="js-smooth" href="#reviewer-arena">Open Arena · Study Plan</a></p>
-            </div>
-            <div class="resource-card">
-              <strong>GEC + PI 100</strong>
-              <p>Reading packs and reviewer sets. Use Subject Mode then Practice for low-pressure drills.</p>
-            </div>
             <div class="resource-card">
               <strong>Officer duty (this term)</strong>
               <div class="duty-roster" id="dutyRoster">
