@@ -397,6 +397,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (adminBtn) adminBtn.hidden = !isAdmin();
     const adminBtnTop = $("openAdminHubBtnTop");
     if (adminBtnTop) adminBtnTop.hidden = !isAdmin();
+    if (typeof syncNotifButton === "function") syncNotifButton();
     const odLogin = $("openOfficerDeskBtnLogin");
     if (odLogin) odLogin.hidden = !isOfficer();
     document.querySelectorAll(".officer-desk-btn").forEach((btn) => {
@@ -3455,12 +3456,160 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         badge.hidden = false;
         badge.textContent = "•";
         badge.title = "New Officer Update";
+        maybeNotifyNewOfficerUpdate(rows[0], latest);
       } else {
         badge.hidden = true;
       }
     } catch (error) {
       badge.hidden = true;
     }
+  }
+
+  const NOTIF_LAST_KEY = "bscs1a_last_notif_ou_ts_v1";
+
+  function notificationsSupported() {
+    return typeof window !== "undefined" && "Notification" in window;
+  }
+
+  function syncNotifButton() {
+    const btn = $("enableNotifBtn");
+    if (!btn) return;
+    if (!notificationsSupported() || !(isClassmate() || isAdmin())) {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    if (Notification.permission === "granted") {
+      btn.textContent = "Alerts on";
+    } else if (Notification.permission === "denied") {
+      btn.textContent = "Alerts blocked";
+    } else {
+      btn.textContent = "Enable alerts";
+    }
+  }
+
+  async function requestHubNotifications() {
+    if (!notificationsSupported()) {
+      if (typeof showShareToast === "function") {
+        showShareToast("Notifications not supported on this browser");
+      }
+      return false;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      syncNotifButton();
+      if (perm === "granted" && typeof showShareToast === "function") {
+        showShareToast("Alerts enabled · new Officer Updates will notify you");
+      }
+      return perm === "granted";
+    } catch (error) {
+      console.warn("[Hub] notification permission failed:", error);
+      return false;
+    }
+  }
+
+  function maybeNotifyNewOfficerUpdate(row, latestTs) {
+    if (!notificationsSupported()) return;
+    if (Notification.permission !== "granted") return;
+    if (!(isClassmate() || isAdmin())) return;
+    try {
+      const lastNotified = Number(localStorage.getItem(NOTIF_LAST_KEY) || 0);
+      if (latestTs <= lastNotified) return;
+      localStorage.setItem(NOTIF_LAST_KEY, String(latestTs));
+      const title = "BSCS 1-A · New Officer Update";
+      const body = String((row && row.text) || "May bagong update sa section hub.").slice(0, 120);
+      // Prefer service worker notification when available (better on installed PWA)
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SHOW_UPDATE",
+          title,
+          body,
+          tag: "ou-" + latestTs,
+          url: "./index.html#officer-updates"
+        });
+      } else {
+        new Notification(title, {
+          body,
+          icon: "./logo.png",
+          tag: "ou-" + latestTs
+        });
+      }
+    } catch (error) {
+      console.warn("[Hub] notify failed:", error);
+    }
+  }
+
+  function openPwaInstallHelp() {
+    const existing = document.querySelector(".admin-overlay.pwa-help");
+    if (existing) existing.remove();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay pwa-help";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = isIOS
+      ? `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Install on iPhone / iPad</h3>
+      <p style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);line-height:1.55;">
+        Chrome sa iPhone <strong>walang</strong> “Add to Home Screen”. Gamitin ang <strong>Safari</strong>:
+      </p>
+      <ol style="margin:0 0 12px;padding-left:1.15rem;font-size:0.86rem;line-height:1.6;color:var(--text);">
+        <li>Buksan ang hub link sa <strong>Safari</strong>.</li>
+        <li>I-tap ang <strong>Share</strong> button (parisukat na may arrow pataas) sa baba o taas.</li>
+        <li>Scroll at piliin <strong>Add to Home Screen</strong>.</li>
+        <li>I-tap <strong>Add</strong> — lalabas ang RST icon sa Home Screen.</li>
+      </ol>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);line-height:1.5;">
+        Para sa alerts: buksan ang app mula sa Home Screen, login as classmate, then i-tap <strong>Enable alerts</strong>.
+      </p>
+      <button type="button" class="lifeline-btn" id="pwaHelpClose">Got it</button>
+    `
+      : `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Install on Android / desktop</h3>
+      <ol style="margin:0 0 12px;padding-left:1.15rem;font-size:0.86rem;line-height:1.6;color:var(--text);">
+        <li>Buksan sa <strong>Chrome</strong> (or Edge).</li>
+        <li>Menu <strong>⋮</strong> → <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+        <li>Confirm install — app icon lalabas sa home / app drawer.</li>
+      </ol>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);line-height:1.5;">
+        Pagkatapos mag-install, login as classmate at i-tap <strong>Enable alerts</strong> para sa Officer Update notifications.
+      </p>
+      <button type="button" class="lifeline-btn" id="pwaHelpClose">Got it</button>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    bindTap(panel.querySelector("#pwaHelpClose"), (e) => {
+      e.preventDefault();
+      overlay.remove();
+    });
+    bindTap(overlay, (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  function initPwaAndNotificationsUi() {
+    const helpBtn = $("pwaHelpBtn");
+    if (helpBtn) {
+      bindTap(helpBtn, (e) => {
+        e.preventDefault();
+        openPwaInstallHelp();
+      });
+    }
+    const notifBtn = $("enableNotifBtn");
+    if (notifBtn) {
+      bindTap(notifBtn, (e) => {
+        e.preventDefault();
+        requestHubNotifications();
+      });
+    }
+    syncNotifButton();
+    // Poll for new officer updates while hub is open
+    window.setInterval(() => {
+      try {
+        if (isClassmate() || isAdmin()) refreshOfficerUpdateBadge();
+      } catch (e) { /* ignore */ }
+    }, 90000);
   }
 
   async function refreshSectionPulse() {
@@ -3918,6 +4067,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         console.warn("[PWA] SW register skipped:", error);
       });
     });
+    initPwaAndNotificationsUi();
   }
 
   /* One-tap Back to Top (shows after scrolling down) */
