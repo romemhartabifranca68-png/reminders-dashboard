@@ -1809,29 +1809,62 @@ body.exam-mode .choice { min-height: 52px; }
 }
 .double-tap-hint strong { color: var(--accent); }
 
-.nav-admin-btn {
+.nav-admin-btn,
+.nav-officer-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 42px;
   padding: 0 0.85rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 210, 125, 0.45);
-  background: linear-gradient(135deg, rgba(255, 210, 125, 0.22), rgba(100, 255, 218, 0.1));
-  color: #ffe9c2;
   font-size: 0.78rem;
   font-weight: 900;
   letter-spacing: 0.03em;
   cursor: pointer;
-  box-shadow: 0 0 14px rgba(255, 196, 94, 0.18);
   flex: 0 0 auto;
 }
-.nav-admin-btn:hover, .nav-admin-btn:focus-visible {
+.nav-admin-btn {
+  border: 1px solid rgba(255, 210, 125, 0.45);
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.22), rgba(100, 255, 218, 0.1));
+  color: #ffe9c2;
+  box-shadow: 0 0 14px rgba(255, 196, 94, 0.18);
+}
+.nav-officer-btn {
+  border: 1px solid rgba(100, 255, 218, 0.45);
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.2), rgba(0, 229, 255, 0.1));
+  color: #eafffb;
+  box-shadow: 0 0 14px rgba(100, 255, 218, 0.18);
+}
+.nav-admin-btn:hover, .nav-admin-btn:focus-visible,
+.nav-officer-btn:hover, .nav-officer-btn:focus-visible {
   transform: translateY(-1px);
   outline: none;
+}
+.nav-admin-btn:hover, .nav-admin-btn:focus-visible {
   border-color: rgba(255, 210, 125, 0.7);
 }
-.nav-admin-btn[hidden] { display: none !important; }
+.nav-officer-btn:hover, .nav-officer-btn:focus-visible {
+  border-color: rgba(100, 255, 218, 0.7);
+}
+.nav-admin-btn[hidden],
+.nav-officer-btn[hidden] { display: none !important; }
+.pin-byline {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: rgba(255, 210, 125, 0.9);
+}
+.officer-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin: 0.55rem 0 0.75rem;
+}
+.officer-panel-grid .lifeline-btn {
+  width: 100%;
+  min-height: 44px;
+  font-size: 0.78rem;
+}
 
 .nav-toggle { position: relative; }
 .nav-badge {
@@ -2524,6 +2557,57 @@ body.role-admin .officer-desk-btn { display: inline-flex !important; }
   color: rgba(230, 241, 255, 0.72);
   font-weight: 700;
 }
+
+.officer-update-card .ou-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ou-link {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.ou-link a { color: var(--accent); text-decoration: none; }
+.ou-image-wrap {
+  margin-top: 0.55rem;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(100,255,218,0.18);
+}
+.ou-image {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  background: rgba(0,0,0,0.25);
+}
+.ou-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.ou-action-btn {
+  min-height: 34px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(100,255,218,0.28);
+  background: rgba(100,255,218,0.08);
+  color: #d9fff6;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ou-action-btn.ou-del {
+  border-color: rgba(255,107,107,0.4);
+  background: rgba(255,107,107,0.12);
+  color: #ffc9c9;
+}
+.officer-update-card.ou-shared-focus {
+  outline: 2px solid rgba(100,255,218,0.65);
+  box-shadow: 0 0 24px rgba(100,255,218,0.25);
+}
+
 .ou-filters {
   display: flex;
   flex-wrap: wrap;
@@ -2814,6 +2898,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </a>
 
       <span class="session-chip" id="sessionChip" hidden title="Signed-in session">Guest</span>
+      <button type="button" class="nav-officer-btn" id="openOfficerPanelBtn" hidden aria-label="Open Officer Panel" title="Officer Panel">Officer</button>
       <button type="button" class="nav-admin-btn" id="openAdminHubBtnTop" hidden aria-label="Open RST Admin Panel" title="RST Admin Panel">Admin</button>
       <button type="button" class="nav-toggle" id="logoutBtn" hidden aria-label="Sign out" title="Sign out" style="width:auto;padding:0 0.65rem;font-size:0.72rem;font-weight:800;">Exit</button>
 
@@ -2867,8 +2952,9 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="admin-pin" id="adminPin" role="status" aria-live="polite">
-          <div class="pin-label">&#128204; RST PIN · SECTION ANNOUNCEMENT</div>
+          <div class="pin-label">&#128204; SECTION PIN · ANNOUNCEMENT</div>
           <p class="pin-body" id="adminPinBody">Loading…</p>
+          <p class="pin-byline" id="adminPinBy" hidden></p>
         </div>
 
         <p class="shortcut-hint cm-only-hint" id="shortcutHint">⚡ Tap a shortcut · quick jump to important pages</p>
