@@ -2972,11 +2972,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const OFFICER_SEEN_KEY = "bscs1a_officer_updates_seen_ts_v1";
   const OFFICER_BADGE_KEY = "bscs1a_officer_updates_latest_ts_v1";
 
-  // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
+  // Fallback exam focus date (YYYY-MM-DD). Live value from Firebase overrides when present.
   const NEXT_EXAM_DATE = "2026-09-15";
+  const EXAM_FOCUS_PATH = "hub_config/exam_focus";
+  const EXAM_FOCUS_LOCAL_KEY = "bscs1a_exam_focus_v1";
   const BADGES_KEY = "bscs1a_badges_v1";
 
-  /* Weekly schedule snapshot for Command Center "next class" */
+  /* Weekly schedule snapshot for Command Center "next class" / room finder */
   const WEEKLY_SCHEDULE = {
     1: [ // Monday
       { time: "8:30–10:00 AM", subj: "GEC 102 · Philippine History", tag: "Online" },
@@ -3003,19 +3005,172 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     0: []
   };
 
-  function getNextClassInfo() {
-    const now = new Date();
-    const day = now.getDay();
-    const slots = WEEKLY_SCHEDULE[day] || [];
-    if (!slots.length) {
-      return { value: "Vacant / Weekend", sub: "Walang scheduled class ngayong araw" };
-    }
-    // Simple: show first slot of the day (reliable on phones without parsing every time format)
-    const first = slots[0];
+  function parseClockToMinutes(token, inheritedMeridiem) {
+    const raw = String(token || "").trim();
+    const m = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!m) return null;
+    let hour = Number(m[1]);
+    const minute = Number(m[2] || 0);
+    let mer = (m[3] || inheritedMeridiem || "").toUpperCase();
+    if (!mer) mer = hour >= 7 && hour <= 11 ? "AM" : "PM";
+    if (mer === "PM" && hour < 12) hour += 12;
+    if (mer === "AM" && hour === 12) hour = 0;
+    return hour * 60 + minute;
+  }
+
+  function parseScheduleSlot(slot, baseDate) {
+    const time = String(slot.time || "");
+    const parts = time.split(/[–—-]/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    const endMer = (parts[1].match(/\b(AM|PM)\b/i) || [])[1];
+    const startMer = (parts[0].match(/\b(AM|PM)\b/i) || [])[1] || endMer;
+    const startMin = parseClockToMinutes(parts[0].replace(/\b(AM|PM)\b/i, "").trim() + (startMer ? " " + startMer : ""), startMer);
+    const endMin = parseClockToMinutes(parts[1], endMer || startMer);
+    if (startMin == null || endMin == null) return null;
+    const day = new Date(baseDate);
+    day.setHours(0, 0, 0, 0);
     return {
-      value: first.subj,
-      sub: `${first.time} · ${first.tag}`
+      ...slot,
+      startMs: day.getTime() + startMin * 60000,
+      endMs: day.getTime() + endMin * 60000
     };
+  }
+
+  function getScheduleSnapshot(nowInput) {
+    const now = nowInput instanceof Date ? nowInput : new Date();
+    const day = now.getDay();
+    const slots = (WEEKLY_SCHEDULE[day] || [])
+      .map((s) => parseScheduleSlot(s, now))
+      .filter(Boolean)
+      .sort((a, b) => a.startMs - b.startMs);
+
+    if (!slots.length) {
+      return {
+        room: { value: "No class today", sub: "Vacant / weekend · check weekly schedule" },
+        next: { value: "Vacant / Weekend", sub: "Walang scheduled class ngayong araw" },
+        status: "off"
+      };
+    }
+
+    const t = now.getTime();
+    const current = slots.find((s) => t >= s.startMs && t < s.endMs) || null;
+    const upcoming = slots.find((s) => t < s.startMs) || null;
+
+    let room;
+    if (current) {
+      room = {
+        value: current.subj,
+        sub: `${current.time} · ${current.tag} · ONGOING`,
+        status: "live"
+      };
+    } else if (upcoming) {
+      room = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag} · up next`,
+        status: "soon"
+      };
+    } else {
+      const last = slots[slots.length - 1];
+      room = {
+        value: "Classes done for today",
+        sub: last ? `Last: ${last.subj} · ${last.time}` : "Walang class",
+        status: "done"
+      };
+    }
+
+    let next;
+    if (current && upcoming) {
+      next = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag}`
+      };
+    } else if (!current && upcoming) {
+      next = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag}`
+      };
+    } else if (current && !upcoming) {
+      next = {
+        value: "Last class of the day",
+        sub: `${current.time} · ${current.tag}`
+      };
+    } else {
+      next = {
+        value: "Done for today",
+        sub: "See you next class day"
+      };
+    }
+
+    return { room, next, status: room.status };
+  }
+
+  function getNextClassInfo() {
+    return getScheduleSnapshot().next;
+  }
+
+  function canEditExamFocus() {
+    if (isAdmin()) return true;
+    const user = String(authState.username || "").toLowerCase();
+    return user === "cainto" || user === "tabifranca";
+  }
+
+  async function fetchExamFocus() {
+    let data = { date: NEXT_EXAM_DATE, label: "Exam focus" };
+    if (db) {
+      try {
+        const snap = await get(ref(db, EXAM_FOCUS_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          if (val && val.date) {
+            data = {
+              date: String(val.date),
+              label: String(val.label || "Exam focus")
+            };
+            try {
+              localStorage.setItem(EXAM_FOCUS_LOCAL_KEY, JSON.stringify(data));
+            } catch (e) { /* ignore */ }
+            return data;
+          }
+        }
+      } catch (error) {
+        console.warn("[Hub] exam focus fetch failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem(EXAM_FOCUS_LOCAL_KEY) || "null");
+      if (local && local.date) data = local;
+    } catch (e) { /* ignore */ }
+    return data;
+  }
+
+  async function saveExamFocus(date, label) {
+    if (!canEditExamFocus()) throw new Error("Admin / P.I.O. only");
+    const payload = {
+      date: String(date || "").trim(),
+      label: String(label || "Exam focus").trim().slice(0, 60) || "Exam focus",
+      updatedAt: Date.now(),
+      updatedBy: authState.username || "editor"
+    };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+      throw new Error("Use date format YYYY-MM-DD");
+    }
+    try {
+      localStorage.setItem(EXAM_FOCUS_LOCAL_KEY, JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, EXAM_FOCUS_PATH), payload);
+    }
+    return payload;
+  }
+
+  async function clearExamFocus() {
+    if (!canEditExamFocus()) throw new Error("Admin / P.I.O. only");
+    try {
+      localStorage.removeItem(EXAM_FOCUS_LOCAL_KEY);
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, EXAM_FOCUS_PATH), null);
+    }
   }
 
   function getDailyStatusInfo() {
@@ -3056,39 +3211,133 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const host = elements.todayStrip || $("todayStrip");
     if (!host) return;
 
+    const snap = getScheduleSnapshot();
+    const daily = getDailyStatusInfo();
+    const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
+    const exam = await fetchExamFocus();
     let countdownHtml = "";
-    if (NEXT_EXAM_DATE) {
-      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+    if (exam && exam.date) {
+      const target = new Date(exam.date + "T00:00:00");
       if (!Number.isNaN(target.getTime())) {
         const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
         if (diffDays >= 0) {
+          const editBtn = canEditExamFocus()
+            ? `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Edit</button>`
+            : "";
           countdownHtml =
-            `<span class="countdown-pill">Exam focus · ${escapeHtml(NEXT_EXAM_DATE)} · ${diffDays} day${diffDays === 1 ? "" : "s"} left</span>`;
+            `<div class="countdown-pill exam-focus-pill">` +
+              `<span>${escapeHtml(exam.label || "Exam focus")} · ${escapeHtml(exam.date)} · ${diffDays} day${diffDays === 1 ? "" : "s"} left</span>` +
+              editBtn +
+            `</div>`;
+        } else if (canEditExamFocus()) {
+          countdownHtml =
+            `<div class="countdown-pill exam-focus-pill">` +
+              `<span>Exam focus expired · set a new date</span>` +
+              `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Edit</button>` +
+            `</div>`;
         }
       }
+    } else if (canEditExamFocus()) {
+      countdownHtml =
+        `<div class="countdown-pill exam-focus-pill">` +
+          `<span>No exam focus set</span>` +
+          `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Add</button>` +
+        `</div>`;
     }
 
-    const nextClass = getNextClassInfo();
-    const daily = getDailyStatusInfo();
-    const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
-    const liveDeadlines = await fetchLiveDeadlines();
-    const deadlinesHtml = buildDeadlineRadarHtml(liveDeadlines);
+    const roomStatusClass = snap.status === "live" ? " is-live" : snap.status === "soon" ? " is-soon" : "";
     host.innerHTML =
       `<div class="today-card command-center">` +
         `<h3>Command Center · RST</h3>` +
-        `<div class="cmd-grid">` +
-          `<div class="cmd-tile"><span class="cmd-label">Next class</span><span class="cmd-value">${escapeHtml(nextClass.value)}</span><span class="cmd-sub">${escapeHtml(nextClass.sub)}</span></div>` +
-          `<div class="cmd-tile"><span class="cmd-label">Daily Challenge</span><span class="cmd-value">${escapeHtml(daily.value)}</span><span class="cmd-sub">${escapeHtml(daily.sub)}</span></div>` +
+        `<div class="room-finder cmd-highlight${roomStatusClass}">` +
+          `<div class="rf-label">Room finder · now</div>` +
+          `<div class="rf-value">${escapeHtml(snap.room.value)}</div>` +
+          `<div class="rf-sub">${escapeHtml(snap.room.sub)}</div>` +
         `</div>` +
-        `<div class="room-finder"><div class="rf-label">Room finder · today</div><div class="rf-value">${escapeHtml(nextClass.value)} · ${escapeHtml(nextClass.sub)}</div></div>` +
+        `<div class="cmd-grid cmd-grid-stack">` +
+          `<div class="cmd-tile cmd-highlight is-next">` +
+            `<span class="cmd-label">Next class</span>` +
+            `<span class="cmd-value">${escapeHtml(snap.next.value)}</span>` +
+            `<span class="cmd-sub">${escapeHtml(snap.next.sub)}</span>` +
+          `</div>` +
+          `<div class="cmd-tile">` +
+            `<span class="cmd-label">Daily Challenge</span>` +
+            `<span class="cmd-value">${escapeHtml(daily.value)}</span>` +
+            `<span class="cmd-sub">${escapeHtml(daily.sub)}</span>` +
+          `</div>` +
+        `</div>` +
         `<div class="pulse-line" id="sectionPulseLine">Section Pulse · loading…</div>` +
-        deadlinesHtml +
         `<ul style="margin-top:0.65rem">${items}</ul>` +
         countdownHtml +
         buildQotdHtml() +
       `</div>`;
     refreshSectionPulse();
     refreshOfficerUpdateBadge();
+
+    const examBtn = $("examFocusEditBtn");
+    if (examBtn) {
+      bindTap(examBtn, (e) => {
+        e.preventDefault();
+        openExamFocusEditor(exam);
+      });
+    }
+  }
+
+  function openExamFocusEditor(current) {
+    if (!canEditExamFocus()) {
+      if (typeof showShareToast === "function") showShareToast("Admin / P.I.O. only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.exam-focus-edit");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay exam-focus-edit";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Exam Focus</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">RST Admin / P.I.O. only · visible on Command Center.</p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">LABEL</label>
+      <input id="examFocusLabel" type="text" maxlength="60" value="${escapeHtml((current && current.label) || "Exam focus")}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.55rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">DATE</label>
+      <input id="examFocusDate" type="date" value="${escapeHtml((current && current.date) || "")}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.75rem;" />
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="examFocusSave">Save</button>
+        <button type="button" class="lifeline-btn admin-danger" id="examFocusClear">Remove</button>
+        <button type="button" class="lifeline-btn" id="examFocusClose">Close</button>
+      </div>
+      <p id="examFocusStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#examFocusStatus");
+    bindTap(panel.querySelector("#examFocusClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#examFocusSave"), async (e) => {
+      e.preventDefault();
+      try {
+        await saveExamFocus(
+          panel.querySelector("#examFocusDate").value,
+          panel.querySelector("#examFocusLabel").value
+        );
+        status.textContent = "Exam focus saved.";
+        overlay.remove();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Save failed.";
+      }
+    });
+    bindTap(panel.querySelector("#examFocusClear"), async (e) => {
+      e.preventDefault();
+      if (!window.confirm("Remove exam focus from Command Center?")) return;
+      try {
+        await clearExamFocus();
+        overlay.remove();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Remove failed.";
+      }
+    });
   }
 
   function buildDeadlineRadarHtml(deadlines) {
@@ -3595,18 +3844,19 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     await loadAdminPin();
   }
 
-  function applyExamWeekMode() {
+  async function applyExamWeekMode() {
     try {
-      if (!NEXT_EXAM_DATE) return;
-      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+      const exam = await fetchExamFocus();
+      if (!exam || !exam.date) {
+        document.body.classList.remove("exam-week");
+        return;
+      }
+      const target = new Date(exam.date + "T00:00:00");
       if (Number.isNaN(target.getTime())) return;
       const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
       // Auto exam-week focus within 14 days of exam date
       const on = diffDays >= 0 && diffDays <= 14;
       document.body.classList.toggle("exam-week", on);
-      if (on && !document.body.classList.contains("exam-mode")) {
-        // soft nudge only via class; user can still use Exam Mode toggle in arena
-      }
     } catch (error) {
       /* ignore */
     }
@@ -3957,6 +4207,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     migrateLegacyScores().then(() => renderLeaderboard());
     renderMasteryBars();
     renderTodayStrip();
+    // Keep Room Finder / Next Class in sync with real clock
+    window.setInterval(() => {
+      try { renderTodayStrip(); } catch (e) { /* ignore */ }
+    }, 60000);
     initStudyRooms();
     renderMyDesk();
     loadAdminPin();
