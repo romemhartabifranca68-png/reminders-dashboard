@@ -4004,15 +4004,27 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return `${y}-${m}-${day}`;
   }
 
-  function getCurrentClassSlots(nowInput) {
-    const now = nowInput instanceof Date ? nowInput : new Date();
-    const day = now.getDay();
-    const slots = (WEEKLY_SCHEDULE[day] || [])
-      .map((s) => parseScheduleSlot(s, now))
+  /* Attendance window: class time ± 10 minutes */
+  const ATTENDANCE_GRACE_MS = 10 * 60 * 1000;
+
+  function getSlotsForDate(dateObj) {
+    const day = dateObj.getDay();
+    return (WEEKLY_SCHEDULE[day] || [])
+      .map((s) => parseScheduleSlot(s, dateObj))
       .filter(Boolean)
       .sort((a, b) => a.startMs - b.startMs);
+  }
+
+  function getAttendanceWindowSlots(nowInput) {
+    const now = nowInput instanceof Date ? nowInput : new Date();
     const t = now.getTime();
-    return slots.filter((s) => t >= s.startMs && t < s.endMs);
+    return getSlotsForDate(now).filter((s) =>
+      t >= (s.startMs - ATTENDANCE_GRACE_MS) && t <= (s.endMs + ATTENDANCE_GRACE_MS)
+    );
+  }
+
+  function getCurrentClassSlots(nowInput) {
+    return getAttendanceWindowSlots(nowInput);
   }
 
   async function fetchAttendanceDay(dateKey) {
@@ -4043,6 +4055,21 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       };
     }
     if (!dayData[subjKey].records) dayData[subjKey].records = {};
+    // Preserve history trail (never wipe day)
+    const prev = dayData[subjKey].records[username];
+    if (prev && Array.isArray(prev.history)) {
+      record.history = prev.history.slice(-20);
+    } else {
+      record.history = record.history || [];
+    }
+    if (prev && (prev.finalStatus || prev.status)) {
+      record.history.push({
+        status: prev.finalStatus || prev.status,
+        at: prev.editedAt || prev.selfMarkedAt || Date.now(),
+        by: prev.editedBy || (prev.selfMarked ? prev.by || "self" : "system")
+      });
+      if (record.history.length > 20) record.history = record.history.slice(-20);
+    }
     dayData[subjKey].records[username] = record;
     try {
       localStorage.setItem("bscs1a_att_" + dateKey, JSON.stringify(dayData));
@@ -4060,7 +4087,6 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const user = String(authState.username || "").toLowerCase();
     const day = await fetchAttendanceDay(dateKey);
     const existing = day[subjKey] && day[subjKey].records && day[subjKey].records[user];
-    // Never wipe history; only allow self-mark if no final override yet as absent without self
     if (existing && existing.lockedByStaff) {
       throw new Error("Attendance already finalized by Secretary/Admin for this subject");
     }
@@ -4068,33 +4094,31 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       status: "present",
       selfMarked: true,
       selfMarkedAt: Date.now(),
+      by: user,
       displayName: authState.displayName || user,
       subjectLabel: slot.subj,
       timeLabel: slot.time,
       tag: slot.tag || "",
-      lockedByStaff: existing && existing.lockedByStaff ? true : false,
-      editedBy: existing && existing.editedBy ? existing.editedBy : null,
+      lockedByStaff: false,
       finalStatus: "present"
     };
-    // Preserve staff edit if they already set something
-    if (existing && existing.lockedByStaff) {
-      return existing;
-    }
     await saveAttendanceRecord(dateKey, subjKey, user, record);
     return record;
   }
 
-  async function staffSetAttendance(dateKey, subjKey, username, status, subjectLabel) {
+  async function staffSetAttendance(dateKey, subjKey, username, status, subjectLabel, timeLabel) {
     if (!canManageAttendance()) throw new Error("Admin / Secretary only");
     const user = String(username || "").toLowerCase();
     const day = await fetchAttendanceDay(dateKey);
     const prev = (day[subjKey] && day[subjKey].records && day[subjKey].records[user]) || {};
+    const roster = CLASSMATE_ROSTER.find((c) => c.username === user);
     const record = {
       ...prev,
       status,
       finalStatus: status,
-      displayName: prev.displayName || user,
+      displayName: prev.displayName || (roster && roster.displayName) || user,
       subjectLabel: subjectLabel || prev.subjectLabel || subjKey,
+      timeLabel: timeLabel || prev.timeLabel || "",
       lockedByStaff: true,
       editedBy: authState.username,
       editedByName: (authState.displayName || authState.username || "").split(",")[0],
@@ -4105,10 +4129,50 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return record;
   }
 
+  function attendanceStats(records) {
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let selfMarked = 0;
+    let unmarked = 0;
+    const total = CLASSMATE_ROSTER.length;
+    const seen = new Set();
+    Object.keys(records || {}).forEach((u) => {
+      const st = String((records[u].finalStatus || records[u].status || "")).toLowerCase();
+      seen.add(u);
+      if (st === "present") present += 1;
+      else if (st === "absent") absent += 1;
+      else if (st === "late") late += 1;
+      if (records[u].selfMarked) selfMarked += 1;
+    });
+    unmarked = Math.max(0, total - seen.size);
+    return { present, absent, late, selfMarked, unmarked, total };
+  }
+
+  function buildAttendanceShareText(dateKey, subjLabel, records) {
+    const stats = attendanceStats(records);
+    const lines = [
+      `BSCS 1-A Attendance`,
+      `Date: ${dateKey}`,
+      `Subject: ${subjLabel}`,
+      `Present: ${stats.present} · Absent: ${stats.absent} · Late: ${stats.late} · Unmarked: ${stats.unmarked}`,
+      `Total roster: ${stats.total}`,
+      ``
+    ];
+    CLASSMATE_ROSTER.forEach((c) => {
+      const rec = records[c.username] || {};
+      const st = (rec.finalStatus || rec.status || "unmarked").toUpperCase();
+      const name = (c.displayName || c.username).split(",")[0];
+      lines.push(`${name} — ${st}`);
+    });
+    lines.push(``, `Generated from BSCS 1-A RST Hub`);
+    return lines.join("\n");
+  }
+
   function maybePromptAttendance() {
     if (!(isClassmate() || isAdmin())) return;
     if (document.querySelector(".admin-overlay.attendance-prompt")) return;
-    const slots = getCurrentClassSlots();
+    const slots = getAttendanceWindowSlots();
     if (!slots.length) return;
     const dateKey = localDateKey();
     const slot = slots[0];
@@ -4130,11 +4194,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       panel.innerHTML = `
         <h3 style="margin:0 0 8px;font-size:1rem;">Class attendance</h3>
         <p style="margin:0 0 10px;font-size:0.84rem;color:var(--muted);line-height:1.5;">
-          Ongoing class: <strong style="color:var(--text);">${escapeHtml(slot.subj)}</strong><br>
-          ${escapeHtml(slot.time)} · ${escapeHtml(slot.tag || "")}
+          <strong style="color:var(--text);">${escapeHtml(slot.subj)}</strong><br>
+          ${escapeHtml(slot.time)} · ${escapeHtml(slot.tag || "")}<br>
+          <span style="font-size:0.75rem;">Window: 10 min before → 10 min after class</span>
         </p>
         <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
-          Mark yourself <strong>Present</strong> now. Secretary / RST Admin can correct the final record.
+          Mark <strong>Present</strong> if you are in class. Secretary / RST Admin verifies the final record.
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
           <button type="button" class="lifeline-btn" id="attPresent">I'm present</button>
@@ -4173,61 +4238,115 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     const existing = document.querySelector(".admin-overlay.attendance-manager");
     if (existing) existing.remove();
-    const dateKey = localDateKey();
-    const daySlots = (WEEKLY_SCHEDULE[new Date().getDay()] || []).slice();
+
+    let dateKey = localDateKey();
     const overlay = document.createElement("div");
     overlay.className = "admin-overlay attendance-manager";
     const panel = document.createElement("div");
     panel.className = "admin-panel";
-    panel.style.maxWidth = "520px";
+    panel.style.maxWidth = "540px";
     panel.innerHTML = `
-      <h3 style="margin:0 0 6px;font-size:1rem;">Attendance · ${escapeHtml(dateKey)}</h3>
+      <h3 style="margin:0 0 6px;font-size:1rem;">Attendance manager</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        RST Admin + Secretary only · records are permanent (edit status, never wipe the day).
+        RST Admin + Secretary · permanent records · calendar history · shareable for teachers
       </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">DATE</label>
+      <input id="attDateInput" type="date" value="${escapeHtml(dateKey)}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem 0.65rem;margin-bottom:0.55rem;" />
       <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">SUBJECT / SLOT</label>
-      <select id="attSubjSelect" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.65rem;"></select>
-      <div id="attRosterBox" style="max-height:50vh;overflow:auto;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
+      <select id="attSubjSelect" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;"></select>
+      <div id="attStatsBox" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;margin-bottom:0.65rem;"></div>
+      <div id="attRosterBox" style="max-height:42vh;overflow:auto;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="attShareBtn">Copy / share list</button>
         <button type="button" class="lifeline-btn" id="attMgrClose">Close</button>
       </div>
       <p id="attMgrStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
+
+    const dateInput = panel.querySelector("#attDateInput");
     const select = panel.querySelector("#attSubjSelect");
     const box = panel.querySelector("#attRosterBox");
+    const statsBox = panel.querySelector("#attStatsBox");
     const status = panel.querySelector("#attMgrStatus");
-    const options = daySlots.length
-      ? daySlots.map((s) => `<option value="${escapeHtml(subjectKeyFromLabel(s.subj))}" data-label="${escapeHtml(s.subj)}">${escapeHtml(s.subj)} · ${escapeHtml(s.time)}</option>`).join("")
-      : `<option value="NO_CLASS">No class slots today</option>`;
-    select.innerHTML = options;
+
+    function slotsForSelectedDate() {
+      const d = new Date(dateKey + "T12:00:00");
+      if (Number.isNaN(d.getTime())) return [];
+      return getSlotsForDate(d);
+    }
+
+    function refreshSubjectOptions() {
+      const daySlots = slotsForSelectedDate();
+      if (!daySlots.length) {
+        select.innerHTML = `<option value="NO_CLASS">No class slots this day</option>`;
+        return;
+      }
+      select.innerHTML = daySlots.map((s) =>
+        `<option value="${escapeHtml(subjectKeyFromLabel(s.subj))}" data-label="${escapeHtml(s.subj)}" data-time="${escapeHtml(s.time)}">${escapeHtml(s.subj)} · ${escapeHtml(s.time)}</option>`
+      ).join("");
+    }
+
+    async function countOpensOnDate() {
+      try {
+        const opens = await fetchRecentOpens(80);
+        const dayStart = new Date(dateKey + "T00:00:00").getTime();
+        const dayEnd = dayStart + 86400000;
+        const users = new Set();
+        opens.forEach((o) => {
+          const ts = Number(o.ts || 0);
+          if (ts >= dayStart && ts < dayEnd && o.username) users.add(o.username);
+        });
+        // also presence lastSeen that day
+        const presence = await fetchPresenceMap();
+        Object.keys(presence || {}).forEach((u) => {
+          const ts = Number(presence[u].lastSeen || presence[u].lastOpen || 0);
+          if (ts >= dayStart && ts < dayEnd) users.add(u);
+        });
+        return users.size;
+      } catch (e) {
+        return 0;
+      }
+    }
 
     async function renderRoster() {
       const subjKey = select.value;
-      const label = select.options[select.selectedIndex]
-        ? select.options[select.selectedIndex].getAttribute("data-label") || subjKey
-        : subjKey;
+      const opt = select.options[select.selectedIndex];
+      const label = opt ? (opt.getAttribute("data-label") || subjKey) : subjKey;
+      const timeLabel = opt ? (opt.getAttribute("data-time") || "") : "";
       if (subjKey === "NO_CLASS") {
-        box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">Walang schedule ngayong araw.</p>`;
+        statsBox.innerHTML = "";
+        box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">Walang schedule sa selected date.</p>`;
         return;
       }
       const day = await fetchAttendanceDay(dateKey);
       const records = (day[subjKey] && day[subjKey].records) || {};
+      const stats = attendanceStats(records);
+      const opensCount = await countOpensOnDate();
+      statsBox.innerHTML = `
+        <div class="admin-stat"><b>${stats.present}</b><span>Present</span></div>
+        <div class="admin-stat"><b>${stats.absent}</b><span>Absent</span></div>
+        <div class="admin-stat"><b>${stats.late}</b><span>Late</span></div>
+        <div class="admin-stat"><b>${stats.unmarked}</b><span>Unmarked</span></div>
+        <div class="admin-stat"><b>${stats.selfMarked}</b><span>Self-marked</span></div>
+        <div class="admin-stat"><b>${opensCount}</b><span>PWA opens (day)</span></div>
+      `;
       box.innerHTML = CLASSMATE_ROSTER.map((c) => {
         const rec = records[c.username] || {};
-        const st = rec.finalStatus || rec.status || "—";
-        const self = rec.selfMarked ? " · self" : "";
-        const staff = rec.lockedByStaff ? ` · by ${escapeHtml(rec.editedByName || rec.editedBy || "staff")}` : "";
+        const st = rec.finalStatus || rec.status || "unmarked";
+        const self = rec.selfMarked ? " · self-tap" : "";
+        const staff = rec.lockedByStaff ? ` · staff: ${escapeHtml(rec.editedByName || rec.editedBy || "")}` : "";
+        const color = st === "present" ? "#7ee7d4" : st === "absent" ? "#ffb4b4" : st === "late" ? "#ffd27d" : "var(--muted)";
         return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
           <div style="flex:1;min-width:140px;">
             <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}</div>
-            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(String(st).toUpperCase())}${self}${staff}</div>
+            <div style="font-size:0.7rem;color:${color};font-weight:800;">${escapeHtml(String(st).toUpperCase())}${self}${staff}</div>
           </div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">
-            <button type="button" class="ou-action-btn" data-att-set="present" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Present</button>
-            <button type="button" class="ou-action-btn ou-del" data-att-set="absent" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Absent</button>
-            <button type="button" class="ou-action-btn" data-att-set="late" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Late</button>
+            <button type="button" class="ou-action-btn" data-att-set="present" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Present</button>
+            <button type="button" class="ou-action-btn ou-del" data-att-set="absent" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Absent</button>
+            <button type="button" class="ou-action-btn" data-att-set="late" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Late</button>
           </div>
         </div>`;
       }).join("");
@@ -4241,9 +4360,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
               btn.getAttribute("data-subj"),
               btn.getAttribute("data-user"),
               btn.getAttribute("data-att-set"),
-              btn.getAttribute("data-label")
+              btn.getAttribute("data-label"),
+              btn.getAttribute("data-time")
             );
-            status.textContent = "Updated.";
+            status.textContent = "Updated · record kept.";
             renderRoster();
           } catch (error) {
             status.textContent = error.message || "Failed";
@@ -4252,9 +4372,41 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
     }
 
+    dateInput.addEventListener("change", () => {
+      dateKey = dateInput.value || localDateKey();
+      refreshSubjectOptions();
+      renderRoster();
+    });
     select.addEventListener("change", () => { renderRoster(); });
     bindTap(panel.querySelector("#attMgrClose"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#attShareBtn"), async (e) => {
+      e.preventDefault();
+      const subjKey = select.value;
+      if (subjKey === "NO_CLASS") return;
+      const opt = select.options[select.selectedIndex];
+      const label = opt ? (opt.getAttribute("data-label") || subjKey) : subjKey;
+      const day = await fetchAttendanceDay(dateKey);
+      const records = (day[subjKey] && day[subjKey].records) || {};
+      const text = buildAttendanceShareText(dateKey, label, records);
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: `Attendance ${dateKey}`, text });
+          status.textContent = "Shared.";
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Attendance list copied — paste to Messenger / teacher.";
+      } catch (err) {
+        window.prompt("Copy attendance list:", text);
+      }
+    });
+
+    refreshSubjectOptions();
     renderRoster();
   }
 
