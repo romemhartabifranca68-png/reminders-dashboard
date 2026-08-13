@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#060c18" />
+  <meta name="theme-color" content="#040a14" />
   <meta name="application-name" content="BSCS 1-A · RST Hub" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -38,22 +38,24 @@
 =================================================================== */
 
 :root {
-  --bg: #060c18;
-  --bg-2: #081426;
-  --panel: rgba(19, 34, 58, 0.62);
-  --panel-strong: rgba(9, 16, 30, 0.86);
-  --text: #e6f1ff;
-  --muted: rgba(230, 241, 255, 0.7);
-  --accent: #64ffda;
-  --accent-2: #00e5ff;
+  --bg: #040a14;
+  --bg-2: #071525;
+  --panel: rgba(14, 28, 52, 0.72);
+  --panel-strong: rgba(6, 14, 28, 0.92);
+  --text: #eaf6ff;
+  --muted: rgba(230, 241, 255, 0.72);
+  --accent: #5dffe0;
+  --accent-2: #38bdf8;
   --gold: #ffd27d;
+  --violet: #a78bfa;
   --silver: #cfe3f2;
   --bronze: #f0a878;
   --danger: #ff6b6b;
-  --line: rgba(100, 255, 218, 0.16);
-  --shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-  --glow: 0 0 1rem rgba(100, 255, 218, 0.28);
-  --radius: 20px;
+  --line: rgba(93, 255, 224, 0.2);
+  --shadow: 0 22px 55px rgba(0, 0, 0, 0.48);
+  --glow: 0 0 1.15rem rgba(93, 255, 224, 0.32);
+  --glow-gold: 0 0 1rem rgba(255, 210, 125, 0.22);
+  --radius: 22px;
   --radius-sm: 14px;
   --max: 1200px;
   --safe-t: env(safe-area-inset-top, 0px);
@@ -68,9 +70,11 @@ body {
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(600px 400px at 10% -10%, rgba(100, 255, 218, 0.1), transparent 55%),
-    radial-gradient(500px 380px at 100% 0%, rgba(0, 229, 255, 0.08), transparent 50%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 55%, #071120 100%);
+    radial-gradient(720px 480px at 8% -12%, rgba(93, 255, 224, 0.16), transparent 58%),
+    radial-gradient(560px 420px at 96% 4%, rgba(56, 189, 248, 0.12), transparent 52%),
+    radial-gradient(480px 360px at 50% 110%, rgba(167, 139, 250, 0.08), transparent 55%),
+    linear-gradient(165deg, #030912 0%, var(--bg) 28%, var(--bg-2) 62%, #06101f 100%);
+  background-attachment: fixed;
   overflow-x: hidden;
   min-height: 100dvh;
 }
@@ -102,39 +106,46 @@ img { display: block; max-width: 100%; }
 /* ---------- Binary matrix background stream ---------- */
 .matrix-bg {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  overflow: hidden; opacity: 0.06;
+  overflow: hidden; opacity: 0.09;
+  mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35) 70%, transparent);
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35) 70%, transparent);
 }
 .matrix-col {
   position: absolute; top: -50%; font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 14px; line-height: 1.1; color: var(--accent);
+  font-size: 13px; line-height: 1.15; color: var(--accent);
+  text-shadow: 0 0 8px rgba(93, 255, 224, 0.35);
   white-space: pre; animation: matrixFall linear infinite;
 }
 @keyframes matrixFall {
-  0% { transform: translateY(-10%); }
-  100% { transform: translateY(120%); }
+  0% { transform: translateY(-12%); opacity: 0.35; }
+  40% { opacity: 0.9; }
+  100% { transform: translateY(125%); opacity: 0.2; }
 }
 
 .grid-bg {
-  position: fixed; inset: 0; pointer-events: none; opacity: 0.15; z-index: 0;
+  position: fixed; inset: 0; pointer-events: none; opacity: 0.18; z-index: 0;
   background-image:
-    linear-gradient(rgba(100, 255, 218, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(100, 255, 218, 0.05) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(circle at center, black 40%, transparent 92%);
+    linear-gradient(rgba(93, 255, 224, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(circle at center, black 38%, transparent 90%);
 }
 
 .topline {
-  height: 1px; position: relative; z-index: 1;
-  background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.5), transparent);
+  height: 2px; position: relative; z-index: 1;
+  background: linear-gradient(90deg, transparent, rgba(93, 255, 224, 0.55), rgba(56, 189, 248, 0.35), transparent);
+  box-shadow: 0 0 12px rgba(93, 255, 224, 0.25);
 }
 
 /* ---------- Glass surfaces ---------- */
 .glass, .card {
-  background: linear-gradient(180deg, rgba(19, 34, 58, 0.68), rgba(19, 34, 58, 0.38));
+  background:
+    linear-gradient(145deg, rgba(255,255,255,0.05), transparent 40%),
+    linear-gradient(180deg, rgba(16, 32, 58, 0.78), rgba(10, 20, 40, 0.55));
   border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px) saturate(155%);
+  -webkit-backdrop-filter: blur(20px) saturate(155%);
   position: relative; z-index: 1;
 }
 .card { border-radius: var(--radius); }
@@ -1774,10 +1785,13 @@ body.exam-mode .choice { min-height: 52px; }
   .study-rooms { grid-template-columns: repeat(3, 1fr); }
 }
 .resource-card {
-  border-radius: 14px;
-  padding: 0.85rem 0.95rem;
-  border: 1px solid rgba(100,255,218,0.16);
-  background: rgba(255,255,255,0.03);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(93, 255, 224, 0.18);
+  background:
+    linear-gradient(160deg, rgba(93, 255, 224, 0.08), transparent 52%),
+    rgba(0, 0, 0, 0.26);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .resource-card strong { display:block; color:#eafffb; margin-bottom:0.25rem; }
 .resource-card p { margin:0; font-size:0.8rem; color:rgba(230,241,255,0.75); line-height:1.45; }
@@ -2079,23 +2093,54 @@ body.exam-mode .choice { min-height: 52px; }
   font-weight: 700;
   color: rgba(230, 241, 255, 0.78);
 }
+.duty-intro {
+  margin: 0.35rem 0 0.15rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
 .duty-roster {
   display: grid;
-  gap: 0.45rem;
-  margin-top: 0.5rem;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
 }
 .duty-item {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(0,0,0,0.2);
-  font-size: 0.8rem;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: 14px;
+  border: 1px solid rgba(93, 255, 224, 0.14);
+  background:
+    linear-gradient(135deg, rgba(93, 255, 224, 0.06), transparent 55%),
+    rgba(0, 0, 0, 0.28);
+  font-size: 0.78rem;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.02);
 }
-.duty-item strong { color: #eafffb; }
-.duty-item span { color: var(--muted); font-weight: 700; text-align: right; }
+.duty-item strong {
+  color: #eafffb;
+  font-weight: 800;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+.duty-item span {
+  color: #ffe6b0;
+  font-weight: 800;
+  text-align: right;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+  max-width: 42%;
+  line-height: 1.35;
+}
+.duty-item:nth-child(odd) {
+  border-color: rgba(56, 189, 248, 0.16);
+}
+.duty-item:nth-child(3n) {
+  border-color: rgba(167, 139, 250, 0.18);
+}
 .request-form {
   display: grid;
   gap: 0.55rem;
@@ -2402,7 +2447,7 @@ body.role-admin #quick-links.menu-revealed {
     inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .section-title h2 {
-  text-shadow: 0 0 18px rgba(100, 255, 218, 0.15);
+  text-shadow: 0 0 22px rgba(93, 255, 224, 0.2);
 }
 .section-title {
   position: relative;
@@ -2984,7 +3029,18 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
   .wrap { width: min(var(--max), calc(100% - 3rem)); }
 }
 
-  </style>
+  
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(93, 255, 224, 0.07), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 50%, rgba(56, 189, 248, 0.05), transparent 50%);
+}
+</style>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -3141,6 +3197,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <a href="#officers">Officers</a>
         <a href="#freshmen">Freshmen</a>
         <a href="#quick-links">Quick Links</a>
+        <a href="#" class="locked-for-guest" id="navChangePasswordLink" data-lock="classmate" role="button" hidden>Change password</a>
         <a href="#" class="nav-logout" id="navLogoutLink" hidden role="button">Log out</a>
       </div>
     </div>
@@ -3322,11 +3379,18 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <div class="resources-grid">
             <div class="resource-card">
               <strong>Officer duty (this term)</strong>
+              <p class="duty-intro">Sino ang lapitan sa section — base sa role nila.</p>
               <div class="duty-roster" id="dutyRoster">
-                <div class="duty-item"><strong>Academics / modules</strong><span>Academic Committee</span></div>
-                <div class="duty-item"><strong>Hub / tech issues</strong><span>Tech Manager · RST</span></div>
-                <div class="duty-item"><strong>Section announcements</strong><span>President / PIO</span></div>
-                <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary / Treasurer</span></div>
+                <div class="duty-item"><strong>Leadership · decisions &amp; officer tasks</strong><span>President · VP</span></div>
+                <div class="duty-item"><strong>Section announcements · public posts</strong><span>P.I.O.</span></div>
+                <div class="duty-item"><strong>Attendance · permanent records</strong><span>Secretary</span></div>
+                <div class="duty-item"><strong>Section money · collections · ledger</strong><span>Treasurer</span></div>
+                <div class="duty-item"><strong>Finance verify · audit checks</strong><span>Auditor</span></div>
+                <div class="duty-item"><strong>Class concerns · faculty liaison</strong><span>Representative</span></div>
+                <div class="duty-item"><strong>Guest Pass · visitor access</strong><span>P.O. Boy · P.O. Girl</span></div>
+                <div class="duty-item"><strong>Hub / tech issues · PWA tools</strong><span>Tech Manager · RST</span></div>
+                <div class="duty-item"><strong>Academics / modules · reviewers</strong><span>Academic Committee</span></div>
+                <div class="duty-item"><strong>Events &amp; docs</strong><span>Secretary · Treasurer</span></div>
               </div>
             </div>
             <div class="resource-card request-lock-card">
@@ -3346,7 +3410,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           </div>
           <div class="changelog-box">
             <strong>What’s new · RST Hub</strong><br/>
-            Admin pin · top quick links · Command Center · Reviewer Arena modes · classmate access · mobile polish
+            Officer duties · Finance · Leadership · Attendance · Guest Pass · Command Center · Reviewer Arena · mobile polish
           </div>
         </div>
       </section>
