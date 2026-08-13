@@ -1188,6 +1188,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (canManageFinance()) {
       specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opFinance">💰 Section Finance · Treasurer / Auditor</button>`);
     }
+    if (canManageLeadership()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opLeadership">👑 Leadership Desk · President / VP</button>`);
+    }
     if (isAdmin()) {
       specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opOpenAdmin">⚙ Full RST Admin panel</button>`);
     }
@@ -1285,6 +1288,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     };
     if (finBtn) bindTap(finBtn, openFin);
     if (finView) bindTap(finView, openFin);
+    const leadBtn = panel.querySelector("#opLeadership");
+    if (leadBtn) {
+      bindTap(leadBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openLeadershipHub();
+      });
+    }
     const adminOpen = panel.querySelector("#opOpenAdmin");
     if (adminOpen) {
       bindTap(adminOpen, (e) => {
@@ -1385,6 +1396,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <button type="button" class="lifeline-btn admin-danger" id="adminRevokePass">Revoke Pass</button>
         <button type="button" class="lifeline-btn" id="adminSaveGlobal">Save Global Toggle</button>
         <button type="button" class="lifeline-btn" id="adminRefreshLog">Refresh Log</button>
+        <button type="button" class="lifeline-btn" id="adminOpenLeadership">Leadership Desk</button>
+        <button type="button" class="lifeline-btn" id="adminOpenFinance">Section Finance</button>
+        <button type="button" class="lifeline-btn" id="adminOpenAttendance">Attendance</button>
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
       <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
@@ -1568,6 +1582,30 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    const adminOpenLead = panel.querySelector("#adminOpenLeadership");
+    if (adminOpenLead) {
+      bindTap(adminOpenLead, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openLeadershipHub();
+      });
+    }
+    const adminOpenFin = panel.querySelector("#adminOpenFinance");
+    if (adminOpenFin) {
+      bindTap(adminOpenFin, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openFinanceHub();
+      });
+    }
+    const adminOpenAtt = panel.querySelector("#adminOpenAttendance");
+    if (adminOpenAtt) {
+      bindTap(adminOpenAtt, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
 
     bindTap(panel.querySelector("#adminSaveGlobal"), async (e) => {
       e.preventDefault();
@@ -4076,6 +4114,520 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const u = String(authState.username || "").toLowerCase();
     return AUDITOR_USERNAMES.has(u);
   }
+
+
+  const PRESIDENT_USERNAMES = new Set(["oclarino"]);
+  const VP_USERNAMES = new Set(["baldemor"]);
+  const LEADERSHIP_PATH = "hub_config/leadership";
+  const LEADERSHIP_LOCAL_KEY = "bscs1a_leadership_v1";
+
+  function canManageLeadership() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return PRESIDENT_USERNAMES.has(u) || VP_USERNAMES.has(u);
+  }
+
+  function isPresident() {
+    if (isAdmin()) return true;
+    return PRESIDENT_USERNAMES.has(String(authState.username || "").toLowerCase());
+  }
+
+  async function loadLeadershipData() {
+    let data = {
+      decisions: {},
+      tasks: {},
+      escalations: {},
+      meetings: {},
+      goals: {},
+      handoff: null,
+      locks: { freedomWall: false, collectionsFrozen: false, emergencyNote: "" }
+    };
+    if (db) {
+      try {
+        const snap = await get(ref(db, LEADERSHIP_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          data.decisions = val.decisions || {};
+          data.tasks = val.tasks || {};
+          data.escalations = val.escalations || {};
+          data.meetings = val.meetings || {};
+          data.goals = val.goals || {};
+          data.handoff = val.handoff || null;
+          data.locks = Object.assign(data.locks, val.locks || {});
+        }
+      } catch (error) {
+        console.warn("[Leadership] load failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem(LEADERSHIP_LOCAL_KEY) || "null");
+      if (local && typeof local === "object") {
+        if (!Object.keys(data.decisions).length) data.decisions = local.decisions || {};
+        if (!Object.keys(data.tasks).length) data.tasks = local.tasks || {};
+        if (!Object.keys(data.escalations).length) data.escalations = local.escalations || {};
+        if (!Object.keys(data.meetings).length) data.meetings = local.meetings || {};
+        if (!Object.keys(data.goals).length) data.goals = local.goals || {};
+        if (!data.handoff && local.handoff) data.handoff = local.handoff;
+        if (local.locks) data.locks = Object.assign(data.locks, local.locks);
+      }
+    } catch (e) { /* ignore */ }
+    return data;
+  }
+
+  function saveLeadershipLocal(data) {
+    try { localStorage.setItem(LEADERSHIP_LOCAL_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  async function saveLeadershipBranch(branch, id, payload) {
+    const data = await loadLeadershipData();
+    if (branch === "handoff" || branch === "locks") {
+      data[branch] = payload;
+      saveLeadershipLocal(data);
+      if (db) await set(ref(db, LEADERSHIP_PATH + "/" + branch), payload);
+      return payload;
+    }
+    if (!data[branch]) data[branch] = {};
+    data[branch][id] = payload;
+    saveLeadershipLocal(data);
+    if (db) await set(ref(db, LEADERSHIP_PATH + "/" + branch + "/" + id), payload);
+    return payload;
+  }
+
+  function mapToList(obj) {
+    return Object.keys(obj || {}).map((id) => Object.assign({ id: id }, obj[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  const OFFICER_ASSIGN_OPTIONS = [
+    { u: "oclarino", t: "President" },
+    { u: "baldemor", t: "Vice President" },
+    { u: "flores", t: "Secretary" },
+    { u: "bacero", t: "Treasurer" },
+    { u: "lumacad", t: "Auditor" },
+    { u: "cainto", t: "P.I.O." },
+    { u: "cinena", t: "Representative" },
+    { u: "guia", t: "P.O. Boy" },
+    { u: "calamba", t: "P.O. Girl" },
+    { u: "tabifranca", t: "Technical Manager" }
+  ];
+
+  async function openLeadershipHub() {
+    if (!canManageLeadership()) {
+      if (typeof showShareToast === "function") showShareToast("President / VP / Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.leadership-hub");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay leadership-hub";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Leadership Desk</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        President · Vice President · RST Admin · decisions, tasks, escalations, meetings, goals, locks
+      </p>
+      <div id="leadHandoffBanner" style="display:none;margin-bottom:0.55rem;padding:0.55rem 0.65rem;border-radius:12px;border:1px solid rgba(255,210,125,0.4);background:rgba(255,210,125,0.1);font-size:0.8rem;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.65rem;">
+        <button type="button" class="ou-action-btn fin-tab active" data-lead-tab="decisions">Decisions</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="tasks">Tasks</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="escalations">Escalations</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="meetings">Meetings</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="goals">Goals</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="controls">Controls</button>
+      </div>
+      <div id="leadBody" style="max-height:min(55vh,460px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="leadShare">Copy / share summary</button>
+        <button type="button" class="lifeline-btn" id="leadClose">Close</button>
+      </div>
+      <p id="leadStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#leadBody");
+    const status = panel.querySelector("#leadStatus");
+    const handoffBanner = panel.querySelector("#leadHandoffBanner");
+    let tab = "decisions";
+    let data = await loadLeadershipData();
+
+    function showHandoff() {
+      const h = data.handoff;
+      if (h && h.active) {
+        handoffBanner.style.display = "block";
+        handoffBanner.innerHTML = `<strong>Duty coverage:</strong> ${escapeHtml(h.message || "VP / backup active")}${h.until ? " · until " + escapeHtml(h.until) : ""} · by ${escapeHtml(h.byName || h.by || "")}`;
+      } else {
+        handoffBanner.style.display = "none";
+        handoffBanner.innerHTML = "";
+      }
+    }
+
+    function renderDecisions() {
+      const rows = mapToList(data.decisions);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">OFFICIAL DECISION</div>
+          <textarea id="leadDecText" maxlength="500" placeholder="Section decision…" style="width:100%;min-height:72px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadDecAdd">Publish decision</button>
+        </div>
+        ${rows.length ? rows.map((r) => `
+          <div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;font-size:0.86rem;">${escapeHtml(r.text || "")}</div>
+            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.byName || r.by || "")} · ${escapeHtml(formatLoginStamp(r.ts))}</div>
+          </div>`).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No decisions posted yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadDecAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const text = String(body.querySelector("#leadDecText").value || "").trim();
+          if (!text) throw new Error("Decision text required");
+          const id = "dec_" + Date.now();
+          await saveLeadershipBranch("decisions", id, {
+            text: text,
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            roleTitle: authState.officerTitle || "Leadership",
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Decision published.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderTasks() {
+      const rows = mapToList(data.tasks);
+      const opts = OFFICER_ASSIGN_OPTIONS.map((o) =>
+        `<option value="${o.u}">${escapeHtml(o.t)} (${o.u})</option>`
+      ).join("");
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">ASSIGN OFFICER TASK</div>
+          <input id="leadTaskTitle" type="text" maxlength="120" placeholder="Task title" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <select id="leadTaskWho" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">${opts}</select>
+          <input id="leadTaskDue" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadTaskAdd">Assign task</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const st = r.status || "todo";
+          const color = st === "done" ? "#7ee7d4" : st === "doing" ? "#ffd27d" : "var(--muted)";
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;">${escapeHtml(r.title || "")}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">→ ${escapeHtml(r.assigneeTitle || r.assignee || "")} · due ${escapeHtml(r.due || "—")}</div>
+            <div style="font-size:0.72rem;color:${color};font-weight:800;margin:0.2rem 0;">${escapeHtml(String(st).toUpperCase())}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+              <button type="button" class="ou-action-btn" data-task-st="todo" data-id="${escapeHtml(r.id)}">Todo</button>
+              <button type="button" class="ou-action-btn" data-task-st="doing" data-id="${escapeHtml(r.id)}">Doing</button>
+              <button type="button" class="ou-action-btn" data-task-st="done" data-id="${escapeHtml(r.id)}">Done</button>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No officer tasks yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadTaskAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadTaskTitle").value || "").trim();
+          if (!title) throw new Error("Task title required");
+          const who = body.querySelector("#leadTaskWho").value;
+          const opt = OFFICER_ASSIGN_OPTIONS.find((o) => o.u === who);
+          const id = "task_" + Date.now();
+          await saveLeadershipBranch("tasks", id, {
+            title: title,
+            assignee: who,
+            assigneeTitle: opt ? opt.t : who,
+            due: body.querySelector("#leadTaskDue").value || "",
+            status: "todo",
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Task assigned.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      body.querySelectorAll("[data-task-st]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-id");
+          const row = data.tasks[id];
+          if (!row) return;
+          try {
+            await saveLeadershipBranch("tasks", id, Object.assign({}, row, {
+              status: btn.getAttribute("data-task-st"),
+              updatedAt: Date.now(),
+              updatedBy: authState.username
+            }));
+            data = await loadLeadershipData();
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderEscalations() {
+      const rows = mapToList(data.escalations);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">NEW ESCALATION</div>
+          <select id="leadEscSource" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+            <option value="general">General</option>
+            <option value="rep">From Representative</option>
+            <option value="finance">Finance / Auditor</option>
+            <option value="attendance">Attendance / Secretary</option>
+            <option value="pio">Announcements / PIO</option>
+            <option value="faculty">Faculty / Dept</option>
+          </select>
+          <textarea id="leadEscText" maxlength="500" placeholder="Issue to escalate…" style="width:100%;min-height:72px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadEscAdd">Add to inbox</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const st = r.status || "open";
+          const color = st === "resolved" ? "#7ee7d4" : st === "progress" ? "#ffd27d" : "#ffb4b4";
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.68rem;font-weight:900;color:#ffd27d;text-transform:uppercase;">${escapeHtml(r.source || "general")} · <span style="color:${color}">${escapeHtml(st)}</span></div>
+            <div style="font-weight:800;margin:0.2rem 0;">${escapeHtml(r.text || "")}</div>
+            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.byName || r.by || "")} · ${escapeHtml(formatLoginStamp(r.ts))}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.3rem;">
+              <button type="button" class="ou-action-btn" data-esc-st="open" data-id="${escapeHtml(r.id)}">Open</button>
+              <button type="button" class="ou-action-btn" data-esc-st="progress" data-id="${escapeHtml(r.id)}">In progress</button>
+              <button type="button" class="ou-action-btn" data-esc-st="resolved" data-id="${escapeHtml(r.id)}">Resolved</button>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">Escalation inbox empty.</p>`}
+      `;
+      bindTap(body.querySelector("#leadEscAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const text = String(body.querySelector("#leadEscText").value || "").trim();
+          if (!text) throw new Error("Describe the issue");
+          const id = "esc_" + Date.now();
+          await saveLeadershipBranch("escalations", id, {
+            text: text,
+            source: body.querySelector("#leadEscSource").value,
+            status: "open",
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Escalation added.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      body.querySelectorAll("[data-esc-st]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-id");
+          const row = data.escalations[id];
+          if (!row) return;
+          try {
+            await saveLeadershipBranch("escalations", id, Object.assign({}, row, {
+              status: btn.getAttribute("data-esc-st"),
+              updatedAt: Date.now(),
+              updatedBy: authState.username
+            }));
+            data = await loadLeadershipData();
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderMeetings() {
+      const rows = mapToList(data.meetings);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">MEETING NOTES</div>
+          <input id="leadMeetTitle" type="text" maxlength="100" placeholder="Meeting title" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadMeetDate" type="date" value="${localDateKey()}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <textarea id="leadMeetAgenda" maxlength="800" placeholder="Agenda + minutes / actions…" style="width:100%;min-height:90px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadMeetAdd">Save meeting note</button>
+        </div>
+        ${rows.length ? rows.map((r) => `
+          <div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:900;">${escapeHtml(r.title || "Meeting")}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">${escapeHtml(r.date || "")} · ${escapeHtml(r.byName || r.by || "")}</div>
+            <div style="font-size:0.82rem;margin-top:0.25rem;white-space:pre-wrap;">${escapeHtml(r.agenda || "")}</div>
+          </div>`).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No meeting notes yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadMeetAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadMeetTitle").value || "").trim();
+          const agenda = String(body.querySelector("#leadMeetAgenda").value || "").trim();
+          if (!title || !agenda) throw new Error("Title and notes required");
+          const id = "meet_" + Date.now();
+          await saveLeadershipBranch("meetings", id, {
+            title: title,
+            date: body.querySelector("#leadMeetDate").value || localDateKey(),
+            agenda: agenda,
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Meeting note saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderGoals() {
+      const rows = mapToList(data.goals);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">SECTION GOAL</div>
+          <input id="leadGoalTitle" type="text" maxlength="100" placeholder="Goal (e.g. Collection completion)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalTarget" type="number" min="0" step="1" placeholder="Target number" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalCurrent" type="number" min="0" step="1" placeholder="Current progress" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalUnit" type="text" maxlength="20" placeholder="Unit (%, people, ₱…)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadGoalAdd">Save goal</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const target = Number(r.target) || 0;
+          const current = Number(r.current) || 0;
+          const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;">${escapeHtml(r.title || "")}</div>
+            <div style="font-size:0.8rem;color:var(--muted);">${current} / ${target} ${escapeHtml(r.unit || "")} · ${pct}%</div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.08);margin-top:0.35rem;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#64ffda,#ffd27d);"></div>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No section goals yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadGoalAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadGoalTitle").value || "").trim();
+          if (!title) throw new Error("Goal title required");
+          const id = "goal_" + Date.now();
+          await saveLeadershipBranch("goals", id, {
+            title: title,
+            target: Number(body.querySelector("#leadGoalTarget").value || 0),
+            current: Number(body.querySelector("#leadGoalCurrent").value || 0),
+            unit: String(body.querySelector("#leadGoalUnit").value || "").trim() || "%",
+            by: authState.username,
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Goal saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderControls() {
+      const locks = data.locks || {};
+      const h = data.handoff || {};
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">DUTY HANDOFF / COVERAGE</div>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadHandActive" ${h.active ? "checked" : ""} /> Coverage active (e.g. VP acting)
+          </label>
+          <input id="leadHandUntil" type="date" value="${escapeHtml(h.until || "")}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadHandMsg" type="text" maxlength="160" placeholder="Coverage note" value="${escapeHtml(h.message || "")}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadHandSave">Save handoff</button>
+        </div>
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">SECTION LOCKS / OVERRIDES</div>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadLockFW" ${locks.freedomWall ? "checked" : ""} /> Pause Freedom Wall note (show warning)
+          </label>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadLockCol" ${locks.collectionsFrozen ? "checked" : ""} /> Freeze new finance collections note
+          </label>
+          <textarea id="leadEmerg" maxlength="240" placeholder="Emergency message (optional, shown to officers)" style="width:100%;min-height:64px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;">${escapeHtml(locks.emergencyNote || "")}</textarea>
+          <button type="button" class="lifeline-btn" id="leadLocksSave">Save controls</button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--muted);line-height:1.4;">Admin can access this desk anytime. Locks are guidance flags for the officer team (not a hard server lock).</p>
+      `;
+      bindTap(body.querySelector("#leadHandSave"), async (e) => {
+        e.preventDefault();
+        try {
+          const payload = {
+            active: !!(body.querySelector("#leadHandActive").checked),
+            until: body.querySelector("#leadHandUntil").value || "",
+            message: String(body.querySelector("#leadHandMsg").value || "").trim(),
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          };
+          await saveLeadershipBranch("handoff", null, payload);
+          data = await loadLeadershipData();
+          status.textContent = "Handoff updated.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      bindTap(body.querySelector("#leadLocksSave"), async (e) => {
+        e.preventDefault();
+        try {
+          const payload = {
+            freedomWall: !!(body.querySelector("#leadLockFW").checked),
+            collectionsFrozen: !!(body.querySelector("#leadLockCol").checked),
+            emergencyNote: String(body.querySelector("#leadEmerg").value || "").trim(),
+            updatedBy: authState.username,
+            ts: Date.now()
+          };
+          await saveLeadershipBranch("locks", null, payload);
+          data = await loadLeadershipData();
+          status.textContent = "Controls saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderAll() {
+      showHandoff();
+      if (tab === "decisions") renderDecisions();
+      else if (tab === "tasks") renderTasks();
+      else if (tab === "escalations") renderEscalations();
+      else if (tab === "meetings") renderMeetings();
+      else if (tab === "goals") renderGoals();
+      else renderControls();
+    }
+
+    panel.querySelectorAll("[data-lead-tab]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        tab = btn.getAttribute("data-lead-tab") || "decisions";
+        panel.querySelectorAll("[data-lead-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderAll();
+      });
+    });
+    bindTap(panel.querySelector("#leadClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#leadShare"), async (e) => {
+      e.preventDefault();
+      const dec = mapToList(data.decisions).slice(0, 5);
+      const tasks = mapToList(data.tasks).filter((t) => t.status !== "done");
+      const esc = mapToList(data.escalations).filter((x) => x.status !== "resolved");
+      const lines = [
+        "BSCS 1-A Leadership Summary",
+        "Open tasks: " + tasks.length,
+        "Open escalations: " + esc.length,
+        "",
+        "Recent decisions:"
+      ];
+      if (!dec.length) lines.push("(none)");
+      dec.forEach((d) => lines.push("- " + (d.text || "").slice(0, 120)));
+      lines.push("", "Generated from BSCS 1-A RST Hub");
+      const text = lines.join("\n");
+      try {
+        if (navigator.share) { await navigator.share({ title: "Leadership Summary", text: text }); return; }
+      } catch (err) { if (err && err.name === "AbortError") return; }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Summary copied.";
+      } catch (err) { window.prompt("Copy:", text); }
+    });
+    renderAll();
+  }
+
 
   function peso(n) {
     const v = Number(n) || 0;
@@ -7417,6 +7969,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       <div id="adminRows"></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
         <button type="button" class="lifeline-btn" id="adminAttendance">Attendance</button>
+        <button type="button" class="lifeline-btn" id="adminLeadership">Leadership Desk</button>
+        <button type="button" class="lifeline-btn" id="adminFinance">Section Finance</button>
         <button type="button" class="lifeline-btn" id="adminClose">Close</button>
         <button type="button" class="lifeline-btn admin-danger" id="adminResetBoard">Reset THIS Board</button>
       </div>`;
