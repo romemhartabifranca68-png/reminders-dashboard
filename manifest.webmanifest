@@ -1,14 +1,13 @@
 {
   "name": "BSCS 1-A · RST Section Hub",
   "short_name": "BSCS 1-A RST",
-  "description": "Official BSCS 1-A section hub and Reviewer Arena by RST — LSPU Siniloan.",
+  "description": "Official section hub ng BSCS 1-A, LSPU Siniloan — Reviewer Arena, schedule, officers, resources.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#060c18",
   "theme_color": "#060c18",
-  "lang": "en",
   "icons": [
     {
       "src": "logo.png",
