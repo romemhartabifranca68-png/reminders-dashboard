@@ -3040,6 +3040,69 @@ body::before {
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(93, 255, 224, 0.07), transparent 55%),
     radial-gradient(ellipse 60% 40% at 100% 50%, rgba(56, 189, 248, 0.05), transparent 50%);
 }
+
+/* Display mode: mobile (default) vs desktop site */
+body.view-desktop .wrap {
+  width: min(1280px, calc(100% - 1.5rem));
+}
+body.view-desktop .hero-grid,
+body.view-desktop .home-hero,
+body.view-desktop .hero-layout {
+  grid-template-columns: 1fr 1.15fr;
+}
+@media (min-width: 900px) {
+  body.view-desktop .hero-side-ou,
+  body.view-desktop #officer-updates,
+  body.view-desktop .officer-updates-section {
+    min-height: 70vh;
+  }
+  body.view-desktop .officer-update-list,
+  body.view-desktop .ou-feed {
+    max-height: min(78vh, 900px);
+  }
+  body.view-desktop .officer-update-card {
+    font-size: 1.02rem;
+    padding: 1.05rem 1.15rem;
+  }
+  body.view-desktop .ou-text {
+    font-size: 1.05rem;
+    line-height: 1.55;
+  }
+}
+body.view-desktop .admin-panel {
+  max-width: min(640px, 94vw) !important;
+  font-size: 1.02rem;
+}
+body.view-desktop .admin-overlay .admin-panel h3 {
+  font-size: 1.15rem !important;
+}
+body.view-desktop .share-toast,
+body.view-desktop .hub-toast {
+  font-size: 1rem !important;
+  padding: 0.85rem 1.15rem !important;
+  min-width: min(420px, 92vw);
+}
+body.view-mobile .wrap {
+  width: min(var(--max), calc(100% - 1.25rem));
+}
+body.role-guest .lb-hide-for-guest,
+body.role-guest [data-open-modal="leaderboardModal"],
+body.role-guest #openLeaderboardBtn,
+body.role-guest .leaderboard-entry-point {
+  display: none !important;
+}
+body.role-visitor .ou-react-row,
+body.role-visitor [data-ou-react],
+body.role-visitor .ou-react-btn {
+  pointer-events: none;
+  opacity: 0.45;
+}
+.nav-links a.is-view-active {
+  border-color: rgba(93, 255, 224, 0.45) !important;
+  color: #b8fff0 !important;
+  background: rgba(93, 255, 224, 0.1) !important;
+}
+
 </style>
 </head>
 <body>
@@ -3063,7 +3126,7 @@ body::before {
       </div>
       <h2 id="authTitle">Section Access</h2>
       <p class="auth-lead">
-        Classmates: sign in with your assigned username &amp; password.
+        Classmates: assigned username &amp; password. Visitors: <code>visitor1</code>–<code>visitor3</code> (view only).
         Powered by <strong>RST</strong> · Classmates sign in with assigned credentials.
         Guests may <strong>browse only</strong> unless the Admin issues a Guest Pass.
       </p>
@@ -3191,6 +3254,10 @@ body::before {
         <a class="locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
         <a href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
         <a href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
+
+        <span class="nav-group-label">Display</span>
+        <a href="#" id="navViewMobile" role="button">Mobile layout</a>
+        <a href="#" id="navViewDesktop" role="button">Desktop site</a>
 
         <span class="nav-group-label">More pages</span>
         <a href="#vision-mission">Vision &amp; Mission</a>
