@@ -280,6 +280,15 @@ img { display: block; max-width: 100%; }
 .hero-actions, .quick-jump, .input-wrap, .tagrow, .avatar-grid {
   display: flex; flex-wrap: wrap; gap: 0.6rem; position: relative; z-index: 1;
 }
+
+body.role-classmate .guest-only-jump,
+body.role-admin .guest-only-jump {
+  display: none !important;
+}
+body.role-guest .guest-only-jump {
+  display: grid;
+}
+
 .quick-jump { gap: 0.45rem; margin-top: 0.9rem; }
 
 .btn, .arena-btn, .choice {
@@ -2746,6 +2755,38 @@ body.role-admin .officer-desk-btn { display: inline-flex !important; }
   box-shadow: 0 0 24px rgba(100,255,218,0.25);
 }
 
+
+.ou-search-wrap { margin: 0.45rem 0 0.35rem; }
+.ou-search {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(100,255,218,0.28);
+  background: rgba(0,0,0,0.28);
+  color: var(--text);
+  padding: 0.45rem 0.75rem;
+  font: inherit;
+  font-size: 0.86rem;
+}
+.ou-search:focus {
+  outline: none;
+  border-color: rgba(100,255,218,0.55);
+  box-shadow: 0 0 0 2px rgba(100,255,218,0.12);
+}
+.officer-update-card.is-pinned {
+  border-color: rgba(255,210,125,0.5) !important;
+  box-shadow: 0 0 22px rgba(255,196,94,0.18);
+}
+.ou-pin-badge {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffe6b0;
+}
+
 .ou-filters {
   display: flex;
   flex-wrap: wrap;
@@ -3144,13 +3185,11 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <button type="button" class="pwa-help-btn" id="enableNotifBtn" hidden>Enable alerts</button>
         </p>
 
-        <div class="quick-jump" aria-label="Quick jump links">
-          <a class="js-smooth is-featured" href="#officer-updates">Officer Updates</a>
-          <a class="js-smooth is-featured" href="#resources">Resources Vault</a>
-          <a class="js-smooth" href="#reviewer-arena">Reviewer Arena</a>
-          <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
-          <a class="js-smooth" href="#officers">Class Officers</a>
+        <!-- Quick-jump grid removed from main scroll for classmates (available in ☰ menu). Guests still see a compact set. -->
+        <div class="quick-jump guest-only-jump" aria-label="Quick jump links">
           <a class="js-smooth" href="#schedule">Weekly Schedule</a>
+          <a class="js-smooth" href="#officers">Class Officers</a>
+          <a class="js-smooth" href="#vision-mission">Vision &amp; Mission</a>
           <a class="js-smooth" href="#freshmen">Freshmen Directory</a>
           <a class="js-smooth" href="#freedom-wall">Freedom Wall</a>
         </div>
@@ -3169,6 +3208,9 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
           <p class="ou-top-desc">
             Official school &amp; section posts from officers. Dito makikita ang announcements, academics, events, at hub/tech updates.
           </p>
+          <div class="ou-search-wrap">
+            <input type="search" id="ouSearchInput" class="ou-search" placeholder="Search updates…" autocomplete="off" />
+          </div>
           <div class="ou-filters" id="ouFilters" role="tablist">
             <button type="button" class="ou-filter active" data-ou="all">All</button>
             <button type="button" class="ou-filter" data-ou="announcements">Announcements</button>
