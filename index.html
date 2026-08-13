@@ -2266,6 +2266,37 @@ body.role-admin #quick-links.menu-revealed {
   color: #ffe6b0 !important;
   box-shadow: 0 0 18px rgba(255, 196, 94, 0.12);
 }
+
+/* Classmate home strip: section shortcuts first; Drive/FB/Portal in menu only */
+.cm-primary-link { display: none; }
+body.role-classmate .cm-primary-link,
+body.role-admin .cm-primary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+body.role-classmate .guest-primary-link,
+body.role-admin .guest-primary-link {
+  display: none !important;
+}
+body.role-guest .cm-primary-link {
+  display: none !important;
+}
+
+.nav-group-label {
+  display: block;
+  width: 100%;
+  margin: 0.55rem 0 0.2rem;
+  padding: 0.15rem 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(100, 255, 218, 0.75);
+  pointer-events: none;
+}
+.nav-group-label:first-child { margin-top: 0.15rem; }
+
 .btn-dashboard {
   border: 1px solid rgba(255, 210, 125, 0.4) !important;
   background: linear-gradient(135deg, rgba(255, 210, 125, 0.2), rgba(100, 255, 218, 0.12)) !important;
@@ -2591,17 +2622,24 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
       </button>
 
       <div class="nav-links" id="navLinks" aria-label="Section navigation">
-        <a href="#officer-updates">Updates</a>
+        <span class="nav-group-label">Section shortcuts</span>
+        <a href="#officer-updates">Officer Updates</a>
         <a href="#resources">Resources</a>
-        <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#schedule">Schedule</a>
+        <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#freedom-wall">Freedom Wall</a>
+        <a href="dashboard.html" class="locked-for-guest" data-lock="classmate">Class Dashboard</a>
+
+        <span class="nav-group-label">External links</span>
+        <a class="locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
+        <a href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
+        <a href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
+
+        <span class="nav-group-label">More pages</span>
         <a href="#vision-mission">Vision &amp; Mission</a>
         <a href="#officers">Officers</a>
         <a href="#freshmen">Freshmen</a>
         <a href="#quick-links">Quick Links</a>
-        <a href="dashboard.html" class="locked-for-guest" data-lock="classmate">Dashboard</a>
-        <a class="fb-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">🌐 CCS | BS Computer Science - 1A SC | Siniloan</a>
         <a href="#" class="nav-logout" id="navLogoutLink" hidden role="button">Log out</a>
       </div>
     </div>
@@ -2633,10 +2671,16 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         </div>
 
         <div class="top-links" aria-label="Essential links">
-          <a class="top-link is-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
-          <a class="top-link locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
-          <a class="top-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
-          <a class="top-link" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
+          <!-- Classmates / Admin: primary section shortcuts first -->
+          <a class="top-link cm-primary-link js-smooth" href="#officer-updates">Officer Updates</a>
+          <a class="top-link cm-primary-link js-smooth" href="#schedule">Schedule</a>
+          <a class="top-link cm-primary-link js-smooth" href="#resources">Resources</a>
+          <a class="top-link cm-primary-link is-dashboard locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
+          <!-- Guests: external / public links stay on the home strip -->
+          <a class="top-link guest-primary-link locked-for-guest" href="dashboard.html" data-lock="classmate">Class Dashboard</a>
+          <a class="top-link guest-primary-link locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
+          <a class="top-link guest-primary-link" href="https://www.facebook.com/share/1GJQmFJXsN/" target="_blank" rel="noopener noreferrer">Section FB</a>
+          <a class="top-link guest-primary-link" href="https://lspusys.com" target="_blank" rel="noopener noreferrer">School Portal</a>
         </div>
 
         <div class="announce reveal-on-load" role="status" aria-live="polite">
