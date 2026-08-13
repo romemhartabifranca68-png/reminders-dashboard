@@ -385,7 +385,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         } else {
           guestBanner.innerHTML =
             '<span class="gb-title">Guest mode · browse only</span>' +
-            "Arena is locked until Admin (RST) issues a Guest Pass." +
+            "Arena is locked until <strong>RST Admin</strong> or a <strong>P.O. (Boy/Girl)</strong> issues a Guest Pass." +
             '<ul class="gb-list">' +
             "<li>Locked: Reviewer Arena (all modes)</li>" +
             "<li>Locked: Class Dashboard · Google Drive</li>" +
@@ -893,7 +893,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
       if (local[code] && local[code].active) {
         if (local[code].expiresAt && Number(local[code].expiresAt) < Date.now()) {
-          return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+          return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin or a P.O. for a new one." };
         }
         return { ok: true, allowed: true, code, source: "local" };
       }
@@ -913,7 +913,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           const val = passSnap.val();
           if (val && val.active !== false) {
             if (val.expiresAt && Number(val.expiresAt) < Date.now()) {
-              return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+              return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin or a P.O. for a new one." };
             }
             return { ok: true, allowed: true, code, source: "firebase" };
           }
@@ -1109,6 +1109,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
     }
 
+    const navFinanceLink = $("navFinanceLink");
+    if (navFinanceLink) {
+      bindTap(navFinanceLink, (event) => {
+        event.preventDefault();
+        const navLinks = $("navLinks");
+        if (navLinks) navLinks.classList.remove("open");
+        const navToggle = $("navToggle");
+        if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+        if (typeof openFinanceHub === "function") openFinanceHub();
+      });
+    }
+
     const navLogoutLink = $("navLogoutLink");
     if (navLogoutLink) {
       bindTap(navLogoutLink, (event) => {
@@ -1166,11 +1178,44 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.className = "admin-panel";
     const title = authState.officerTitle || "Officer";
     const name = (authState.displayName || authState.username || "").split(",")[0];
+    const specialBits = [];
+    if (canManageAttendance()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opAttendance">📋 Attendance manager · Secretary / Admin</button>`);
+    }
+    if (canIssueGuestPass()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opGuestPassFocus">🔑 Guest Pass desk · P.O. / Admin</button>`);
+    }
+    if (canManageFinance()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opFinance">💰 Section Finance · Treasurer / Auditor</button>`);
+    }
+    if (isAdmin()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opOpenAdmin">⚙ Full RST Admin panel</button>`);
+    }
+    const specialHtml = specialBits.length
+      ? `<div class="op-special-box">
+          <div class="op-special-label">YOUR SPECIAL ACCESS</div>
+          <div class="op-special-grid">${specialBits.join("")}</div>
+        </div>`
+      : "";
+    const guestPassHtml = canIssueGuestPass()
+      ? `<div class="op-guest-box" id="opGuestPassBox">
+          <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">GUEST PASS · P.O. / RST ADMIN</h4>
+          <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);line-height:1.45;">
+            P.O. Boy (Guia), P.O. Girl (Calamba), and RST Admin can issue or revoke a Guest Pass for visitors.
+          </p>
+          <input id="opGuestPassInput" type="text" maxlength="16" placeholder="Code (blank = auto-generate)" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.45rem;" />
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" class="lifeline-btn" id="opIssuePass">Issue Pass</button>
+            <button type="button" class="lifeline-btn" id="opRevokePass">Revoke Pass</button>
+          </div>
+        </div>`
+      : "";
     panel.innerHTML = `
       <h3 style="margin:0 0 6px;font-size:1rem;">Officer Panel</h3>
       <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
-        ${escapeHtml(title)} · ${escapeHtml(name)} · shortcuts &amp; section pin
+        ${escapeHtml(title)} · ${escapeHtml(name)} · shortcuts &amp; duty tools
       </p>
+      ${specialHtml}
       <div class="officer-panel-grid">
         <button type="button" class="lifeline-btn" id="opDesk">Officer Desk</button>
         <button type="button" class="lifeline-btn" id="opUpdates">Updates board</button>
@@ -1178,9 +1223,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <button type="button" class="lifeline-btn" id="opResources">Resources</button>
         <button type="button" class="lifeline-btn" id="opDashboard">Dashboard</button>
         <button type="button" class="lifeline-btn" id="opArena">Reviewer Arena</button>
-        ${canManageAttendance() ? `<button type="button" class="lifeline-btn" id="opAttendance" style="grid-column:1/-1;">Attendance manager</button>` : ""}
+        <button type="button" class="lifeline-btn" id="opFinanceView" style="grid-column:1/-1;">Section Finance (view)</button>
       </div>
-      <h4 style="margin:0.35rem 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN</h4>
+      ${guestPassHtml}
+      <h4 style="margin:0.55rem 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN</h4>
       <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);">Pinned message on home. Your name will show as the announcer.</p>
       <textarea id="opPinInput" maxlength="240" placeholder="Pin a short section announcement…" style="width:100%;min-height:84px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.5rem;"></textarea>
       <div style="display:flex;flex-wrap:wrap;gap:8px;">
@@ -1228,6 +1274,57 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         e.preventDefault();
         overlay.remove();
         openAttendanceManager();
+      });
+    }
+    const finBtn = panel.querySelector("#opFinance");
+    const finView = panel.querySelector("#opFinanceView");
+    const openFin = (e) => {
+      e.preventDefault();
+      overlay.remove();
+      openFinanceHub();
+    };
+    if (finBtn) bindTap(finBtn, openFin);
+    if (finView) bindTap(finView, openFin);
+    const adminOpen = panel.querySelector("#opOpenAdmin");
+    if (adminOpen) {
+      bindTap(adminOpen, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openRstAdminPanel();
+      });
+    }
+    const focusPass = panel.querySelector("#opGuestPassFocus");
+    if (focusPass) {
+      bindTap(focusPass, (e) => {
+        e.preventDefault();
+        const box = panel.querySelector("#opGuestPassBox");
+        if (box) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+    const issueBtn = panel.querySelector("#opIssuePass");
+    const revokeBtn = panel.querySelector("#opRevokePass");
+    const passInput = panel.querySelector("#opGuestPassInput");
+    if (issueBtn) {
+      bindTap(issueBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const { code } = await issueGuestPassCode(passInput ? passInput.value : "");
+          if (passInput) passInput.value = code;
+          status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
+        } catch (error) {
+          status.textContent = error.message || "Issue failed";
+        }
+      });
+    }
+    if (revokeBtn) {
+      bindTap(revokeBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const code = await revokeGuestPassCode(passInput ? passInput.value : "");
+          status.textContent = `Guest Pass revoked: ${code}`;
+        } catch (error) {
+          status.textContent = error.message || "Revoke failed";
+        }
       });
     }
     bindTap(panel.querySelector("#opPinSave"), async (e) => {
@@ -1280,7 +1377,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <input type="checkbox" id="adminGuestGlobal" /> Enable guest play globally (all guests)
       </label>
       <div class="auth-field">
-        <label for="adminNewPass">Issue / revoke Guest Pass code</label>
+        <label for="adminNewPass">Issue / revoke Guest Pass (Admin + P.O. Boy/Girl)</label>
         <input id="adminNewPass" type="text" maxlength="16" placeholder="e.g. RST-GUEST-01" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(0,0,0,0.3);color:var(--text);" />
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
@@ -1490,64 +1587,23 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     bindTap(panel.querySelector("#adminIssuePass"), async (e) => {
       e.preventDefault();
-      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
-      if (!code) {
-        code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      try {
+        const { code } = await issueGuestPassCode(passInput.value);
         passInput.value = code;
-      }
-      const payload = {
-        active: true,
-        createdBy: ADMIN_USERNAME,
-        company: COMPANY_NAME,
-        ts: Date.now(),
-        expiresAt: Date.now() + 7 * 86400000 // 7 days
-      };
-      try {
-        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
-        local[code] = payload;
-        localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
-      } catch (error) {
-        /* ignore */
-      }
-      try {
-        if (db) {
-          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), payload);
-        }
         status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
       } catch (error) {
-        status.textContent = `Local pass saved: ${code} (Firebase write failed — still works on this device).`;
+        status.textContent = error.message || "Issue failed";
         console.warn(error);
       }
     });
 
     bindTap(panel.querySelector("#adminRevokePass"), async (e) => {
       e.preventDefault();
-      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
-      if (!code) {
-        status.textContent = "Type the Guest Pass code to revoke.";
-        return;
-      }
       try {
-        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
-        if (local[code]) {
-          local[code].active = false;
-          localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
-        }
-      } catch (error) {
-        /* ignore */
-      }
-      try {
-        if (db) {
-          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), {
-            active: false,
-            revokedBy: ADMIN_USERNAME,
-            company: COMPANY_NAME,
-            ts: Date.now()
-          });
-        }
+        const code = await revokeGuestPassCode(passInput.value);
         status.textContent = `Guest Pass revoked: ${code}`;
       } catch (error) {
-        status.textContent = `Revoked locally: ${code} (Firebase update failed).`;
+        status.textContent = error.message || "Revoke failed";
         console.warn(error);
       }
     });
@@ -3218,7 +3274,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     if (elements.loginStatus) {
       if (!canPlayArena()) {
-        elements.loginStatus.textContent = "Arena locked for browse-only guests. Ask RST Admin for a Guest Pass.";
+        elements.loginStatus.textContent = "Arena locked for browse-only guests. Ask RST Admin or a P.O. (Boy/Girl) for a Guest Pass.";
       } else if (state.runType === "practice") {
         elements.loginStatus.textContent = "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard.";
       } else if (state.runType === "study") {
@@ -3983,12 +4039,550 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
   const ATTENDANCE_PATH = "hub_config/attendance";
   const SECRETARY_USERNAMES = new Set(["flores"]); // class secretary
+  const PO_USERNAMES = new Set(["guia", "calamba"]); // P.O. Boy + P.O. Girl
   const ATTENDANCE_PROMPT_KEY = "bscs1a_att_prompt_v1";
 
   function canManageAttendance() {
     if (isAdmin()) return true;
     const u = String(authState.username || "").toLowerCase();
     return SECRETARY_USERNAMES.has(u);
+  }
+
+  function canIssueGuestPass() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return PO_USERNAMES.has(u);
+  }
+
+  const TREASURER_USERNAMES = new Set(["bacero"]);
+  const AUDITOR_USERNAMES = new Set(["lumacad"]);
+  const FINANCE_PATH = "hub_config/finance";
+  const FINANCE_LOCAL_KEY = "bscs1a_finance_v1";
+
+  function canManageFinance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return TREASURER_USERNAMES.has(u) || AUDITOR_USERNAMES.has(u);
+  }
+
+  function canWriteLedger() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return TREASURER_USERNAMES.has(u);
+  }
+
+  function canAuditFinance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return AUDITOR_USERNAMES.has(u);
+  }
+
+  function peso(n) {
+    const v = Number(n) || 0;
+    return "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  async function loadFinanceData() {
+    let data = { ledger: {}, collections: {}, budgets: {} };
+    if (db) {
+      try {
+        const snap = await get(ref(db, FINANCE_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          data.ledger = val.ledger || {};
+          data.collections = val.collections || {};
+          data.budgets = val.budgets || {};
+        }
+      } catch (error) {
+        console.warn("[Finance] load failed:", error);
+      }
+    }
+    if (!Object.keys(data.ledger).length && !Object.keys(data.collections).length && !Object.keys(data.budgets).length) {
+      try {
+        const local = JSON.parse(localStorage.getItem(FINANCE_LOCAL_KEY) || "null");
+        if (local && typeof local === "object") {
+          data.ledger = local.ledger || {};
+          data.collections = local.collections || {};
+          data.budgets = local.budgets || {};
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return data;
+  }
+
+  function saveFinanceLocal(data) {
+    try { localStorage.setItem(FINANCE_LOCAL_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  async function saveFinanceBranch(branch, id, payload) {
+    const data = await loadFinanceData();
+    if (!data[branch]) data[branch] = {};
+    data[branch][id] = payload;
+    saveFinanceLocal(data);
+    if (db) await set(ref(db, FINANCE_PATH + "/" + branch + "/" + id), payload);
+    return payload;
+  }
+
+  function ledgerList(data) {
+    return Object.keys(data.ledger || {}).map((id) => Object.assign({ id: id }, data.ledger[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function collectionList(data) {
+    return Object.keys(data.collections || {}).map((id) => Object.assign({ id: id }, data.collections[id]))
+      .sort((a, b) => String(b.dueDate || "").localeCompare(String(a.dueDate || "")) || Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function budgetList(data) {
+    return Object.keys(data.budgets || {}).map((id) => Object.assign({ id: id }, data.budgets[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function computeBalances(ledgerRows) {
+    let main = 0, petty = 0, pendingIn = 0, pendingOut = 0;
+    (ledgerRows || []).forEach((r) => {
+      const amt = Number(r.amount) || 0;
+      const fund = r.fund === "petty" ? "petty" : "main";
+      const status = r.status || "pending";
+      const signed = r.type === "expense" ? -amt : amt;
+      if (status === "flagged") return;
+      if (status === "pending") {
+        if (r.type === "income") pendingIn += amt; else pendingOut += amt;
+        return;
+      }
+      if (fund === "petty") petty += signed; else main += signed;
+    });
+    return { main: main, petty: petty, total: main + petty, pendingIn: pendingIn, pendingOut: pendingOut };
+  }
+
+  function collectionStats(col) {
+    const payments = col.payments || {};
+    let paid = 0, partial = 0, unpaid = 0, collected = 0;
+    CLASSMATE_ROSTER.forEach((c) => {
+      const p = payments[c.username];
+      const st = p ? (p.status || "unpaid") : "unpaid";
+      const amt = p ? (Number(p.amount) || 0) : 0;
+      if (st === "paid") paid += 1;
+      else if (st === "partial") partial += 1;
+      else unpaid += 1;
+      collected += amt;
+    });
+    return { paid: paid, partial: partial, unpaid: unpaid, collected: collected, totalPeople: CLASSMATE_ROSTER.length };
+  }
+
+  async function openFinanceHub() {
+    if (!(isClassmate() || isAdmin())) {
+      if (typeof showShareToast === "function") showShareToast("Classmates only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.finance-hub");
+    if (existing) existing.remove();
+    const canWrite = canWriteLedger();
+    const canAudit = canAuditFinance();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay finance-hub";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Section Finance · ₱</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        Full section money · Treasurer posts · Auditor verifies · class can view.
+      </p>
+      <div id="finBalBox" class="admin-stat-row" style="margin-bottom:0.65rem;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.65rem;">
+        <button type="button" class="ou-action-btn fin-tab active" data-fin-tab="ledger">Ledger</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="collections">Collections</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="budget">Budget</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="mydues">My dues</button>
+      </div>
+      <div id="finBody" style="max-height:min(55vh,460px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="finShare">Copy / share report</button>
+        <button type="button" class="lifeline-btn" id="finClose">Close</button>
+      </div>
+      <p id="finStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#finBody");
+    const balBox = panel.querySelector("#finBalBox");
+    const status = panel.querySelector("#finStatus");
+    let tab = "ledger";
+    let data = await loadFinanceData();
+
+    function renderBalances() {
+      const bal = computeBalances(ledgerList(data));
+      balBox.innerHTML = `
+        <div class="admin-stat"><b>${peso(bal.main)}</b><span>Main fund</span></div>
+        <div class="admin-stat"><b>${peso(bal.petty)}</b><span>Petty / emergency</span></div>
+        <div class="admin-stat"><b>${peso(bal.total)}</b><span>Total verified</span></div>
+        <div class="admin-stat"><b>${peso(bal.pendingIn)} / ${peso(bal.pendingOut)}</b><span>Pending in / out</span></div>
+      `;
+    }
+
+    function renderLedger() {
+      const rows = ledgerList(data);
+      let form = "";
+      if (canWrite) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">ADD ENTRY · Treasurer</div>
+            <select id="finLedType" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+              <option value="income">Income (+)</option><option value="expense">Expense (−)</option>
+            </select>
+            <select id="finLedFund" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+              <option value="main">Main fund</option><option value="petty">Petty / emergency</option>
+            </select>
+            <input id="finLedAmt" type="number" min="0" step="0.01" placeholder="Amount (₱)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedDate" type="date" value="${localDateKey()}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedReason" type="text" maxlength="120" placeholder="Reason / description" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedReceipt" type="text" maxlength="120" placeholder="Receipt / GCash ref (optional)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finLedAdd">Post entry (pending audit)</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((r) => {
+        const st = r.status || "pending";
+        const badge = st === "verified" ? "#7ee7d4" : st === "flagged" ? "#ffb4b4" : "#ffd27d";
+        const auditBtns = (canAudit && st === "pending")
+          ? `<div style="display:flex;gap:4px;margin-top:0.35rem;">
+              <button type="button" class="ou-action-btn" data-fin-verify="${escapeHtml(r.id)}">Verify</button>
+              <button type="button" class="ou-action-btn ou-del" data-fin-flag="${escapeHtml(r.id)}">Flag</button>
+            </div>` : "";
+        return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${r.type === "expense" ? "−" : "+"}${peso(r.amount)} · ${escapeHtml(r.fund === "petty" ? "Petty" : "Main")}</div>
+          <div style="font-size:0.8rem;">${escapeHtml(r.reason || "")}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.date || "")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · <span style="color:${badge};font-weight:800;">${escapeHtml(st.toUpperCase())}</span></div>
+          ${r.receiptNote ? `<div style="font-size:0.7rem;color:#b8fff0;">🧾 ${escapeHtml(r.receiptNote)}</div>` : ""}
+          ${auditBtns}
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">Walang entries pa. Starting balance ₱0.00 — ready when you start collecting.</p>`;
+      body.innerHTML = form + list;
+      const addBtn = body.querySelector("#finLedAdd");
+      if (addBtn) {
+        bindTap(addBtn, async (e) => {
+          e.preventDefault();
+          try {
+            const amount = Number(body.querySelector("#finLedAmt").value || 0);
+            const reason = String(body.querySelector("#finLedReason").value || "").trim();
+            if (!(amount > 0) || !reason) throw new Error("Amount and reason required");
+            const id = "led_" + Date.now();
+            await saveFinanceBranch("ledger", id, {
+              type: body.querySelector("#finLedType").value,
+              fund: body.querySelector("#finLedFund").value,
+              amount: amount,
+              reason: reason,
+              date: body.querySelector("#finLedDate").value || localDateKey(),
+              receiptNote: String(body.querySelector("#finLedReceipt").value || "").trim() || null,
+              status: "pending",
+              by: authState.username,
+              byName: authState.displayName || authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Entry posted · waiting for Auditor verify.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+      body.querySelectorAll("[data-fin-verify], [data-fin-flag]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-fin-verify") || btn.getAttribute("data-fin-flag");
+          const next = btn.hasAttribute("data-fin-verify") ? "verified" : "flagged";
+          try {
+            const row = data.ledger[id];
+            if (!row) throw new Error("Missing entry");
+            await saveFinanceBranch("ledger", id, Object.assign({}, row, {
+              status: next,
+              auditedBy: authState.username,
+              auditedByName: (authState.displayName || authState.username || "").split(",")[0],
+              auditedAt: Date.now()
+            }));
+            data = await loadFinanceData();
+            status.textContent = next === "verified" ? "Verified." : "Flagged.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderCollections() {
+      const rows = collectionList(data);
+      let form = "";
+      if (canWrite || canAudit) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">NEW COLLECTION CAMPAIGN</div>
+            <input id="finColTitle" type="text" maxlength="80" placeholder="Title (e.g. Section shirt)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColDue" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColTarget" type="number" min="0" step="0.01" placeholder="Target total ₱ (optional)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColEach" type="number" min="0" step="0.01" placeholder="Suggested per person ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finColAdd">Create collection</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((c) => {
+        const st = collectionStats(c);
+        return `<div style="padding:0.65rem 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+          <div style="font-weight:900;font-size:0.9rem;">${escapeHtml(c.title || "Collection")}</div>
+          <div style="font-size:0.72rem;color:var(--muted);">Due: ${escapeHtml(c.dueDate || "—")} · Collected ${peso(st.collected)}${c.target ? " / " + peso(c.target) : ""}</div>
+          <div style="font-size:0.72rem;margin:0.25rem 0 0.4rem;">Paid ${st.paid} · Partial ${st.partial} · Unpaid ${st.unpaid} / ${st.totalPeople}</div>
+          <button type="button" class="ou-action-btn" data-fin-open-col="${escapeHtml(c.id)}">Open roster / due list</button>
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No collections yet. Create one when you start maningil.</p>`;
+      body.innerHTML = form + list;
+      const add = body.querySelector("#finColAdd");
+      if (add) {
+        bindTap(add, async (e) => {
+          e.preventDefault();
+          try {
+            const title = String(body.querySelector("#finColTitle").value || "").trim();
+            if (!title) throw new Error("Title required");
+            const id = "col_" + Date.now();
+            await saveFinanceBranch("collections", id, {
+              title: title,
+              dueDate: body.querySelector("#finColDue").value || "",
+              target: Number(body.querySelector("#finColTarget").value || 0) || null,
+              perPerson: Number(body.querySelector("#finColEach").value || 0) || null,
+              payments: {},
+              by: authState.username,
+              byName: authState.displayName || authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Collection created.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+      body.querySelectorAll("[data-fin-open-col]").forEach((btn) => {
+        bindTap(btn, (e) => { e.preventDefault(); renderCollectionDetail(btn.getAttribute("data-fin-open-col")); });
+      });
+    }
+
+    function renderCollectionDetail(colId) {
+      const col = data.collections[colId];
+      if (!col) return;
+      const st = collectionStats(col);
+      const canMark = canWrite || canAudit;
+      const roster = CLASSMATE_ROSTER.slice().sort((a, b) =>
+        String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), "en", { sensitivity: "base" })
+      );
+      body.innerHTML = `
+        <button type="button" class="ou-action-btn" id="finColBack">← Back to collections</button>
+        <h4 style="margin:0.55rem 0 0.25rem;">${escapeHtml(col.title || "")}</h4>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.45rem;">
+          Due calendar: <strong style="color:var(--text);">${escapeHtml(col.dueDate || "not set")}</strong>
+          · ${peso(st.collected)} collected · Unpaid: ${st.unpaid}
+        </div>
+        <div class="admin-stat-row" style="margin-bottom:0.55rem;">
+          <div class="admin-stat"><b>${st.paid}</b><span>Paid</span></div>
+          <div class="admin-stat"><b>${st.partial}</b><span>Partial</span></div>
+          <div class="admin-stat"><b>${st.unpaid}</b><span>Unpaid</span></div>
+          <div class="admin-stat"><b>${peso(st.collected)}</b><span>Total in</span></div>
+        </div>
+        ${roster.map((c) => {
+          const p = (col.payments && col.payments[c.username]) || {};
+          const statusPay = p.status || "unpaid";
+          const color = statusPay === "paid" ? "#7ee7d4" : statusPay === "partial" ? "#ffd27d" : "#ffb4b4";
+          const mark = canMark ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.3rem;">
+                <button type="button" class="ou-action-btn" data-col-pay="paid" data-user="${escapeHtml(c.username)}">Paid</button>
+                <button type="button" class="ou-action-btn" data-col-pay="partial" data-user="${escapeHtml(c.username)}">Partial</button>
+                <button type="button" class="ou-action-btn ou-del" data-col-pay="unpaid" data-user="${escapeHtml(c.username)}">Unpaid</button>
+              </div>` : "";
+          return `<div style="padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}</div>
+            <div style="font-size:0.7rem;color:${color};font-weight:800;">${escapeHtml(statusPay.toUpperCase())}${p.amount ? " · " + peso(p.amount) : ""}</div>
+            ${mark}
+          </div>`;
+        }).join("")}
+      `;
+      bindTap(body.querySelector("#finColBack"), (e) => { e.preventDefault(); renderCollections(); });
+      body.querySelectorAll("[data-col-pay]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const user = btn.getAttribute("data-user");
+          const payStatus = btn.getAttribute("data-col-pay");
+          let amount = 0;
+          if (payStatus === "paid") {
+            amount = Number(col.perPerson || 0) || Number(window.prompt("Amount paid (₱)", String(col.perPerson || "0")) || 0);
+          } else if (payStatus === "partial") {
+            amount = Number(window.prompt("Partial amount (₱)", "0") || 0);
+          }
+          const payments = Object.assign({}, col.payments || {});
+          payments[user] = { status: payStatus, amount: payStatus === "unpaid" ? 0 : amount, by: authState.username, ts: Date.now() };
+          try {
+            await saveFinanceBranch("collections", colId, Object.assign({}, col, { payments: payments }));
+            data = await loadFinanceData();
+            status.textContent = "Payment updated.";
+            renderCollectionDetail(colId);
+            renderBalances();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderBudget() {
+      const rows = budgetList(data);
+      let form = "";
+      if (canWrite || canAudit) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">BUDGET VS ACTUAL</div>
+            <input id="finBudTitle" type="text" maxlength="80" placeholder="Activity name" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudPlan" type="number" min="0" step="0.01" placeholder="Planned ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudActual" type="number" min="0" step="0.01" placeholder="Actual spent ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudDate" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finBudAdd">Save budget line</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((b) => {
+        const plan = Number(b.planned) || 0;
+        const act = Number(b.actual) || 0;
+        const over = act > plan && plan > 0;
+        return `<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${escapeHtml(b.title || "")}</div>
+          <div style="font-size:0.75rem;color:var(--muted);">${escapeHtml(b.date || "—")}</div>
+          <div style="font-size:0.8rem;">Plan ${peso(plan)} · Actual ${peso(act)}
+            <span style="color:${over ? "#ffb4b4" : "#7ee7d4"};font-weight:800;">${over ? " · OVER" : " · OK"}</span>
+          </div>
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No budget lines yet.</p>`;
+      body.innerHTML = form + list;
+      const add = body.querySelector("#finBudAdd");
+      if (add) {
+        bindTap(add, async (e) => {
+          e.preventDefault();
+          try {
+            const title = String(body.querySelector("#finBudTitle").value || "").trim();
+            if (!title) throw new Error("Activity name required");
+            await saveFinanceBranch("budgets", "bud_" + Date.now(), {
+              title: title,
+              planned: Number(body.querySelector("#finBudPlan").value || 0),
+              actual: Number(body.querySelector("#finBudActual").value || 0),
+              date: body.querySelector("#finBudDate").value || "",
+              by: authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Budget saved.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+    }
+
+    function renderMyDues() {
+      const me = String(authState.username || "").toLowerCase();
+      const lines = [];
+      collectionList(data).forEach((c) => {
+        const p = (c.payments && c.payments[me]) || {};
+        const st = p.status || "unpaid";
+        if (st === "paid") return;
+        const due = Number(c.perPerson) || 0;
+        const paidAmt = Number(p.amount) || 0;
+        const remaining = st === "partial" ? Math.max(0, due - paidAmt) : due;
+        lines.push(`<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${escapeHtml(c.title || "")}</div>
+          <div style="font-size:0.75rem;color:var(--muted);">Due date: ${escapeHtml(c.dueDate || "—")}</div>
+          <div style="font-size:0.8rem;color:#ffd27d;font-weight:800;">${escapeHtml(st.toUpperCase())}${due ? " · ~" + peso(remaining) + " left" : ""}</div>
+        </div>`);
+      });
+      body.innerHTML = lines.length ? lines.join("") : `<p style="color:var(--muted);font-size:0.82rem;">Wala kang outstanding dues. 👍</p>`;
+    }
+
+    function renderAll() {
+      renderBalances();
+      if (tab === "ledger") renderLedger();
+      else if (tab === "collections") renderCollections();
+      else if (tab === "budget") renderBudget();
+      else renderMyDues();
+    }
+
+    panel.querySelectorAll("[data-fin-tab]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        tab = btn.getAttribute("data-fin-tab") || "ledger";
+        panel.querySelectorAll("[data-fin-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderAll();
+      });
+    });
+    bindTap(panel.querySelector("#finClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#finShare"), async (e) => {
+      e.preventDefault();
+      const bal = computeBalances(ledgerList(data));
+      const cols = collectionList(data);
+      const lines = [
+        "BSCS 1-A Section Finance Report",
+        "Main: " + peso(bal.main) + " · Petty: " + peso(bal.petty) + " · Total verified: " + peso(bal.total),
+        "Pending in: " + peso(bal.pendingIn) + " · Pending out: " + peso(bal.pendingOut),
+        "", "Collections:"
+      ];
+      if (!cols.length) lines.push("(none yet)");
+      cols.forEach((c) => {
+        const st = collectionStats(c);
+        lines.push("- " + c.title + " | due " + (c.dueDate || "—") + " | " + peso(st.collected) + " | unpaid " + st.unpaid + "/" + st.totalPeople);
+      });
+      lines.push("", "Generated from BSCS 1-A RST Hub");
+      const text = lines.join("\n");
+      try {
+        if (navigator.share) { await navigator.share({ title: "Section Finance", text: text }); return; }
+      } catch (err) { if (err && err.name === "AbortError") return; }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Report copied — paste for adviser/teacher.";
+      } catch (err) { window.prompt("Copy report:", text); }
+    });
+    renderAll();
+  }
+
+
+  async function issueGuestPassCode(rawCode) {
+    if (!canIssueGuestPass()) throw new Error("RST Admin / P.O. only");
+    let code = String(rawCode || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    if (!code) {
+      code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    }
+    const payload = {
+      active: true,
+      createdBy: authState.username || ADMIN_USERNAME,
+      createdByName: (authState.displayName || authState.username || "").split(",")[0],
+      createdByRole: authState.officerTitle || (isAdmin() ? "RST Admin" : "P.O."),
+      company: COMPANY_NAME,
+      ts: Date.now(),
+      expiresAt: Date.now() + 7 * 86400000
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+      local[code] = payload;
+      localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), payload);
+    }
+    return { code, payload };
+  }
+
+  async function revokeGuestPassCode(rawCode) {
+    if (!canIssueGuestPass()) throw new Error("RST Admin / P.O. only");
+    const code = String(rawCode || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    if (!code) throw new Error("Type the Guest Pass code to revoke");
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+      if (local[code]) {
+        local[code].active = false;
+        local[code].revokedBy = authState.username;
+        localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+      }
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), {
+        active: false,
+        revokedBy: authState.username || ADMIN_USERNAME,
+        revokedByName: (authState.displayName || authState.username || "").split(",")[0],
+        company: COMPANY_NAME,
+        ts: Date.now()
+      });
+    }
+    return code;
   }
 
   function subjectKeyFromLabel(subj) {
