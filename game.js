@@ -61,6 +61,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   const RESOURCE_REQ_PATH = "hub_config/resource_requests";
   const ANNOUNCEMENT_LOCAL_KEY = "bscs1a_admin_pin_v1";
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
+  const VISITOR_CONTROL_PATH = "hub_config/visitor_control";
   const LOGIN_LOG_PATH = "hub_logins";
   const LOGIN_LOG_EVENTS_PATH = "hub_login_events";
   const PRESENCE_PATH = "hub_config/presence";
@@ -132,6 +133,12 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     { username: "tabifranca", displayName: "TABIFRANCA, ROME MHAR S.", hash: "cc264853858cc71334cdb4ad9b16b09fe73a38758a60f0b89b413876d1012f64" }
   ];
 
+  const VISITOR_ROSTER = [
+    { username: "visitor1", displayName: "VISITOR 1 · Section Guest", hash: "6a3a4c7ecc7cc53901e4bfac44e839327cc8b4ae62e1569981a30cddcf191576" },
+    { username: "visitor2", displayName: "VISITOR 2 · Section Guest", hash: "66e6571a4e7a0aab78fe16148d64ca31f71d98d79a8134929487e4fa840dab1a" },
+    { username: "visitor3", displayName: "VISITOR 3 · Section Guest", hash: "e6dfdd29969f6a1bd00b0bad5bfdaa16fac0eb5de257a7b9cf37849e3b4a7b49" }
+  ];
+
   const authState = {
     role: null, // "classmate" | "guest" | "admin"
     username: "",
@@ -189,7 +196,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || !parsed.role) return null;
-      if (parsed.role !== "classmate" && parsed.role !== "guest" && parsed.role !== "admin") return null;
+      if (parsed.role !== "classmate" && parsed.role !== "guest" && parsed.role !== "admin" && parsed.role !== "visitor") return null;
       // Optional: expire after 120 days of inactivity marker
       const maxAge = 120 * 24 * 60 * 60 * 1000;
       if (parsed.ts && Date.now() - Number(parsed.ts) > maxAge) {
@@ -314,6 +321,19 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     return authState.role === "guest";
   }
 
+  function isVisitor() {
+    return authState.role === "visitor";
+  }
+
+  /** Classmate-level viewing (schedule, updates, resources) — not write privileges */
+  function canViewClassContent() {
+    return isClassmate() || isAdmin() || isVisitor();
+  }
+
+  function canReactOnUpdates() {
+    return isClassmate() || isAdmin();
+  }
+
   function isAdmin() {
     return !!authState.isAdmin || authState.role === "admin";
   }
@@ -413,8 +433,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
 
   function applyAuthUI() {
     document.body.classList.toggle("authed", !!authState.role);
-    document.body.classList.toggle("role-classmate", authState.role === "classmate" || authState.role === "admin");
+    document.body.classList.toggle("role-classmate", authState.role === "classmate" || authState.role === "admin" || authState.role === "visitor");
     document.body.classList.toggle("role-guest", authState.role === "guest");
+    document.body.classList.toggle("role-visitor", authState.role === "visitor");
     document.body.classList.toggle("role-admin", isAdmin());
     document.body.classList.toggle("role-officer", isOfficer());
     document.body.classList.toggle("guest-play-ok", !!(isGuest() && authState.guestPlayAllowed));
@@ -433,6 +454,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         if (isAdmin()) {
           chip.textContent = "RST Admin";
           chip.title = `Admin · ${authState.displayName} · ${COMPANY_NAME}`;
+        } else if (authState.role === "visitor") {
+          chip.textContent = "Visitor · view only";
+          chip.title = "Visitor account · can view section content, cannot react or post";
         } else if (authState.role === "guest") {
           chip.textContent = authState.guestPlayAllowed ? "Guest · Pass OK" : "Guest · Browse";
           chip.title = authState.guestPlayAllowed
@@ -469,7 +493,21 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
 
     const guestBanner = $("guestBanner");
     if (guestBanner) {
-      guestBanner.hidden = authState.role !== "guest";
+      if (authState.role === "visitor") {
+        guestBanner.hidden = false;
+        guestBanner.innerHTML =
+          '<span class="gb-title">Visitor mode · view only</span>' +
+          "Welcome. Makikita mo ang section content gaya ng classmates, pero limited." +
+          '<ul class="gb-list">' +
+          "<li>Pwede: Officer Updates (basahin), schedule, resources, directory, Freedom Wall</li>" +
+          "<li>Pwede: Reviewer Arena · Practice / Study only</li>" +
+          "<li>Hindi: React / reply sa posts, attendance self-mark, finance write, officer tools</li>" +
+          "<li>Hindi: Ranked play · hindi counted bilang classmate sa Section Pulse</li>" +
+          "</ul>" +
+          '<p class="gb-ok">Visitor accounts: <code>visitor1</code> · <code>visitor2</code> · <code>visitor3</code></p>';
+      } else {
+        guestBanner.hidden = authState.role !== "guest";
+      }
       if (authState.role === "guest") {
         if (authState.guestPlayAllowed) {
           guestBanner.innerHTML =
@@ -543,14 +581,48 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     if (!username || !password) {
       return { ok: false, message: "Ilagay ang username at password na assigned sa'yo." };
     }
-    const entry = CLASSMATE_ROSTER.find((row) => row.username === username);
+    const visitorEntry = VISITOR_ROSTER.find((row) => row.username === username);
+    const entry = CLASSMATE_ROSTER.find((row) => row.username === username) || visitorEntry;
     if (!entry) {
-      return { ok: false, message: "Hindi makita ang username sa classmate roster." };
+      return { ok: false, message: "Hindi makita ang username sa roster." };
     }
+    const isVisitorLogin = !!visitorEntry && !CLASSMATE_ROSTER.find((row) => row.username === username);
     const hash = await sha256Hex(password);
-    const expected = await getEffectivePasswordHash(username, entry.hash);
+    const expected = isVisitorLogin
+      ? entry.hash
+      : await getEffectivePasswordHash(username, entry.hash);
     if (hash !== expected) {
-      return { ok: false, message: "Maling password. I-check ulit ang credentials, o i-reset via change password after a valid login." };
+      return { ok: false, message: "Maling password. I-check ulit ang credentials." };
+    }
+
+    if (isVisitorLogin) {
+      const access = await assertVisitorAccessAllowed(entry.username);
+      if (!access.ok) {
+        return { ok: false, message: access.message || "Visitor access denied" };
+      }
+      authState.role = "visitor";
+      authState.isAdmin = false;
+      authState.username = entry.username;
+      authState.displayName = entry.displayName;
+      authState.ready = true;
+      authState.guestPlayAllowed = false;
+      authState.officerTitle = "";
+      authState.officerChannels = [];
+      const sessionId = await claimAuthSession(entry.username);
+      saveAuthSession({
+        role: "visitor",
+        isAdmin: false,
+        username: entry.username,
+        displayName: entry.displayName,
+        guestPlayAllowed: false,
+        officerTitle: "",
+        officerChannels: [],
+        sessionId: sessionId || localSessionId,
+        ts: Date.now()
+      });
+      startSessionWatch(entry.username);
+      startVisitorExpiryWatch();
+      return { ok: true, admin: false, visitor: true };
     }
 
     let elevatedAdmin = false;
@@ -585,7 +657,6 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       ts: Date.now()
     });
     startSessionWatch(entry.username);
-    // Fire-and-forget login log for RST Admin dashboard
     recordClassmateLogin({
       username: entry.username,
       displayName: entry.displayName,
@@ -1151,6 +1222,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
 
   function signOutHub(kicked) {
     stopSessionWatch();
+    if (typeof stopVisitorExpiryWatch === "function") stopVisitorExpiryWatch();
     clearAuthSession();
     localSessionId = null;
     try { localStorage.removeItem("bscs1a_local_session_id_v1"); } catch (e) { /* ignore */ }
@@ -1174,17 +1246,68 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     const gate = $("authGate");
     if (gate) {
       gate.hidden = false;
-      document.body.classList.remove("authed", "role-guest", "role-classmate", "role-admin");
+      document.body.classList.remove("authed", "role-guest", "role-classmate", "role-admin", "role-visitor");
     }
     if (kicked) {
       /* toast handled by caller */
     }
   }
 
+
+  const VIEW_MODE_KEY = "bscs1a_view_mode_v1";
+
+  function getViewMode() {
+    try {
+      const v = localStorage.getItem(VIEW_MODE_KEY);
+      return v === "desktop" ? "desktop" : "mobile";
+    } catch (e) {
+      return "mobile";
+    }
+  }
+
+  function applyViewMode(mode) {
+    const m = mode === "desktop" ? "desktop" : "mobile";
+    document.body.classList.toggle("view-desktop", m === "desktop");
+    document.body.classList.toggle("view-mobile", m === "mobile");
+    try { localStorage.setItem(VIEW_MODE_KEY, m); } catch (e) { /* ignore */ }
+    const mob = document.getElementById("navViewMobile");
+    const desk = document.getElementById("navViewDesktop");
+    if (mob) mob.classList.toggle("is-view-active", m === "mobile");
+    if (desk) desk.classList.toggle("is-view-active", m === "desktop");
+  }
+
+  function initViewModeControls() {
+    applyViewMode(getViewMode());
+    const mob = document.getElementById("navViewMobile");
+    const desk = document.getElementById("navViewDesktop");
+    const closeNav = () => {
+      const navLinks = document.getElementById("navLinks");
+      if (navLinks) navLinks.classList.remove("open");
+      const navToggle = document.getElementById("navToggle");
+      if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+    };
+    if (mob) {
+      mob.addEventListener("click", (e) => {
+        e.preventDefault();
+        applyViewMode("mobile");
+        closeNav();
+        if (typeof showShareToast === "function") showShareToast("Mobile layout");
+      });
+    }
+    if (desk) {
+      desk.addEventListener("click", (e) => {
+        e.preventDefault();
+        applyViewMode("desktop");
+        closeNav();
+        if (typeof showShareToast === "function") showShareToast("Desktop site · wider updates & larger popups");
+      });
+    }
+  }
+
   function initAuthGate() {
     const existing = loadAuthSession();
     if (existing) {
-      authState.role = existing.role === "admin" ? "admin" : existing.role;
+      authState.role = existing.role === "admin" ? "admin" : (existing.role === "visitor" ? "visitor" : existing.role);
       authState.username = existing.username || "";
       authState.displayName = existing.displayName || "";
       authState.isAdmin = !!existing.isAdmin || existing.role === "admin";
@@ -1198,7 +1321,29 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       authState.ready = true;
       applyAuthUI();
       // Restore single-device session watch (or claim if older session has no id)
-      if ((authState.role === "classmate" || authState.role === "admin") && authState.username) {
+      if (authState.role === "visitor" && authState.username) {
+        (async () => {
+          try {
+            const access = await assertVisitorAccessAllowed(authState.username);
+            if (!access.ok) {
+              signOutHub(true);
+              if (typeof showShareToast === "function") showShareToast(access.message || "Visitor session ended");
+              return;
+            }
+            if (existing.sessionId) {
+              localSessionId = existing.sessionId;
+              try { localStorage.setItem("bscs1a_local_session_id_v1", localSessionId); } catch (e) { /* ignore */ }
+              startSessionWatch(authState.username);
+            } else {
+              await claimAuthSession(authState.username);
+              startSessionWatch(authState.username);
+            }
+            startVisitorExpiryWatch();
+          } catch (e) {
+            console.warn("[Auth] visitor restore failed:", e);
+          }
+        })();
+      } else if ((authState.role === "classmate" || authState.role === "admin") && authState.username) {
         (async () => {
           try {
             if (existing.sessionId) {
@@ -1424,6 +1569,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     }
     if (canIssueGuestPass()) {
       specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opGuestPassFocus">🔑 Guest Pass desk · P.O. / Admin</button>`);
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opVisitorCtrl">⏱ Visitor time / force logout · P.O. / Admin</button>`);
     }
     if (canManageFinance()) {
       specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opFinance">💰 Section Finance · Treasurer / Auditor</button>`);
@@ -1544,6 +1690,14 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         openRstAdminPanel();
       });
     }
+    const visCtrlBtn = panel.querySelector("#opVisitorCtrl");
+    if (visCtrlBtn) {
+      bindTap(visCtrlBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openVisitorControlPanel();
+      });
+    }
     const focusPass = panel.querySelector("#opGuestPassFocus");
     if (focusPass) {
       bindTap(focusPass, (e) => {
@@ -1639,6 +1793,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         <button type="button" class="lifeline-btn" id="adminOpenLeadership">Leadership Desk</button>
         <button type="button" class="lifeline-btn" id="adminOpenFinance">Section Finance</button>
         <button type="button" class="lifeline-btn" id="adminOpenAttendance">Attendance</button>
+        <button type="button" class="lifeline-btn" id="adminOpenVisitorCtrl">Visitor control</button>
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
       <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
@@ -1844,6 +1999,14 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         e.preventDefault();
         overlay.remove();
         openAttendanceManager();
+      });
+    }
+    const adminOpenVis = panel.querySelector("#adminOpenVisitorCtrl");
+    if (adminOpenVis) {
+      bindTap(adminOpenVis, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openVisitorControlPanel();
       });
     }
 
@@ -3145,6 +3308,10 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   function openModal(id) {
     const modal = $(id);
     if (!modal) return;
+    if (id === "leaderboardModal" && typeof isGuest === "function" && isGuest()) {
+      if (typeof showShareToast === "function") showShareToast("Leaderboard is for classmates only");
+      return;
+    }
     modal.removeAttribute("hidden");
     document.body.classList.add("no-scroll");
     if (id === "leaderboardModal") {
@@ -4325,6 +4492,285 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     const u = String(authState.username || "").toLowerCase();
     return SECRETARY_USERNAMES.has(u);
   }
+
+
+  let visitorExpiryTimer = null;
+
+  function canManageVisitors() {
+    return canIssueGuestPass(); // Admin + P.O. Boy/Girl
+  }
+
+  async function loadVisitorControl() {
+    const defaults = {};
+    VISITOR_ROSTER.forEach((v) => {
+      defaults[v.username] = {
+        username: v.username,
+        enabled: true,
+        durationHours: 2,
+        expiresAt: 0,
+        forceLogout: false,
+        note: "",
+        updatedBy: "",
+        updatedAt: 0
+      };
+    });
+    if (db) {
+      try {
+        const snap = await get(ref(db, VISITOR_CONTROL_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          Object.keys(defaults).forEach((u) => {
+            if (val[u] && typeof val[u] === "object") {
+              defaults[u] = Object.assign({}, defaults[u], val[u]);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("[Visitor] load control failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_visitor_control_v1") || "null");
+      if (local && typeof local === "object") {
+        Object.keys(defaults).forEach((u) => {
+          if (local[u]) defaults[u] = Object.assign({}, defaults[u], local[u]);
+        });
+      }
+    } catch (e) { /* ignore */ }
+    return defaults;
+  }
+
+  async function saveVisitorControlEntry(username, patch) {
+    const all = await loadVisitorControl();
+    const user = String(username || "").toLowerCase();
+    const next = Object.assign({}, all[user] || { username: user }, patch, {
+      username: user,
+      updatedBy: authState.username || "",
+      updatedAt: Date.now()
+    });
+    all[user] = next;
+    try {
+      localStorage.setItem("bscs1a_visitor_control_v1", JSON.stringify(all));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, VISITOR_CONTROL_PATH + "/" + user), next);
+    }
+    return next;
+  }
+
+  function formatExpiry(ts) {
+    if (!ts || Number(ts) <= 0) return "No active timed session";
+    const n = Number(ts);
+    if (Date.now() >= n) return "EXPIRED";
+    try {
+      return new Date(n).toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    } catch {
+      return String(ts);
+    }
+  }
+
+  function remainingVisitorMs(ctrl) {
+    if (!ctrl) return 0;
+    if (ctrl.forceLogout) return 0;
+    if (!ctrl.enabled) return 0;
+    const exp = Number(ctrl.expiresAt || 0);
+    if (!exp) return -1; // no timed limit
+    return exp - Date.now();
+  }
+
+  async function assertVisitorAccessAllowed(username) {
+    const all = await loadVisitorControl();
+    const ctrl = all[String(username || "").toLowerCase()];
+    if (!ctrl) return { ok: true };
+    if (ctrl.forceLogout) {
+      return { ok: false, message: "Visitor access revoked by P.O. / Admin. Ask them to re-enable." };
+    }
+    if (ctrl.enabled === false) {
+      return { ok: false, message: "This visitor account is disabled." };
+    }
+    const left = remainingVisitorMs(ctrl);
+    if (left === 0 || (left >= 0 && left <= 0)) {
+      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    }
+    if (Number(ctrl.expiresAt) > 0 && Date.now() >= Number(ctrl.expiresAt)) {
+      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    }
+    return { ok: true, ctrl: ctrl };
+  }
+
+  function stopVisitorExpiryWatch() {
+    if (visitorExpiryTimer) {
+      clearInterval(visitorExpiryTimer);
+      visitorExpiryTimer = null;
+    }
+  }
+
+  function startVisitorExpiryWatch() {
+    stopVisitorExpiryWatch();
+    if (!isVisitor()) return;
+    visitorExpiryTimer = setInterval(async () => {
+      if (!isVisitor()) {
+        stopVisitorExpiryWatch();
+        return;
+      }
+      try {
+        const check = await assertVisitorAccessAllowed(authState.username);
+        if (!check.ok) {
+          stopVisitorExpiryWatch();
+          signOutHub(true);
+          if (typeof showShareToast === "function") {
+            showShareToast(check.message || "Visitor session ended");
+          } else {
+            window.alert(check.message || "Visitor session ended");
+          }
+        }
+      } catch (e) {
+        console.warn("[Visitor] expiry check failed:", e);
+      }
+    }, 15000);
+  }
+
+  async function openVisitorControlPanel() {
+    if (!canManageVisitors()) {
+      if (typeof showShareToast === "function") showShareToast("P.O. / Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.visitor-control");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay visitor-control";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Visitor access control</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        P.O. Boy · P.O. Girl · RST Admin · set <strong>hours</strong> per visitor (1–3) or force logout.
+        Timed window starts when you click <em>Start timer</em>.
+      </p>
+      <div id="visCtrlBody" style="max-height:min(60vh,520px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="visCtrlRefresh">Refresh</button>
+        <button type="button" class="lifeline-btn" id="visCtrlClose">Close</button>
+      </div>
+      <p id="visCtrlStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#visCtrlBody");
+    const status = panel.querySelector("#visCtrlStatus");
+
+    async function render() {
+      const all = await loadVisitorControl();
+      body.innerHTML = VISITOR_ROSTER.map((v) => {
+        const c = all[v.username] || {};
+        const hours = Number(c.durationHours) > 0 ? Number(c.durationHours) : 2;
+        const expLabel = formatExpiry(c.expiresAt);
+        const enabled = c.enabled !== false;
+        const forced = !!c.forceLogout;
+        return `
+          <div class="op-guest-box" style="margin-bottom:0.65rem;" data-vis-user="${escapeHtml(v.username)}">
+            <div style="font-weight:900;color:#ffe6b0;margin-bottom:0.25rem;">${escapeHtml(v.username)} · ${escapeHtml(v.displayName)}</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.45rem;">
+              Status: ${forced ? '<span style="color:#ffb4b4;">FORCE LOGGED OUT</span>' : enabled ? '<span style="color:#7ee7d4;">Enabled</span>' : '<span style="color:#ffb4b4;">Disabled</span>'}
+              · Timer ends: <strong style="color:var(--text);">${escapeHtml(expLabel)}</strong>
+            </div>
+            <label style="display:block;font-size:0.7rem;font-weight:800;color:var(--muted);margin-bottom:0.2rem;">HOURS ALLOWED (this session)</label>
+            <input type="number" min="0.25" max="72" step="0.25" class="vis-hours" value="${hours}" style="width:100%;min-height:42px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;margin-bottom:0.4rem;" />
+            <input type="text" class="vis-note" maxlength="80" placeholder="Optional note" value="${escapeHtml(c.note || "")}" style="width:100%;min-height:40px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;margin-bottom:0.45rem;" />
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button type="button" class="lifeline-btn vis-start">Start / reset timer</button>
+              <button type="button" class="lifeline-btn vis-kick">Force logout now</button>
+              <button type="button" class="ou-action-btn vis-clear">Clear force + enable</button>
+            </div>
+          </div>`;
+      }).join("");
+
+      body.querySelectorAll("[data-vis-user]").forEach((box) => {
+        const user = box.getAttribute("data-vis-user");
+        const hoursEl = box.querySelector(".vis-hours");
+        const noteEl = box.querySelector(".vis-note");
+        bindTap(box.querySelector(".vis-start"), async (e) => {
+          e.preventDefault();
+          try {
+            const hours = Math.max(0.25, Math.min(72, Number(hoursEl.value) || 2));
+            const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+            await saveVisitorControlEntry(user, {
+              enabled: true,
+              forceLogout: false,
+              durationHours: hours,
+              expiresAt: expiresAt,
+              note: String(noteEl.value || "").trim()
+            });
+            // Kick any existing session so they must re-login under new window
+            if (db) {
+              await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), {
+                sessionId: "revoked_" + Date.now(),
+                username: user,
+                ts: Date.now(),
+                revoked: true
+              });
+            }
+            status.textContent = user + " · timer set for " + hours + " hour(s). Ends " + formatExpiry(expiresAt);
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+        bindTap(box.querySelector(".vis-kick"), async (e) => {
+          e.preventDefault();
+          try {
+            await saveVisitorControlEntry(user, {
+              forceLogout: true,
+              expiresAt: Date.now(),
+              note: String(noteEl.value || "").trim()
+            });
+            if (db) {
+              await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), {
+                sessionId: "kicked_" + Date.now(),
+                username: user,
+                ts: Date.now(),
+                revoked: true
+              });
+            }
+            status.textContent = user + " · force logout sent.";
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+        bindTap(box.querySelector(".vis-clear"), async (e) => {
+          e.preventDefault();
+          try {
+            await saveVisitorControlEntry(user, {
+              forceLogout: false,
+              enabled: true,
+              expiresAt: 0,
+              durationHours: Number(hoursEl.value) || 2,
+              note: String(noteEl.value || "").trim()
+            });
+            status.textContent = user + " · enabled (no timer until you Start timer).";
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+      });
+    }
+
+    bindTap(panel.querySelector("#visCtrlClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#visCtrlRefresh"), async (e) => {
+      e.preventDefault();
+      status.textContent = "Refreshing…";
+      await render();
+      status.textContent = "Updated.";
+    });
+    await render();
+  }
+
 
   function canIssueGuestPass() {
     if (isAdmin()) return true;
@@ -6425,8 +6871,8 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   async function renderOfficerUpdates() {
     const host = $("officerUpdateList");
     if (!host) return;
-    if (!(isClassmate() || isAdmin())) {
-      host.innerHTML = `<p class="arena-note">Classmates only.</p>`;
+    if (!canViewClassContent()) {
+      host.innerHTML = `<p class="arena-note">Classmates / visitors only.</p>`;
       refreshOfficerUpdateBadge();
       return;
     }
@@ -7023,6 +7469,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     }
 
     initAuthGate();
+    try { initViewModeControls(); } catch (e) { /* ignore */ }
     initNotebookButton();
     initExamModeToggle();
     initWelcomeModal();
