@@ -59,6 +59,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
   const LOGIN_LOG_PATH = "hub_logins";
   const LOGIN_LOG_EVENTS_PATH = "hub_login_events";
+  const PRESENCE_PATH = "hub_config/presence";
+  const PRESENCE_OPENS_PATH = "hub_config/presence_opens";
+  const PUSH_TOKENS_PATH = "hub_config/push_tokens";
+  const PUSH_SIGNAL_PATH = "hub_config/push_signal";
   const LOGIN_LOG_LOCAL_KEY = "bscs1a_login_log_v1";
   const NOTEBOOK_KEY = "bscs1a_mistake_notebook_v1";
   const SEASON_MID_START = "2026-08-01";
@@ -407,6 +411,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       // section button visible via CSS body.role-officer
     });
     if (typeof renderOfficerUpdates === "function") renderOfficerUpdates();
+    if (typeof maybePromptAttendance === "function") {
+      window.setTimeout(() => {
+        try { maybePromptAttendance(); } catch (e) { /* ignore */ }
+      }, 700);
+    }
+    if (typeof startPresenceHeartbeat === "function" && (isClassmate() || isAdmin())) {
+      startPresenceHeartbeat();
+    }
 
     // Show admin code field when username is tabifranca
     const adminField = $("adminCodeField");
@@ -567,6 +579,185 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       if (Number(row.ts || 0) >= weekAgo && row.username) seen.add(row.username);
     });
     return seen.size;
+  }
+
+  let presenceTimer = null;
+  let lastPresenceWrite = 0;
+
+  async function recordHubPresence(reason) {
+    if (!(isClassmate() || isAdmin())) return;
+    const user = String(authState.username || "").toLowerCase();
+    if (!user) return;
+    const now = Date.now();
+    // throttle heartbeats
+    if (reason === "heartbeat" && now - lastPresenceWrite < 45000) return;
+    lastPresenceWrite = now;
+    const entry = {
+      username: user,
+      displayName: authState.displayName || user,
+      role: isAdmin() ? "admin" : "classmate",
+      lastSeen: now,
+      lastOpen: now,
+      reason: reason || "open",
+      online: true,
+      company: COMPANY_NAME
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}");
+      local[user] = entry;
+      localStorage.setItem("bscs1a_presence_local_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (!db) return;
+    try {
+      await set(ref(db, `${PRESENCE_PATH}/${user}`), entry);
+      // Open events (not only login) — keep recent keys
+      if (reason === "open" || reason === "resume" || reason === "login") {
+        const eventId = `${user}_${now}`;
+        await set(ref(db, `${PRESENCE_OPENS_PATH}/${eventId}`), {
+          username: user,
+          displayName: entry.displayName,
+          role: entry.role,
+          ts: now,
+          reason: reason || "open"
+        });
+      }
+    } catch (error) {
+      console.warn("[Presence] write failed:", error);
+    }
+  }
+
+  function startPresenceHeartbeat() {
+    if (presenceTimer) window.clearInterval(presenceTimer);
+    if (!(isClassmate() || isAdmin())) return;
+    recordHubPresence("open");
+    presenceTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        recordHubPresence("heartbeat");
+      }
+    }, 60000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        recordHubPresence("resume");
+      }
+    });
+  }
+
+  async function fetchPresenceMap() {
+    if (db) {
+      try {
+        const snap = await get(ref(db, PRESENCE_PATH));
+        if (snap.exists()) return snap.val() || {};
+      } catch (error) {
+        console.warn("[Presence] fetch failed:", error);
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function fetchRecentOpens(limitN) {
+    const limit = Math.max(10, Math.min(80, Number(limitN) || 40));
+    let events = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, PRESENCE_OPENS_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((key) => {
+            const row = val[key];
+            if (row && typeof row === "object") events.push({ id: key, ...row });
+          });
+        }
+      } catch (error) {
+        console.warn("[Presence] opens fetch failed:", error);
+      }
+    }
+    return events
+      .slice()
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0))
+      .slice(0, limit);
+  }
+
+  async function savePushToken(token) {
+    if (!token || !(isClassmate() || isAdmin())) return;
+    const user = String(authState.username || "").toLowerCase();
+    if (!user || !db) return;
+    try {
+      await set(ref(db, `${PUSH_TOKENS_PATH}/${user}`), {
+        token: String(token),
+        username: user,
+        displayName: authState.displayName || user,
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.warn("[Push] token save failed:", error);
+    }
+  }
+
+  async function signalPushToSection(title, body, tag) {
+    // Signal for open clients + stored for future Cloud Function / FCM sender
+    if (!db) return;
+    try {
+      await set(ref(db, PUSH_SIGNAL_PATH), {
+        title: title || "BSCS 1-A Hub",
+        body: body || "May bagong update.",
+        tag: tag || ("sig-" + Date.now()),
+        ts: Date.now(),
+        by: authState.username || "system"
+      });
+    } catch (error) {
+      console.warn("[Push] signal failed:", error);
+    }
+  }
+
+  function listenPushSignal() {
+    // Poll push_signal while hub is open (closed-app push needs FCM server / Cloud Function)
+    if (!db) return;
+    let lastTs = 0;
+    try {
+      lastTs = Number(localStorage.getItem("bscs1a_last_push_signal_ts") || 0);
+    } catch (e) { /* ignore */ }
+    window.setInterval(async () => {
+      if (!(isClassmate() || isAdmin())) return;
+      if (document.visibilityState !== "visible" && !document.hidden) return;
+      try {
+        const snap = await get(ref(db, PUSH_SIGNAL_PATH));
+        if (!snap.exists()) return;
+        const val = snap.val();
+        const ts = Number(val && val.ts || 0);
+        if (!ts || ts <= lastTs) return;
+        if (String(val.by || "") === String(authState.username || "")) {
+          lastTs = ts;
+          try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
+          return;
+        }
+        lastTs = ts;
+        try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
+        if (notificationsSupported() && Notification.permission === "granted") {
+          const icon = hubAssetUrl("logo.png");
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SHOW_UPDATE",
+              title: val.title || "BSCS 1-A Hub",
+              body: val.body || "",
+              icon,
+              tag: val.tag || ("sig-" + ts)
+            });
+          } else {
+            new Notification(val.title || "BSCS 1-A Hub", {
+              body: val.body || "",
+              icon,
+              tag: val.tag || ("sig-" + ts)
+            });
+          }
+        }
+      } catch (error) {
+        /* ignore */
+      }
+    }, 45000);
   }
 
   /* ---------------- Mistake Notebook (persistent) ---------------- */
@@ -987,6 +1178,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <button type="button" class="lifeline-btn" id="opResources">Resources</button>
         <button type="button" class="lifeline-btn" id="opDashboard">Dashboard</button>
         <button type="button" class="lifeline-btn" id="opArena">Reviewer Arena</button>
+        ${canManageAttendance() ? `<button type="button" class="lifeline-btn" id="opAttendance" style="grid-column:1/-1;">Attendance manager</button>` : ""}
       </div>
       <h4 style="margin:0.35rem 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN</h4>
       <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);">Pinned message on home. Your name will show as the announcer.</p>
@@ -1030,6 +1222,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     bindTap(panel.querySelector("#opResources"), (e) => { e.preventDefault(); go("#resources"); });
     bindTap(panel.querySelector("#opDashboard"), (e) => { e.preventDefault(); go("dashboard.html"); });
     bindTap(panel.querySelector("#opArena"), (e) => { e.preventDefault(); go("#reviewer-arena"); });
+    const attBtn = panel.querySelector("#opAttendance");
+    if (attBtn) {
+      bindTap(attBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
     bindTap(panel.querySelector("#opPinSave"), async (e) => {
       e.preventDefault();
       try {
@@ -1058,7 +1258,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${COMPANY_NAME} Admin · Pin, deadlines, guests, login activity.
+        ${COMPANY_NAME} Admin · Pin, deadlines, guests, live PWA opens.
       </p>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
       <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
@@ -1072,9 +1272,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       <div id="adminDeadlineList" style="max-height:22vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">RESOURCE REQUESTS</h4>
       <div id="adminRequestList" style="max-height:28vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
-      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
-      <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
-        Loading login activity…
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE ACTIVITY (opens + logins)</h4>
+      <div id="adminLoginLog" style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
+        Loading activity…
       </div>
       <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;margin-bottom:0.75rem;">
         <input type="checkbox" id="adminGuestGlobal" /> Enable guest play globally (all guests)
@@ -1091,7 +1291,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
       <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
-      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Login log = last sign-in per classmate (date &amp; time). Guests are not listed.</p>
+      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Shows PWA opens (not only password login) + sign-in history. Guests are not listed.</p>
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
@@ -1104,32 +1304,69 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     async function renderAdminLoginLog() {
       if (!logHost) return;
-      logHost.textContent = "Loading login activity…";
+      logHost.textContent = "Loading activity…";
       const latest = await fetchClassmateLoginLog();
       const events = await fetchClassmateLoginEvents(40);
       const weekly = countActiveThisWeek(events.length ? events : latest);
+      const presence = await fetchPresenceMap();
+      const opens = await fetchRecentOpens(30);
+      const now = Date.now();
+      const activeNow = Object.keys(presence).filter((u) => {
+        const row = presence[u];
+        return row && Number(row.lastSeen || 0) > now - 2 * 60 * 1000;
+      });
+      const recentOpen = Object.keys(presence)
+        .map((u) => presence[u])
+        .filter((row) => row && Number(row.lastSeen || 0) > now - 24 * 60 * 60 * 1000)
+        .sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
+
       const statsHtml = `<div class="admin-stat-row">
+          <div class="admin-stat"><b>${activeNow.length}</b><span>Active now</span></div>
           <div class="admin-stat"><b>${weekly}</b><span>Active this week</span></div>
           <div class="admin-stat"><b>${latest.length}</b><span>Unique logins</span></div>
         </div>`;
-      if (!events.length && !latest.length) {
-        logHost.innerHTML = statsHtml + `<span style="color:var(--muted)">No classmate logins recorded yet.</span>`;
-        return;
-      }
-      const eventHtml = (events.length ? events : latest).map((row) => {
+
+      const liveHtml = activeNow.length
+        ? activeNow.map((u) => {
+            const row = presence[u];
+            return `<div style="padding:0.35rem 0;border-bottom:1px solid rgba(100,255,218,0.12);">
+              <div style="font-weight:800;color:#b8fff0;">● ${escapeHtml((row.displayName || u).split(",")[0])}</div>
+              <div style="color:var(--muted);font-size:0.72rem;">@${escapeHtml(u)} · open now · ${escapeHtml(formatLoginStamp(row.lastSeen))}</div>
+            </div>`;
+          }).join("")
+        : `<span style="color:var(--muted);font-size:0.8rem;">Walang active classmate ngayon.</span>`;
+
+      const openHtml = (opens.length ? opens : recentOpen.map((r) => ({ ...r, ts: r.lastSeen }))).slice(0, 25).map((row) => {
+        const when = formatLoginStamp(row.ts || row.lastSeen);
+        const name = escapeHtml((row.displayName || row.username || "Unknown").split(",")[0]);
+        const user = escapeHtml(row.username || "");
+        const why = escapeHtml(row.reason || "open");
+        return `<div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div style="font-weight:800;color:#eafffb;">${name}</div>
+          <div style="color:var(--muted);margin-top:0.1rem;font-size:0.72rem;">@${user} · ${why}</div>
+          <div style="color:var(--accent);margin-top:0.1rem;font-weight:700;font-size:0.78rem;">${escapeHtml(when)}</div>
+        </div>`;
+      }).join("") || `<span style="color:var(--muted)">No PWA opens recorded yet.</span>`;
+
+      const loginHtml = (events.length ? events : latest).slice(0, 20).map((row) => {
         const when = formatLoginStamp(row.ts);
         const role = row.role === "admin" ? "ADMIN" : "CLASSMATE";
         const name = escapeHtml(row.displayName || row.username || "Unknown");
         const user = escapeHtml(row.username || "");
-        return `<div style="padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
+        return `<div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
           <div style="font-weight:800;color:#eafffb;">${name}</div>
-          <div style="color:var(--muted);margin-top:0.15rem;">@${user} · ${role}</div>
-          <div style="color:var(--accent);margin-top:0.15rem;font-weight:700;">${escapeHtml(when)}</div>
+          <div style="color:var(--muted);margin-top:0.1rem;">@${user} · ${role} · sign-in</div>
+          <div style="color:var(--accent);margin-top:0.1rem;font-weight:700;">${escapeHtml(when)}</div>
         </div>`;
-      }).join("");
+      }).join("") || `<span style="color:var(--muted)">No sign-ins yet.</span>`;
+
       logHost.innerHTML = statsHtml +
-        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.35rem 0 0.25rem;letter-spacing:0.05em;">FULL HISTORY (newest first)</div>` +
-        eventHtml;
+        `<div style="font-size:0.72rem;font-weight:800;color:#7ee7d4;margin:0.45rem 0 0.25rem;letter-spacing:0.05em;">ACTIVE NOW (PWA open)</div>` +
+        liveHtml +
+        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">RECENT OPENS (app / page)</div>` +
+        openHtml +
+        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">SIGN-IN HISTORY</div>` +
+        loginHtml;
     }
 
     // Load global flag + login log
@@ -3710,6 +3947,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         if (isClassmate() || isAdmin()) refreshOfficerUpdateBadge();
       } catch (e) { /* ignore */ }
     }, 90000);
+    listenPushSignal();
   }
 
   async function refreshSectionPulse() {
@@ -3741,6 +3979,284 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
 
   let officerUpdateFilter = "all";
+  let officerUpdateSearch = "";
+
+  const ATTENDANCE_PATH = "hub_config/attendance";
+  const SECRETARY_USERNAMES = new Set(["flores"]); // class secretary
+  const ATTENDANCE_PROMPT_KEY = "bscs1a_att_prompt_v1";
+
+  function canManageAttendance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return SECRETARY_USERNAMES.has(u);
+  }
+
+  function subjectKeyFromLabel(subj) {
+    const raw = String(subj || "").split("·")[0].trim().toUpperCase();
+    return raw.replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "") || "CLASS";
+  }
+
+  function localDateKey(d) {
+    const x = d instanceof Date ? d : new Date();
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, "0");
+    const day = String(x.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function getCurrentClassSlots(nowInput) {
+    const now = nowInput instanceof Date ? nowInput : new Date();
+    const day = now.getDay();
+    const slots = (WEEKLY_SCHEDULE[day] || [])
+      .map((s) => parseScheduleSlot(s, now))
+      .filter(Boolean)
+      .sort((a, b) => a.startMs - b.startMs);
+    const t = now.getTime();
+    return slots.filter((s) => t >= s.startMs && t < s.endMs);
+  }
+
+  async function fetchAttendanceDay(dateKey) {
+    const key = dateKey || localDateKey();
+    if (db) {
+      try {
+        const snap = await get(ref(db, ATTENDANCE_PATH + "/" + key));
+        if (snap.exists()) return snap.val() || {};
+      } catch (error) {
+        console.warn("[Attendance] fetch failed:", error);
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem("bscs1a_att_" + key) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function saveAttendanceRecord(dateKey, subjKey, username, record) {
+    const path = `${ATTENDANCE_PATH}/${dateKey}/${subjKey}`;
+    let dayData = await fetchAttendanceDay(dateKey);
+    if (!dayData[subjKey]) {
+      dayData[subjKey] = {
+        subjectKey: subjKey,
+        date: dateKey,
+        records: {}
+      };
+    }
+    if (!dayData[subjKey].records) dayData[subjKey].records = {};
+    dayData[subjKey].records[username] = record;
+    try {
+      localStorage.setItem("bscs1a_att_" + dateKey, JSON.stringify(dayData));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, path), dayData[subjKey]);
+    }
+    return dayData[subjKey];
+  }
+
+  async function selfMarkAttendance(slot) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    const dateKey = localDateKey();
+    const subjKey = subjectKeyFromLabel(slot.subj);
+    const user = String(authState.username || "").toLowerCase();
+    const day = await fetchAttendanceDay(dateKey);
+    const existing = day[subjKey] && day[subjKey].records && day[subjKey].records[user];
+    // Never wipe history; only allow self-mark if no final override yet as absent without self
+    if (existing && existing.lockedByStaff) {
+      throw new Error("Attendance already finalized by Secretary/Admin for this subject");
+    }
+    const record = {
+      status: "present",
+      selfMarked: true,
+      selfMarkedAt: Date.now(),
+      displayName: authState.displayName || user,
+      subjectLabel: slot.subj,
+      timeLabel: slot.time,
+      tag: slot.tag || "",
+      lockedByStaff: existing && existing.lockedByStaff ? true : false,
+      editedBy: existing && existing.editedBy ? existing.editedBy : null,
+      finalStatus: "present"
+    };
+    // Preserve staff edit if they already set something
+    if (existing && existing.lockedByStaff) {
+      return existing;
+    }
+    await saveAttendanceRecord(dateKey, subjKey, user, record);
+    return record;
+  }
+
+  async function staffSetAttendance(dateKey, subjKey, username, status, subjectLabel) {
+    if (!canManageAttendance()) throw new Error("Admin / Secretary only");
+    const user = String(username || "").toLowerCase();
+    const day = await fetchAttendanceDay(dateKey);
+    const prev = (day[subjKey] && day[subjKey].records && day[subjKey].records[user]) || {};
+    const record = {
+      ...prev,
+      status,
+      finalStatus: status,
+      displayName: prev.displayName || user,
+      subjectLabel: subjectLabel || prev.subjectLabel || subjKey,
+      lockedByStaff: true,
+      editedBy: authState.username,
+      editedByName: (authState.displayName || authState.username || "").split(",")[0],
+      editedAt: Date.now(),
+      selfMarked: !!prev.selfMarked
+    };
+    await saveAttendanceRecord(dateKey, subjKey, user, record);
+    return record;
+  }
+
+  function maybePromptAttendance() {
+    if (!(isClassmate() || isAdmin())) return;
+    if (document.querySelector(".admin-overlay.attendance-prompt")) return;
+    const slots = getCurrentClassSlots();
+    if (!slots.length) return;
+    const dateKey = localDateKey();
+    const slot = slots[0];
+    const subjKey = subjectKeyFromLabel(slot.subj);
+    const user = String(authState.username || "").toLowerCase();
+    const promptKey = `${ATTENDANCE_PROMPT_KEY}:${dateKey}:${subjKey}`;
+    try {
+      if (sessionStorage.getItem(promptKey) === "1") return;
+    } catch (e) { /* ignore */ }
+
+    fetchAttendanceDay(dateKey).then((day) => {
+      const existing = day[subjKey] && day[subjKey].records && day[subjKey].records[user];
+      if (existing && (existing.selfMarked || existing.lockedByStaff)) return;
+
+      const overlay = document.createElement("div");
+      overlay.className = "admin-overlay attendance-prompt";
+      const panel = document.createElement("div");
+      panel.className = "admin-panel";
+      panel.innerHTML = `
+        <h3 style="margin:0 0 8px;font-size:1rem;">Class attendance</h3>
+        <p style="margin:0 0 10px;font-size:0.84rem;color:var(--muted);line-height:1.5;">
+          Ongoing class: <strong style="color:var(--text);">${escapeHtml(slot.subj)}</strong><br>
+          ${escapeHtml(slot.time)} · ${escapeHtml(slot.tag || "")}
+        </p>
+        <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
+          Mark yourself <strong>Present</strong> now. Secretary / RST Admin can correct the final record.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button type="button" class="lifeline-btn" id="attPresent">I'm present</button>
+          <button type="button" class="lifeline-btn" id="attLater">Later</button>
+        </div>
+        <p id="attPromptStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+      `;
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+      const status = panel.querySelector("#attPromptStatus");
+      bindTap(panel.querySelector("#attLater"), (e) => {
+        e.preventDefault();
+        try { sessionStorage.setItem(promptKey, "1"); } catch (err) { /* ignore */ }
+        overlay.remove();
+      });
+      bindTap(panel.querySelector("#attPresent"), async (e) => {
+        e.preventDefault();
+        try {
+          status.textContent = "Saving…";
+          await selfMarkAttendance(slot);
+          try { sessionStorage.setItem(promptKey, "1"); } catch (err) { /* ignore */ }
+          status.textContent = "Marked present.";
+          overlay.remove();
+          if (typeof showShareToast === "function") showShareToast("Attendance saved · present");
+        } catch (error) {
+          status.textContent = error.message || "Failed";
+        }
+      });
+    });
+  }
+
+  async function openAttendanceManager() {
+    if (!canManageAttendance()) {
+      if (typeof showShareToast === "function") showShareToast("Admin / Secretary only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.attendance-manager");
+    if (existing) existing.remove();
+    const dateKey = localDateKey();
+    const daySlots = (WEEKLY_SCHEDULE[new Date().getDay()] || []).slice();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay attendance-manager";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "520px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Attendance · ${escapeHtml(dateKey)}</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
+        RST Admin + Secretary only · records are permanent (edit status, never wipe the day).
+      </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">SUBJECT / SLOT</label>
+      <select id="attSubjSelect" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.65rem;"></select>
+      <div id="attRosterBox" style="max-height:50vh;overflow:auto;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="attMgrClose">Close</button>
+      </div>
+      <p id="attMgrStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const select = panel.querySelector("#attSubjSelect");
+    const box = panel.querySelector("#attRosterBox");
+    const status = panel.querySelector("#attMgrStatus");
+    const options = daySlots.length
+      ? daySlots.map((s) => `<option value="${escapeHtml(subjectKeyFromLabel(s.subj))}" data-label="${escapeHtml(s.subj)}">${escapeHtml(s.subj)} · ${escapeHtml(s.time)}</option>`).join("")
+      : `<option value="NO_CLASS">No class slots today</option>`;
+    select.innerHTML = options;
+
+    async function renderRoster() {
+      const subjKey = select.value;
+      const label = select.options[select.selectedIndex]
+        ? select.options[select.selectedIndex].getAttribute("data-label") || subjKey
+        : subjKey;
+      if (subjKey === "NO_CLASS") {
+        box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">Walang schedule ngayong araw.</p>`;
+        return;
+      }
+      const day = await fetchAttendanceDay(dateKey);
+      const records = (day[subjKey] && day[subjKey].records) || {};
+      box.innerHTML = CLASSMATE_ROSTER.map((c) => {
+        const rec = records[c.username] || {};
+        const st = rec.finalStatus || rec.status || "—";
+        const self = rec.selfMarked ? " · self" : "";
+        const staff = rec.lockedByStaff ? ` · by ${escapeHtml(rec.editedByName || rec.editedBy || "staff")}` : "";
+        return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="flex:1;min-width:140px;">
+            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}</div>
+            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(String(st).toUpperCase())}${self}${staff}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button type="button" class="ou-action-btn" data-att-set="present" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Present</button>
+            <button type="button" class="ou-action-btn ou-del" data-att-set="absent" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Absent</button>
+            <button type="button" class="ou-action-btn" data-att-set="late" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}">Late</button>
+          </div>
+        </div>`;
+      }).join("");
+      box.querySelectorAll("[data-att-set]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          try {
+            status.textContent = "Saving…";
+            await staffSetAttendance(
+              dateKey,
+              btn.getAttribute("data-subj"),
+              btn.getAttribute("data-user"),
+              btn.getAttribute("data-att-set"),
+              btn.getAttribute("data-label")
+            );
+            status.textContent = "Updated.";
+            renderRoster();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+      });
+    }
+
+    select.addEventListener("change", () => { renderRoster(); });
+    bindTap(panel.querySelector("#attMgrClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    renderRoster();
+  }
 
 
   async function fetchResourceRequests() {
@@ -3966,6 +4482,13 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (db) {
       await set(ref(db, OFFICER_UPDATES_PATH + "/" + id), payload);
     }
+    try {
+      await signalPushToSection(
+        "BSCS 1-A · New Officer Update",
+        textValue.slice(0, 120),
+        "ou-" + id
+      );
+    } catch (e) { /* ignore */ }
     return { id, ...payload };
   }
 
@@ -3988,6 +4511,28 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (db) {
       await remove(ref(db, OFFICER_UPDATES_PATH + "/" + id));
     }
+  }
+
+  async function togglePinOfficerUpdate(id) {
+    if (!isOfficer()) throw new Error("Officers only");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("Post not found");
+    const nextPinned = !row.pinned;
+    const patch = {
+      pinned: nextPinned,
+      pinnedBy: nextPinned ? authState.username : null,
+      pinnedByName: nextPinned ? (authState.displayName || authState.username || "").split(",")[0] : null,
+      pinnedAt: nextPinned ? Date.now() : null
+    };
+    patchLocalOfficerUpdate(id, patch);
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinned"), patch.pinned);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedBy"), patch.pinnedBy);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedByName"), patch.pinnedByName);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedAt"), patch.pinnedAt);
+    }
+    return nextPinned;
   }
 
   function patchLocalOfficerUpdate(id, patch) {
@@ -4341,11 +4886,32 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     host.innerHTML = `<p class="arena-note">Loading updates…</p>`;
     const rows = await fetchOfficerUpdates();
-    const filtered = officerUpdateFilter === "all"
-      ? rows
+    let filtered = officerUpdateFilter === "all"
+      ? rows.slice()
       : rows.filter((r) => r.channel === officerUpdateFilter);
+    const q = String(officerUpdateSearch || "").trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((r) => {
+        const blob = [
+          r.text,
+          r.channel,
+          CHANNEL_LABELS[r.channel],
+          r.byName,
+          r.by,
+          r.roleTitle,
+          r.link
+        ].join(" ").toLowerCase();
+        return blob.indexOf(q) >= 0;
+      });
+    }
+    filtered.sort((a, b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return Number(b.ts || 0) - Number(a.ts || 0);
+    });
     if (!filtered.length) {
-      host.innerHTML = `<p class="arena-note">No updates yet in this channel. Officers can post from Officer Desk.</p>`;
+      host.innerHTML = `<p class="arena-note">${q ? "No updates match your search." : "No updates yet in this channel. Officers can post from Officer Desk."}</p>`;
       refreshOfficerUpdateBadge();
       return;
     }
@@ -4362,7 +4928,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       const delBtn = canDel
         ? `<button type="button" class="ou-action-btn ou-del" data-ou-delete="${escapeHtml(r.id)}">Delete</button>`
         : "";
-      return `<article class="officer-update-card" id="ou-post-${escapeHtml(r.id)}">
+      const pinBtn = isOfficer()
+        ? `<button type="button" class="ou-action-btn" data-ou-pin="${escapeHtml(r.id)}">${r.pinned ? "Unpin" : "Pin"}</button>`
+        : "";
+      const pinBadge = r.pinned
+        ? `<div class="ou-pin-badge">📌 Pinned${r.pinnedByName ? " · " + escapeHtml(r.pinnedByName) : ""}</div>`
+        : "";
+      return `<article class="officer-update-card${r.pinned ? " is-pinned" : ""}" id="ou-post-${escapeHtml(r.id)}">
+        ${pinBadge}
         <div class="ou-ch">${escapeHtml(ch)}</div>
         <p class="ou-text">${escapeHtml(r.text || "")}</p>
         ${linkHtml}
@@ -4372,6 +4945,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <div class="ou-actions">
           <button type="button" class="ou-action-btn" data-ou-share="${escapeHtml(r.id)}">Share</button>
           <button type="button" class="ou-action-btn" data-ou-toggle-thread="${escapeHtml(r.id)}">Ask / replies</button>
+          ${pinBtn}
           ${delBtn}
         </div>
         <div class="ou-thread-wrap" id="ou-thread-${escapeHtml(r.id)}" hidden>
@@ -4385,6 +4959,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         const id = btn.getAttribute("data-ou-toggle-thread");
         const box = document.getElementById("ou-thread-" + id);
         if (box) box.hidden = !box.hidden;
+      });
+    });
+    host.querySelectorAll("[data-ou-pin]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        try {
+          const pinned = await togglePinOfficerUpdate(btn.getAttribute("data-ou-pin"));
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") showShareToast(pinned ? "Post pinned" : "Post unpinned");
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Pin failed");
+        }
       });
     });
     bindOfficerUpdateCardActions(host);
@@ -4516,6 +5102,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           filters.querySelectorAll("[data-ou]").forEach((b) => b.classList.toggle("active", b === btn));
           renderOfficerUpdates();
         });
+      });
+    }
+    const search = $("ouSearchInput");
+    if (search) {
+      let t = null;
+      search.addEventListener("input", () => {
+        officerUpdateSearch = search.value || "";
+        window.clearTimeout(t);
+        t = window.setTimeout(() => renderOfficerUpdates(), 180);
       });
     }
     const deskBtns = ["openOfficerDeskBtn", "openOfficerDeskBtnLogin"];
@@ -6067,6 +6662,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       </p>
       <div id="adminRows"></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button type="button" class="lifeline-btn" id="adminAttendance">Attendance</button>
         <button type="button" class="lifeline-btn" id="adminClose">Close</button>
         <button type="button" class="lifeline-btn admin-danger" id="adminResetBoard">Reset THIS Board</button>
       </div>`;
@@ -6122,6 +6718,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       event.preventDefault();
       overlay.remove();
     });
+
+    const adminAtt = panel.querySelector("#adminAttendance");
+    if (adminAtt) {
+      bindTap(adminAtt, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
 
     bindTap(panel.querySelector("#adminResetBoard"), async (event) => {
       event.preventDefault();
