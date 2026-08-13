@@ -1,5 +1,5 @@
 /* BSCS 1-A RST Hub — lightweight service worker */
-const CACHE = "bscs1a-rst-hub-v1";
+const CACHE = "bscs1a-rst-hub-v2";
 const PRECACHE = ["./", "./index.html", "./game.js", "./logo.png", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -24,7 +24,7 @@ self.addEventListener("fetch", (event) => {
       const network = fetch(req)
         .then((res) => {
           const copy = res.clone();
-          if (res.ok && (req.url.includes(self.location.origin))) {
+          if (res.ok && req.url.includes(self.location.origin)) {
             caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
           }
           return res;
@@ -37,17 +37,20 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const target =
+    (event.notification.data && event.notification.data.url) ||
+    new URL("./index.html#officer-updates", self.location.href).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if ("focus" in client) {
           client.focus();
-          if (client.navigate) client.navigate("./index.html#officer-updates");
+          if (client.navigate) client.navigate(target);
           return;
         }
       }
       if (self.clients.openWindow) {
-        return self.clients.openWindow("./index.html#officer-updates");
+        return self.clients.openWindow(target);
       }
     })
   );
@@ -56,14 +59,15 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type === "SHOW_UPDATE" && data.title) {
+    const icon = data.icon || new URL("./logo.png", self.location.href).href;
     event.waitUntil(
       self.registration.showNotification(data.title, {
         body: data.body || "May bagong update sa BSCS 1-A hub.",
-        icon: "./logo.png",
-        badge: "./logo.png",
+        icon,
+        badge: icon,
         tag: data.tag || "bscs1a-hub-update",
         renotify: true,
-        data: { url: data.url || "./index.html#officer-updates" }
+        data: { url: data.url || new URL("./index.html#officer-updates", self.location.href).href }
       })
     );
   }
