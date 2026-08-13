@@ -397,6 +397,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (adminBtn) adminBtn.hidden = !isAdmin();
     const adminBtnTop = $("openAdminHubBtnTop");
     if (adminBtnTop) adminBtnTop.hidden = !isAdmin();
+    const officerPanelBtn = $("openOfficerPanelBtn");
+    if (officerPanelBtn) officerPanelBtn.hidden = !isOfficer();
     if (typeof syncNotifButton === "function") syncNotifButton();
     const odLogin = $("openOfficerDeskBtnLogin");
     if (odLogin) odLogin.hidden = !isOfficer();
@@ -943,6 +945,101 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         openRstAdminPanel();
       });
     }
+    const officerPanelBtn = $("openOfficerPanelBtn");
+    if (officerPanelBtn) {
+      bindTap(officerPanelBtn, (event) => {
+        event.preventDefault();
+        openOfficerPanel();
+      });
+    }
+  }
+
+  function hubAssetUrl(path) {
+    try {
+      return new URL(path, window.location.href).href;
+    } catch (error) {
+      return path;
+    }
+  }
+
+  function openOfficerPanel() {
+    if (!isOfficer()) {
+      if (typeof showShareToast === "function") showShareToast("Officers only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.officer-panel");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay officer-panel";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    const title = authState.officerTitle || "Officer";
+    const name = (authState.displayName || authState.username || "").split(",")[0];
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Officer Panel</h3>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
+        ${escapeHtml(title)} · ${escapeHtml(name)} · shortcuts &amp; section pin
+      </p>
+      <div class="officer-panel-grid">
+        <button type="button" class="lifeline-btn" id="opDesk">Officer Desk</button>
+        <button type="button" class="lifeline-btn" id="opUpdates">Updates board</button>
+        <button type="button" class="lifeline-btn" id="opSchedule">Schedule</button>
+        <button type="button" class="lifeline-btn" id="opResources">Resources</button>
+        <button type="button" class="lifeline-btn" id="opDashboard">Dashboard</button>
+        <button type="button" class="lifeline-btn" id="opArena">Reviewer Arena</button>
+      </div>
+      <h4 style="margin:0.35rem 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN</h4>
+      <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);">Pinned message on home. Your name will show as the announcer.</p>
+      <textarea id="opPinInput" maxlength="240" placeholder="Pin a short section announcement…" style="width:100%;min-height:84px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.5rem;"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="opPinSave">Publish pin</button>
+        <button type="button" class="lifeline-btn" id="opClose">Close</button>
+      </div>
+      <p id="opStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#opStatus");
+    const pinInput = panel.querySelector("#opPinInput");
+    (async () => {
+      try {
+        if (db && pinInput) {
+          const snap = await get(ref(db, ANNOUNCEMENT_PATH));
+          if (snap.exists()) {
+            const val = snap.val();
+            pinInput.value = typeof val === "string" ? val : (val && val.text) || "";
+          }
+        }
+      } catch (error) { /* ignore */ }
+    })();
+    const go = (href) => {
+      overlay.remove();
+      if (href.startsWith("#")) {
+        const target = document.querySelector(href);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        try { history.replaceState(null, "", href); } catch (e) { /* ignore */ }
+      } else {
+        window.location.href = href;
+      }
+    };
+    bindTap(panel.querySelector("#opClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#opDesk"), (e) => { e.preventDefault(); overlay.remove(); openOfficerDesk(); });
+    bindTap(panel.querySelector("#opUpdates"), (e) => { e.preventDefault(); go("#officer-updates"); });
+    bindTap(panel.querySelector("#opSchedule"), (e) => { e.preventDefault(); go("#schedule"); });
+    bindTap(panel.querySelector("#opResources"), (e) => { e.preventDefault(); go("#resources"); });
+    bindTap(panel.querySelector("#opDashboard"), (e) => { e.preventDefault(); go("dashboard.html"); });
+    bindTap(panel.querySelector("#opArena"), (e) => { e.preventDefault(); go("#reviewer-arena"); });
+    bindTap(panel.querySelector("#opPinSave"), async (e) => {
+      e.preventDefault();
+      try {
+        await saveAdminPin(pinInput ? pinInput.value : "");
+        status.textContent = "Section pin published · your name is shown on home.";
+      } catch (error) {
+        status.textContent = "Pin saved locally (cloud write failed).";
+        console.warn(error);
+      }
+    });
   }
 
   /* ---------------- RST Admin Panel: guest play control ---------------- */
@@ -3518,19 +3615,22 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       localStorage.setItem(NOTIF_LAST_KEY, String(latestTs));
       const title = "BSCS 1-A · New Officer Update";
       const body = String((row && row.text) || "May bagong update sa section hub.").slice(0, 120);
+      const icon = hubAssetUrl("logo.png");
       // Prefer service worker notification when available (better on installed PWA)
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: "SHOW_UPDATE",
           title,
           body,
+          icon,
           tag: "ou-" + latestTs,
-          url: "./index.html#officer-updates"
+          url: hubAssetUrl("index.html") + "#officer-updates"
         });
       } else {
         new Notification(title, {
           body,
-          icon: "./logo.png",
+          icon,
+          badge: icon,
           tag: "ou-" + latestTs
         });
       }
@@ -3779,16 +3879,77 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return Array.from(new Set(duty.concat(subjects)));
   }
 
-  async function publishOfficerUpdate(channel, message) {
+  function canDeleteOfficerUpdate(row) {
+    if (!row) return false;
+    if (isAdmin()) return true;
+    if (!isOfficer()) return false;
+    const me = String(authState.username || "").toLowerCase();
+    return me && String(row.by || "").toLowerCase() === me;
+  }
+
+  function getOfficerUpdateShareUrl(id) {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}#ou=${encodeURIComponent(id)}`;
+  }
+
+  function compressImageFile(file, maxDim, maxBytes) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type || file.type.indexOf("image/") !== 0) {
+        reject(new Error("Image file only (JPG/PNG/WebP)"));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read image"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width;
+          let h = img.height;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          let quality = 0.82;
+          let dataUrl = canvas.toDataURL("image/jpeg", quality);
+          while (dataUrl.length > maxBytes && quality > 0.45) {
+            quality -= 0.12;
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+          }
+          if (dataUrl.length > maxBytes) {
+            reject(new Error("Image still too large — try a smaller photo"));
+            return;
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error("Invalid image"));
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function publishOfficerUpdate(channel, message, extras) {
     if (!isOfficer()) throw new Error("Officers only");
     const allowed = getAllowedOfficerChannels();
     if (allowed.indexOf(channel) < 0) throw new Error("Channel not allowed for your duty");
-    const textValue = String(message || "").trim().slice(0, 280);
+    const textValue = String(message || "").trim();
     if (!textValue) throw new Error("Empty message");
+    const extra = extras || {};
+    let link = String(extra.link || "").trim();
+    if (link && !/^https?:\/\//i.test(link)) link = "https://" + link;
+    if (link && link.length > 500) throw new Error("Link too long");
+    const image = extra.image ? String(extra.image) : "";
+    if (image && image.length > 550000) throw new Error("Image too large");
     const id = "ou_" + Date.now() + "_" + (authState.username || "x");
     const payload = {
       channel,
       text: textValue,
+      link: link || null,
+      image: image || null,
       by: authState.username,
       byName: authState.displayName || authState.username,
       roleTitle: authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"),
@@ -3805,7 +3966,86 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (db) {
       await set(ref(db, OFFICER_UPDATES_PATH + "/" + id), payload);
     }
-    return payload;
+    return { id, ...payload };
+  }
+
+  async function deleteOfficerUpdate(id) {
+    if (!id) throw new Error("Missing post id");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === id);
+    if (!canDeleteOfficerUpdate(row)) throw new Error("Not allowed to delete this post");
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      if (local[id]) {
+        delete local[id];
+        localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+      }
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await remove(ref(db, OFFICER_UPDATES_PATH + "/" + id));
+    }
+  }
+
+  async function shareOfficerUpdate(row) {
+    if (!row || !row.id) return;
+    const url = getOfficerUpdateShareUrl(row.id);
+    const title = "BSCS 1-A · Officer Update";
+    const text = String(row.text || "").slice(0, 160);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (typeof showShareToast === "function") showShareToast("Link copied — share it with classmates");
+    } catch (error) {
+      window.prompt("Copy this link:", url);
+    }
+  }
+
+  function bindOfficerUpdateCardActions(host) {
+    if (!host) return;
+    host.querySelectorAll("[data-ou-share]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-share");
+        const rows = await fetchOfficerUpdates();
+        const row = rows.find((r) => r.id === id);
+        await shareOfficerUpdate(row || { id, text: "" });
+      });
+    });
+    host.querySelectorAll("[data-ou-delete]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-delete");
+        if (!window.confirm("Delete this officer update?")) return;
+        try {
+          await deleteOfficerUpdate(id);
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") showShareToast("Update deleted");
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Delete failed");
+        }
+      });
+    });
+  }
+
+  function focusSharedOfficerUpdate() {
+    const hash = String(window.location.hash || "");
+    const m = hash.match(/^#ou=(.+)$/);
+    if (!m) return;
+    const id = decodeURIComponent(m[1]);
+    const el = document.getElementById("ou-post-" + id);
+    if (!el) return;
+    el.classList.add("ou-shared-focus");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => el.classList.remove("ou-shared-focus"), 4000);
   }
 
   async function renderOfficerUpdates() {
@@ -3826,16 +4066,34 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       refreshOfficerUpdateBadge();
       return;
     }
-    host.innerHTML = filtered.slice(0, 40).map((r) => {
+    host.innerHTML = filtered.slice(0, 60).map((r) => {
       const when = formatLoginStamp(r.ts);
       const ch = CHANNEL_LABELS[r.channel] || r.channel;
-      return `<article class="officer-update-card">
+      const linkHtml = r.link
+        ? `<p class="ou-link"><a href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer">🔗 Open link</a></p>`
+        : "";
+      const imgHtml = r.image
+        ? `<div class="ou-image-wrap"><img class="ou-image" src="${escapeHtml(r.image)}" alt="Update attachment" loading="lazy" /></div>`
+        : "";
+      const canDel = canDeleteOfficerUpdate(r);
+      const delBtn = canDel
+        ? `<button type="button" class="ou-action-btn ou-del" data-ou-delete="${escapeHtml(r.id)}">Delete</button>`
+        : "";
+      return `<article class="officer-update-card" id="ou-post-${escapeHtml(r.id)}">
         <div class="ou-ch">${escapeHtml(ch)}</div>
         <p class="ou-text">${escapeHtml(r.text || "")}</p>
+        ${linkHtml}
+        ${imgHtml}
         <div class="ou-meta">${escapeHtml(r.roleTitle || "Officer")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+        <div class="ou-actions">
+          <button type="button" class="ou-action-btn" data-ou-share="${escapeHtml(r.id)}">Share</button>
+          ${delBtn}
+        </div>
       </article>`;
     }).join("");
+    bindOfficerUpdateCardActions(host);
     refreshOfficerUpdateBadge();
+    window.requestAnimationFrame(focusSharedOfficerUpdate);
   }
 
   function openOfficerDesk() {
@@ -3856,12 +4114,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">Officer Desk</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${escapeHtml(authState.officerTitle || "Officer")} · duty + subject channels. Posts auto-clear after 14 days. Classmates only.
+        ${escapeHtml(authState.officerTitle || "Officer")} · full message, optional link &amp; photo. Posts auto-clear after 14 days.
       </p>
       <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">CHANNEL</label>
       <select id="odChannel" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;">${opts}</select>
-      <textarea id="odMessage" maxlength="280" placeholder="Short update for the section…" style="width:100%;min-height:96px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;"></textarea>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">MESSAGE</label>
+      <textarea id="odMessage" placeholder="Write the full announcement…" style="width:100%;min-height:140px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.55rem;"></textarea>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">LINK (optional)</label>
+      <input id="odLink" type="url" placeholder="https://…" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.55rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">PHOTO (optional)</label>
+      <input id="odImage" type="file" accept="image/*" style="width:100%;margin-bottom:0.35rem;color:var(--muted);font-size:0.8rem;" />
+      <p style="margin:0 0 0.65rem;font-size:0.72rem;color:var(--muted);">Photo is compressed before upload. Prefer clear, single images.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
         <button type="button" class="lifeline-btn" id="odPublish">Publish</button>
         <button type="button" class="lifeline-btn" id="odClose">Close</button>
       </div>
@@ -3870,16 +4134,41 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
     const status = panel.querySelector("#odStatus");
+    let pendingImage = "";
+    const fileInput = panel.querySelector("#odImage");
+    if (fileInput) {
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          pendingImage = "";
+          return;
+        }
+        status.textContent = "Compressing photo…";
+        try {
+          pendingImage = await compressImageFile(file, 1280, 450000);
+          status.textContent = "Photo ready.";
+        } catch (error) {
+          pendingImage = "";
+          status.textContent = error.message || "Photo failed";
+          fileInput.value = "";
+        }
+      });
+    }
     bindTap(panel.querySelector("#odClose"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
     bindTap(panel.querySelector("#odPublish"), async (e) => {
       e.preventDefault();
       const ch = panel.querySelector("#odChannel").value;
       const msg = panel.querySelector("#odMessage").value;
+      const link = panel.querySelector("#odLink").value;
       try {
-        await publishOfficerUpdate(ch, msg);
+        status.textContent = "Publishing…";
+        await publishOfficerUpdate(ch, msg, { link, image: pendingImage });
         status.textContent = "Published. Classmates can see it under Officer Updates.";
         panel.querySelector("#odMessage").value = "";
+        panel.querySelector("#odLink").value = "";
+        if (fileInput) fileInput.value = "";
+        pendingImage = "";
         renderOfficerUpdates();
       } catch (error) {
         status.textContent = error.message || "Publish failed";
@@ -3943,19 +4232,34 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         });
       }
     });
+    window.addEventListener("hashchange", () => {
+      if (String(window.location.hash || "").indexOf("#ou=") === 0) {
+        focusSharedOfficerUpdate();
+      }
+    });
   }
 
   async function loadAdminPin() {
     const pin = $("adminPin");
     const body = $("adminPinBody");
+    const byline = $("adminPinBy");
     if (!pin || !body) return;
     let message = "";
+    let byName = "";
+    let roleTitle = "";
     try {
       if (db) {
         const snap = await get(ref(db, ANNOUNCEMENT_PATH));
         if (snap.exists()) {
           const val = snap.val();
-          message = typeof val === "string" ? val : (val && val.text) || "";
+          if (typeof val === "string") {
+            message = val;
+          } else if (val && typeof val === "object") {
+            message = val.text || "";
+            byName = val.byName || val.updatedByName || "";
+            roleTitle = val.roleTitle || "";
+            if (!byName && val.updatedBy) byName = String(val.updatedBy);
+          }
         }
       }
     } catch (error) {
@@ -3972,23 +4276,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       message = "Welcome to BSCS 1-A · RST Hub. Check Command Center for class & Daily status.";
     }
     body.textContent = message;
+    if (byline) {
+      if (byName) {
+        const who = String(byName).split(",")[0];
+        const role = roleTitle ? `${roleTitle} · ` : "";
+        byline.hidden = false;
+        byline.textContent = `Pinned by ${role}${who}`;
+      } else {
+        byline.hidden = true;
+        byline.textContent = "";
+      }
+    }
     pin.classList.add("is-visible");
   }
 
   async function saveAdminPin(textValue) {
+    if (!(isAdmin() || isOfficer())) throw new Error("Officers / Admin only");
     const cleaned = String(textValue || "").trim().slice(0, 240);
     try {
       localStorage.setItem(ANNOUNCEMENT_LOCAL_KEY, cleaned);
     } catch (error) {
       /* ignore */
     }
+    const payload = {
+      text: cleaned,
+      updatedBy: authState.username || ADMIN_USERNAME,
+      byName: authState.displayName || authState.username || ADMIN_USERNAME,
+      roleTitle: authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"),
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
     if (db) {
-      await set(ref(db, ANNOUNCEMENT_PATH), {
-        text: cleaned,
-        updatedBy: authState.username || ADMIN_USERNAME,
-        ts: Date.now(),
-        company: COMPANY_NAME
-      });
+      await set(ref(db, ANNOUNCEMENT_PATH), payload);
     }
     await loadAdminPin();
   }
