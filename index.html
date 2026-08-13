@@ -1863,6 +1863,41 @@ body.exam-mode .choice { min-height: 52px; }
   font-weight: 800;
   color: rgba(255, 210, 125, 0.9);
 }
+
+.op-special-box {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 210, 125, 0.45);
+  background: linear-gradient(145deg, rgba(255, 210, 125, 0.14), rgba(100, 255, 218, 0.06));
+  box-shadow: 0 0 18px rgba(255, 196, 94, 0.12);
+}
+.op-special-label {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffe6b0;
+  margin-bottom: 0.45rem;
+}
+.op-special-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+.lifeline-btn.op-special {
+  width: 100%;
+  border-color: rgba(255, 210, 125, 0.5) !important;
+  background: linear-gradient(135deg, rgba(255, 210, 125, 0.22), rgba(100, 255, 218, 0.1)) !important;
+  color: #fff4dc !important;
+  font-weight: 900 !important;
+}
+.op-guest-box {
+  margin: 0.55rem 0 0.35rem;
+  padding: 0.75rem;
+  border-radius: 14px;
+  border: 1px solid rgba(100, 255, 218, 0.35);
+  background: rgba(100, 255, 218, 0.08);
+}
+
 .officer-panel-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3094,6 +3129,7 @@ body.exam-week .question-text { font-size: clamp(1.15rem, 5.2vw, 1.5rem) !import
         <a href="#reviewer-arena">Reviewer Arena</a>
         <a href="#freedom-wall">Freedom Wall</a>
         <a href="dashboard.html" class="locked-for-guest" data-lock="classmate">Class Dashboard</a>
+        <a href="#" class="locked-for-guest" id="navFinanceLink" data-lock="classmate" role="button">Section Finance ₱</a>
 
         <span class="nav-group-label">External links</span>
         <a class="locked-for-guest" href="https://drive.google.com/drive/folders/1_PKN2Lvo3DXLVBrZq3-kZQCaqzQ1a2Z7" target="_blank" rel="noopener noreferrer" data-lock="classmate">Google Drive</a>
