@@ -3969,6 +3969,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return { id, ...payload };
   }
 
+  const OU_REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "🎉", "❓"];
+
   async function deleteOfficerUpdate(id) {
     if (!id) throw new Error("Missing post id");
     const rows = await fetchOfficerUpdates();
@@ -3986,6 +3988,124 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (db) {
       await remove(ref(db, OFFICER_UPDATES_PATH + "/" + id));
     }
+  }
+
+  function patchLocalOfficerUpdate(id, patch) {
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      if (!local[id]) local[id] = { id };
+      local[id] = { ...local[id], ...patch };
+      localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function normalizeReactions(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    Object.keys(raw).forEach((emoji) => {
+      const map = raw[emoji];
+      if (map && typeof map === "object") out[emoji] = { ...map };
+    });
+    return out;
+  }
+
+  function normalizeReplies(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw === "object") {
+      return Object.keys(raw).map((id) => ({ id, ...raw[id] })).filter((r) => r && r.text);
+    }
+    return [];
+  }
+
+  async function toggleOfficerReaction(postId, emoji) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    if (OU_REACTION_EMOJIS.indexOf(emoji) < 0) throw new Error("Invalid reaction");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const me = String(authState.username || "").toLowerCase();
+    if (!me) throw new Error("Sign in first");
+    const display = (authState.displayName || authState.username || me).split(",")[0];
+    const reactions = normalizeReactions(row.reactions);
+    if (!reactions[emoji]) reactions[emoji] = {};
+    if (reactions[emoji][me]) {
+      delete reactions[emoji][me];
+      if (!Object.keys(reactions[emoji]).length) delete reactions[emoji];
+    } else {
+      // one active emoji per user (optional clean switch)
+      Object.keys(reactions).forEach((key) => {
+        if (reactions[key] && reactions[key][me]) {
+          delete reactions[key][me];
+          if (!Object.keys(reactions[key]).length) delete reactions[key];
+        }
+      });
+      if (!reactions[emoji]) reactions[emoji] = {};
+      reactions[emoji][me] = display;
+    }
+    patchLocalOfficerUpdate(postId, { reactions });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/reactions"), reactions);
+    }
+    return reactions;
+  }
+
+  async function addOfficerReply(postId, text, type) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    const clean = String(text || "").trim().slice(0, 600);
+    if (!clean) throw new Error("Empty message");
+    const kind = type === "opinion" ? "opinion" : type === "answer" ? "answer" : "question";
+    if (kind === "answer" && !isOfficer()) throw new Error("Officers only can answer");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const replyId = "rep_" + Date.now() + "_" + (authState.username || "x");
+    const reply = {
+      id: replyId,
+      text: clean,
+      type: kind,
+      status: kind === "opinion" ? (isOfficer() ? "approved" : "pending") : "approved",
+      by: authState.username,
+      byName: authState.displayName || authState.username,
+      roleTitle: isOfficer()
+        ? (authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"))
+        : "Classmate",
+      ts: Date.now()
+    };
+    const repliesObj = {};
+    normalizeReplies(row.replies).forEach((r) => {
+      repliesObj[r.id] = r;
+    });
+    repliesObj[replyId] = reply;
+    patchLocalOfficerUpdate(postId, { replies: repliesObj });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/replies/" + replyId), reply);
+    }
+    return reply;
+  }
+
+  async function moderateOfficerReply(postId, replyId, status) {
+    if (!isOfficer()) throw new Error("Officers only");
+    if (["approved", "rejected"].indexOf(status) < 0) throw new Error("Invalid status");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const replies = normalizeReplies(row.replies);
+    const target = replies.find((r) => r.id === replyId);
+    if (!target) throw new Error("Reply not found");
+    target.status = status;
+    target.moderatedBy = authState.username;
+    target.moderatedByName = (authState.displayName || authState.username || "").split(",")[0];
+    target.moderatedAt = Date.now();
+    const repliesObj = {};
+    replies.forEach((r) => { repliesObj[r.id] = r; });
+    patchLocalOfficerUpdate(postId, { replies: repliesObj });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/replies/" + replyId), target);
+    }
+    return target;
   }
 
   async function shareOfficerUpdate(row) {
@@ -4007,6 +4127,111 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     } catch (error) {
       window.prompt("Copy this link:", url);
     }
+  }
+
+  function buildReactionsHtml(row) {
+    const reactions = normalizeReactions(row.reactions);
+    const me = String(authState.username || "").toLowerCase();
+    const pills = OU_REACTION_EMOJIS.map((emoji) => {
+      const map = reactions[emoji] || {};
+      const count = Object.keys(map).length;
+      const mine = !!(map[me]);
+      return `<button type="button" class="ou-react-btn${mine ? " is-mine" : ""}" data-ou-react="${escapeHtml(row.id)}" data-emoji="${emoji}" title="${emoji}">
+        <span class="ou-react-emoji">${emoji}</span>
+        ${count ? `<span class="ou-react-count">${count}</span>` : ""}
+      </button>`;
+    }).join("");
+    const totalPeople = new Set();
+    Object.keys(reactions).forEach((emoji) => {
+      Object.keys(reactions[emoji] || {}).forEach((u) => totalPeople.add(u));
+    });
+    const whoBtn = totalPeople.size
+      ? `<button type="button" class="ou-action-btn ou-who-btn" data-ou-who="${escapeHtml(row.id)}">Who reacted (${totalPeople.size})</button>`
+      : "";
+    return `<div class="ou-react-row">${pills}${whoBtn}</div>
+      <div class="ou-react-who" id="ou-who-${escapeHtml(row.id)}" hidden></div>`;
+  }
+
+  function buildRepliesHtml(row) {
+    const me = String(authState.username || "").toLowerCase();
+    const replies = normalizeReplies(row.replies).sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0));
+    const visible = replies.filter((r) => {
+      if (r.status === "rejected") return isOfficer() || String(r.by || "").toLowerCase() === me;
+      if (r.status === "pending") return isOfficer() || String(r.by || "").toLowerCase() === me;
+      return true;
+    });
+    const list = visible.length
+      ? visible.map((r) => {
+          const when = formatLoginStamp(r.ts);
+          const typeLabel = r.type === "answer" ? "Officer answer" : r.type === "opinion" ? "Opinion" : "Question";
+          const statusBadge = r.status === "pending"
+            ? `<span class="ou-reply-badge is-pending">Pending officer review</span>`
+            : r.status === "rejected"
+              ? `<span class="ou-reply-badge is-rejected">Not approved</span>`
+              : r.type === "answer"
+                ? `<span class="ou-reply-badge is-answer">Official</span>`
+                : r.type === "opinion"
+                  ? `<span class="ou-reply-badge is-ok">Verified opinion</span>`
+                  : "";
+          const mod = (isOfficer() && r.status === "pending")
+            ? `<div class="ou-reply-mod">
+                <button type="button" class="ou-action-btn" data-ou-approve="${escapeHtml(row.id)}" data-rep="${escapeHtml(r.id)}">Approve</button>
+                <button type="button" class="ou-action-btn ou-del" data-ou-reject="${escapeHtml(row.id)}" data-rep="${escapeHtml(r.id)}">Reject</button>
+              </div>`
+            : "";
+          return `<div class="ou-reply ${r.type === "answer" ? "is-answer" : ""} ${r.status === "pending" ? "is-pending" : ""}">
+            <div class="ou-reply-head">
+              <strong>${escapeHtml(typeLabel)}</strong>
+              ${statusBadge}
+            </div>
+            <p class="ou-reply-text">${escapeHtml(r.text || "")}</p>
+            <div class="ou-reply-meta">${escapeHtml(r.roleTitle || "")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+            ${mod}
+          </div>`;
+        }).join("")
+      : `<p class="ou-reply-empty">No questions or follow-ups yet.</p>`;
+
+    const answerField = isOfficer()
+      ? `<label class="ou-reply-label">Officer answer</label>
+         <textarea class="ou-reply-input" id="ou-ans-${escapeHtml(row.id)}" maxlength="600" placeholder="Official answer for the section…"></textarea>
+         <button type="button" class="ou-action-btn" data-ou-answer="${escapeHtml(row.id)}">Post answer</button>`
+      : "";
+
+    return `<div class="ou-thread">
+      <div class="ou-thread-list">${list}</div>
+      <div class="ou-thread-compose">
+        <label class="ou-reply-label">Ask / follow up</label>
+        <textarea class="ou-reply-input" id="ou-q-${escapeHtml(row.id)}" maxlength="600" placeholder="Magtanong o mag-follow up tungkol sa announcement…"></textarea>
+        <div class="ou-compose-actions">
+          <button type="button" class="ou-action-btn" data-ou-question="${escapeHtml(row.id)}">Ask question</button>
+          <button type="button" class="ou-action-btn" data-ou-opinion="${escapeHtml(row.id)}">Share opinion</button>
+        </div>
+        <p class="ou-compose-note">Questions are public. Opinions need officer verification before everyone sees them.</p>
+        ${answerField}
+      </div>
+    </div>`;
+  }
+
+  function showWhoReacted(postId, hostEl) {
+    const box = document.getElementById("ou-who-" + postId);
+    if (!box) return;
+    if (!box.hidden) {
+      box.hidden = true;
+      return;
+    }
+    fetchOfficerUpdates().then((rows) => {
+      const row = rows.find((r) => r.id === postId);
+      const reactions = normalizeReactions(row && row.reactions);
+      const lines = [];
+      Object.keys(reactions).forEach((emoji) => {
+        const names = Object.keys(reactions[emoji] || {}).map((u) => reactions[emoji][u] || u);
+        if (names.length) {
+          lines.push(`<div class="ou-who-line"><span>${emoji}</span> ${escapeHtml(names.join(", "))}</div>`);
+        }
+      });
+      box.innerHTML = lines.length ? lines.join("") : `<div class="ou-who-line">No reactions yet.</div>`;
+      box.hidden = false;
+    });
   }
 
   function bindOfficerUpdateCardActions(host) {
@@ -4031,6 +4256,64 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           if (typeof showShareToast === "function") showShareToast("Update deleted");
         } catch (error) {
           if (typeof showShareToast === "function") showShareToast(error.message || "Delete failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-react]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-react");
+        const emoji = btn.getAttribute("data-emoji");
+        try {
+          await toggleOfficerReaction(id, emoji);
+          renderOfficerUpdates();
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Reaction failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-who]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        showWhoReacted(btn.getAttribute("data-ou-who"), host);
+      });
+    });
+    host.querySelectorAll("[data-ou-question], [data-ou-opinion], [data-ou-answer]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-question") ||
+          btn.getAttribute("data-ou-opinion") ||
+          btn.getAttribute("data-ou-answer");
+        const isAnswer = btn.hasAttribute("data-ou-answer");
+        const isOpinion = btn.hasAttribute("data-ou-opinion");
+        const input = $(isAnswer ? ("ou-ans-" + id) : ("ou-q-" + id));
+        const text = input ? input.value : "";
+        try {
+          await addOfficerReply(id, text, isAnswer ? "answer" : isOpinion ? "opinion" : "question");
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") {
+            showShareToast(
+              isAnswer ? "Answer posted" :
+              isOpinion ? "Opinion submitted · waiting for officer review" :
+              "Question posted"
+            );
+          }
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-approve], [data-ou-reject]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-approve") || btn.getAttribute("data-ou-reject");
+        const rep = btn.getAttribute("data-rep");
+        const status = btn.hasAttribute("data-ou-approve") ? "approved" : "rejected";
+        try {
+          await moderateOfficerReply(id, rep, status);
+          renderOfficerUpdates();
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Moderation failed");
         }
       });
     });
@@ -4085,12 +4368,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         ${linkHtml}
         ${imgHtml}
         <div class="ou-meta">${escapeHtml(r.roleTitle || "Officer")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+        ${buildReactionsHtml(r)}
         <div class="ou-actions">
           <button type="button" class="ou-action-btn" data-ou-share="${escapeHtml(r.id)}">Share</button>
+          <button type="button" class="ou-action-btn" data-ou-toggle-thread="${escapeHtml(r.id)}">Ask / replies</button>
           ${delBtn}
+        </div>
+        <div class="ou-thread-wrap" id="ou-thread-${escapeHtml(r.id)}" hidden>
+          ${buildRepliesHtml(r)}
         </div>
       </article>`;
     }).join("");
+    host.querySelectorAll("[data-ou-toggle-thread]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-toggle-thread");
+        const box = document.getElementById("ou-thread-" + id);
+        if (box) box.hidden = !box.hidden;
+      });
+    });
     bindOfficerUpdateCardActions(host);
     refreshOfficerUpdateBadge();
     window.requestAnimationFrame(focusSharedOfficerUpdate);
