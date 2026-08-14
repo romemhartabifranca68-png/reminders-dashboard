@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-analytics.js";
-import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 (function () {
   const firebaseConfig = {
@@ -51,14 +51,23 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   ===================================================================== */
   const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
   const ADMIN_USERNAME = "tabifranca";
+  const AUTH_SESSIONS_PATH = "hub_config/auth_sessions";
+  const PASSWORD_OVERRIDES_PATH = "hub_config/password_overrides";
+  let sessionWatchUnsub = null;
+  let localSessionId = null;
   const ADMIN_CODE_HASH = "0468c056fcc1b0b733d4df0731d0bbb2180ff90e764f4972b5c423e8642b406a"; // RST-ADMIN-HUB-2026
   const HUB_CONFIG_PATH = "hub_config";
   const ANNOUNCEMENT_PATH = "hub_config/announcement";
   const RESOURCE_REQ_PATH = "hub_config/resource_requests";
   const ANNOUNCEMENT_LOCAL_KEY = "bscs1a_admin_pin_v1";
   const GUEST_PASSES_PATH = "hub_config/guest_passes";
+  const VISITOR_CONTROL_PATH = "hub_config/visitor_control";
   const LOGIN_LOG_PATH = "hub_logins";
   const LOGIN_LOG_EVENTS_PATH = "hub_login_events";
+  const PRESENCE_PATH = "hub_config/presence";
+  const PRESENCE_OPENS_PATH = "hub_config/presence_opens";
+  const PUSH_TOKENS_PATH = "hub_config/push_tokens";
+  const PUSH_SIGNAL_PATH = "hub_config/push_signal";
   const LOGIN_LOG_LOCAL_KEY = "bscs1a_login_log_v1";
   const NOTEBOOK_KEY = "bscs1a_mistake_notebook_v1";
   const SEASON_MID_START = "2026-08-01";
@@ -83,10 +92,20 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   const OFFICER_UPDATES_LOCAL = "bscs1a_officer_updates_v1";
   const CHANNEL_LABELS = {
     announcements: "Announcements",
-    academics: "Academics / modules",
     events: "Events & docs",
-    tech: "Hub / tech"
+    tech: "Hub / tech",
+    itec101: "ITEC 101",
+    itec102: "ITEC 102",
+    gec101: "GEC 101",
+    gec102: "GEC 102",
+    pi100: "P.I. 100",
+    komfil: "KOMFIL",
+    pathfit: "PATHFIT",
+    nstp: "NSTP 1"
   };
+  const ALL_OFFICER_CHANNELS = Object.keys(CHANNEL_LABELS);
+  /* Auto-remove officer posts older than this (ms). 14 days. */
+  const OFFICER_UPDATE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
   const STUDY_PLAN_COUNT = 10;
   const MISTAKES_STORAGE_KEY = "bscs1a_arena_recent_mistakes_v1";
@@ -119,11 +138,6 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { username: "visitor2", displayName: "VISITOR 2 · Section Guest", hash: "66e6571a4e7a0aab78fe16148d64ca31f71d98d79a8134929487e4fa840dab1a" },
     { username: "visitor3", displayName: "VISITOR 3 · Section Guest", hash: "e6dfdd29969f6a1bd00b0bad5bfdaa16fac0eb5de257a7b9cf37849e3b4a7b49" }
   ];
-  const VISITOR_CONTROL_PATH = "hub_config/visitor_control";
-  const PRESENCE_PATH = "hub_config/presence";
-  const PRESENCE_OPENS_PATH = "hub_config/presence_opens";
-  const PUSH_SIGNAL_PATH = "hub_config/push_signal";
-
 
   const authState = {
     role: null, // "classmate" | "guest" | "admin"
@@ -208,6 +222,97 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
+  function makeSessionId() {
+    return "s_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+  }
+
+  async function getPasswordOverrideHash(username) {
+    const user = String(username || "").toLowerCase();
+    if (!user) return null;
+    if (db) {
+      try {
+        const snap = await get(ref(db, PASSWORD_OVERRIDES_PATH + "/" + user));
+        if (snap.exists() && snap.val() && snap.val().hash) {
+          return String(snap.val().hash);
+        }
+      } catch (error) {
+        console.warn("[Auth] password override read failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_pw_overrides_v1") || "{}");
+      if (local[user] && local[user].hash) return String(local[user].hash);
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  async function getEffectivePasswordHash(username, rosterHash) {
+    const override = await getPasswordOverrideHash(username);
+    return override || rosterHash;
+  }
+
+  async function claimAuthSession(username) {
+    const user = String(username || "").toLowerCase();
+    if (!user) return null;
+    const sessionId = makeSessionId();
+    localSessionId = sessionId;
+    const payload = {
+      sessionId,
+      username: user,
+      displayName: authState.displayName || user,
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
+    try {
+      localStorage.setItem("bscs1a_local_session_id_v1", sessionId);
+    } catch (e) { /* ignore */ }
+    if (db) {
+      try {
+        await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), payload);
+      } catch (error) {
+        console.warn("[Auth] session claim failed:", error);
+      }
+    }
+    return sessionId;
+  }
+
+  function stopSessionWatch() {
+    if (typeof sessionWatchUnsub === "function") {
+      try { sessionWatchUnsub(); } catch (e) { /* ignore */ }
+    }
+    sessionWatchUnsub = null;
+  }
+
+  function startSessionWatch(username) {
+    stopSessionWatch();
+    const user = String(username || "").toLowerCase();
+    if (!user || !db) return;
+    try {
+      localSessionId = localSessionId || localStorage.getItem("bscs1a_local_session_id_v1");
+    } catch (e) { /* ignore */ }
+    if (!localSessionId) return;
+
+    const sessionRef = ref(db, AUTH_SESSIONS_PATH + "/" + user);
+    sessionWatchUnsub = onValue(sessionRef, (snap) => {
+      if (!snap.exists()) return;
+      const val = snap.val() || {};
+      const remoteId = val.sessionId;
+      if (!remoteId || !localSessionId) return;
+      if (String(remoteId) !== String(localSessionId)) {
+        // Another device/login claimed this account
+        stopSessionWatch();
+        signOutHub(true);
+        if (typeof showShareToast === "function") {
+          showShareToast("Signed out — account was used on another device.");
+        } else {
+          window.alert("Signed out — ang account mo ay ginamit sa ibang device.");
+        }
+      }
+    }, (error) => {
+      console.warn("[Auth] session watch error:", error);
+    });
+  }
+
   function isClassmate() {
     return authState.role === "classmate" || authState.role === "admin";
   }
@@ -220,17 +325,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     return authState.role === "visitor";
   }
 
+  /** Classmate-level viewing (schedule, updates, resources) — not write privileges */
   function canViewClassContent() {
     return isClassmate() || isAdmin() || isVisitor();
   }
 
-  function isTrackedClassmateUser(u) {
-    const key = String(u || "").toLowerCase();
-    if (!key || key === ADMIN_USERNAME) return false;
-    if (key.startsWith("visitor")) return false;
-    return true;
+  function canReactOnUpdates() {
+    return isClassmate() || isAdmin();
   }
-
 
   function isAdmin() {
     return !!authState.isAdmin || authState.role === "admin";
@@ -352,6 +454,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         if (isAdmin()) {
           chip.textContent = "RST Admin";
           chip.title = `Admin · ${authState.displayName} · ${COMPANY_NAME}`;
+        } else if (authState.role === "visitor") {
+          chip.textContent = "Visitor · view only";
+          chip.title = "Visitor account · can view section content, cannot react or post";
         } else if (authState.role === "guest") {
           chip.textContent = authState.guestPlayAllowed ? "Guest · Pass OK" : "Guest · Browse";
           chip.title = authState.guestPlayAllowed
@@ -366,41 +471,76 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     const logoutBtn = $("logoutBtn");
     if (logoutBtn) logoutBtn.hidden = !authState.role;
+    const navLogout = $("navLogoutLink");
+    if (navLogout) navLogout.hidden = !authState.role;
+    const navPw = $("navChangePasswordLink");
+    if (navPw) {
+      navPw.hidden = !(authState.role === "classmate" || authState.role === "admin");
+    }
+
+    // Lock resource request form for browse-only guests (no Guest Pass)
+    const reqForm = $("resourceRequestForm");
+    const browseOnlyGuest = authState.role === "guest" && !authState.guestPlayAllowed;
+    if (reqForm) {
+      const fields = reqForm.querySelectorAll("input, textarea, button");
+      fields.forEach((el) => {
+        el.disabled = browseOnlyGuest;
+        if (browseOnlyGuest) el.setAttribute("tabindex", "-1");
+        else el.removeAttribute("tabindex");
+      });
+      reqForm.setAttribute("aria-disabled", browseOnlyGuest ? "true" : "false");
+    }
 
     const guestBanner = $("guestBanner");
     if (guestBanner) {
       if (authState.role === "visitor") {
         guestBanner.hidden = false;
         guestBanner.innerHTML =
-          "<strong>Visitor mode · view only (auto 1 hour)</strong><br>" +
-          "Pwede: basahin ang updates, schedule, resources, practice arena.<br>" +
-          "Hindi: react, ranked, attendance, officer tools. Auto logout pag tapos ang oras.";
+          '<span class="gb-title">Visitor mode · view only</span>' +
+          "Welcome. Makikita mo ang section content gaya ng classmates, pero limited." +
+          '<ul class="gb-list">' +
+          "<li>Pwede: Officer Updates (basahin), schedule, resources, directory, Freedom Wall</li>" +
+          "<li>Pwede: Reviewer Arena · Practice / Study only</li>" +
+          "<li>Hindi: React / reply sa posts, attendance self-mark, finance write, officer tools</li>" +
+          "<li>Hindi: Ranked play · hindi counted bilang classmate sa Section Pulse</li>" +
+          "</ul>" +
+          '<p class="gb-ok">Visitor accounts: <code>visitor1</code> · <code>visitor2</code> · <code>visitor3</code></p>';
       } else {
         guestBanner.hidden = authState.role !== "guest";
-        if (authState.role === "guest") {
-          guestBanner.innerHTML = authState.guestPlayAllowed
-            ? "Guest Pass active: you may use <strong>Practice</strong> / <strong>Study Plan</strong> only. Ranked &amp; Daily stay classmate-only."
-            : "Guest mode: <strong>browse only</strong>. Arena is locked until Admin (RST) issues a Guest Pass.";
+      }
+      if (authState.role === "guest") {
+        if (authState.guestPlayAllowed) {
+          guestBanner.innerHTML =
+            '<span class="gb-title">Guest Pass active</span>' +
+            "You may use <strong>Practice</strong> / <strong>Study Plan</strong> only." +
+            '<ul class="gb-list">' +
+            "<li>Locked: Ranked · Daily Challenge</li>" +
+            "<li>Locked: Class Dashboard · Google Drive</li>" +
+            "<li>Locked: Officer Updates board</li>" +
+            "</ul>" +
+            '<p class="gb-ok">Open for you: browse hub · Practice · Study Plan · resource request</p>';
+        } else {
+          guestBanner.innerHTML =
+            '<span class="gb-title">Guest mode · browse only</span>' +
+            "Arena is locked until <strong>RST Admin</strong> or a <strong>P.O. (Boy/Girl)</strong> issues a Guest Pass." +
+            '<ul class="gb-list">' +
+            "<li>Locked: Reviewer Arena (all modes)</li>" +
+            "<li>Locked: Class Dashboard · Google Drive</li>" +
+            "<li>Locked: Officer Updates · Resource requests</li>" +
+            "<li>Locked: Ranked scores / leaderboard play</li>" +
+            "</ul>" +
+            '<p class="gb-ok">Open for you: schedule · officers list · vision · freshmen directory · Freedom Wall · Section FB</p>';
         }
       }
     }
 
-    // Presence + admin alerts (once per auth apply when logged in)
-    try {
-      if ((isClassmate() || isAdmin()) && typeof startPresenceHeartbeat === "function") {
-        startPresenceHeartbeat();
-      }
-      if (isAdmin() && typeof listenPushSignal === "function") {
-        listenPushSignal();
-        setTimeout(() => { try { maybeNotifyAdminDashboardTasks(); } catch (e) {} }, 1500);
-      }
-      if (isVisitor() && typeof startVisitorExpiryWatch === "function") {
-        startVisitorExpiryWatch();
-      }
-    } catch (e) { /* ignore */ }
-
     const adminBtn = $("openAdminHubBtn");
     if (adminBtn) adminBtn.hidden = !isAdmin();
+    const adminBtnTop = $("openAdminHubBtnTop");
+    if (adminBtnTop) adminBtnTop.hidden = !isAdmin();
+    const officerPanelBtn = $("openOfficerPanelBtn");
+    if (officerPanelBtn) officerPanelBtn.hidden = !isOfficer();
+    if (typeof syncNotifButton === "function") syncNotifButton();
     const odLogin = $("openOfficerDeskBtnLogin");
     if (odLogin) odLogin.hidden = !isOfficer();
     document.querySelectorAll(".officer-desk-btn").forEach((btn) => {
@@ -408,6 +548,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       // section button visible via CSS body.role-officer
     });
     if (typeof renderOfficerUpdates === "function") renderOfficerUpdates();
+    if (typeof maybePromptAttendance === "function") {
+      window.setTimeout(() => {
+        try { maybePromptAttendance(); } catch (e) { /* ignore */ }
+      }, 700);
+    }
+    if (typeof startPresenceHeartbeat === "function" && (isClassmate() || isAdmin())) {
+      startPresenceHeartbeat();
+    }
 
     // Show admin code field when username is tabifranca
     const adminField = $("adminCodeField");
@@ -426,112 +574,32 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
-  async function loadVisitorControl() {
-    const defaults = {};
-    VISITOR_ROSTER.forEach((v) => {
-      defaults[v.username] = {
-        username: v.username, enabled: true, durationHours: 1,
-        expiresAt: 0, forceLogout: false, note: ""
-      };
-    });
-    if (db) {
-      try {
-        const snap = await get(ref(db, VISITOR_CONTROL_PATH));
-        if (snap.exists() && snap.val()) {
-          const val = snap.val();
-          Object.keys(defaults).forEach((u) => {
-            if (val[u] && typeof val[u] === "object") defaults[u] = Object.assign({}, defaults[u], val[u]);
-          });
-        }
-      } catch (e) { console.warn("[Visitor] load", e); }
-    }
-    try {
-      const local = JSON.parse(localStorage.getItem("bscs1a_visitor_control_v1") || "null");
-      if (local) Object.keys(defaults).forEach((u) => { if (local[u]) defaults[u] = Object.assign({}, defaults[u], local[u]); });
-    } catch (e) { /* ignore */ }
-    return defaults;
-  }
-
-  async function saveVisitorControlEntry(username, patch) {
-    const all = await loadVisitorControl();
-    const user = String(username || "").toLowerCase();
-    const next = Object.assign({}, all[user] || { username: user }, patch, {
-      username: user, updatedBy: authState.username || "", updatedAt: Date.now()
-    });
-    all[user] = next;
-    try { localStorage.setItem("bscs1a_visitor_control_v1", JSON.stringify(all)); } catch (e) { /* ignore */ }
-    if (db) await set(ref(db, VISITOR_CONTROL_PATH + "/" + user), next);
-    return next;
-  }
-
-  async function assertVisitorAccessAllowed(username) {
-    const user = String(username || "").toLowerCase();
-    const all = await loadVisitorControl();
-    let ctrl = all[user] || { username: user, enabled: true, expiresAt: 0, forceLogout: false };
-    if (ctrl.forceLogout) return { ok: false, message: "Visitor access revoked by P.O. / Admin." };
-    if (ctrl.enabled === false) return { ok: false, message: "Visitor account disabled." };
-    const exp = Number(ctrl.expiresAt || 0);
-    if (exp > Date.now()) return { ok: true, ctrl, expiresAt: exp };
-    // Auto-grant 1 hour
-    const expiresAt = Date.now() + 60 * 60 * 1000;
-    try {
-      ctrl = await saveVisitorControlEntry(user, {
-        enabled: true, forceLogout: false, durationHours: 1,
-        expiresAt, autoGranted: true, note: "Auto 1-hour on login"
-      });
-    } catch (e) {
-      ctrl = Object.assign({}, ctrl, { expiresAt, autoGranted: true });
-      try {
-        all[user] = ctrl;
-        localStorage.setItem("bscs1a_visitor_control_v1", JSON.stringify(all));
-      } catch (err) { /* ignore */ }
-    }
-    return { ok: true, ctrl, expiresAt, autoGranted: true };
-  }
-
-  let visitorExpiryTimer = null;
-  function stopVisitorExpiryWatch() {
-    if (visitorExpiryTimer) { clearInterval(visitorExpiryTimer); visitorExpiryTimer = null; }
-  }
-  function startVisitorExpiryWatch() {
-    stopVisitorExpiryWatch();
-    if (!isVisitor()) return;
-    visitorExpiryTimer = setInterval(async () => {
-      if (!isVisitor()) { stopVisitorExpiryWatch(); return; }
-      try {
-        const all = await loadVisitorControl();
-        const ctrl = all[String(authState.username || "").toLowerCase()];
-        if (!ctrl) return;
-        if (ctrl.forceLogout || ctrl.enabled === false || (Number(ctrl.expiresAt) > 0 && Date.now() >= Number(ctrl.expiresAt))) {
-          stopVisitorExpiryWatch();
-          signOutHub();
-          if (typeof showShareToast === "function") showShareToast("Visitor session ended · auto logout");
-        }
-      } catch (e) { /* ignore */ }
-    }, 12000);
-  }
-
   async function tryClassmateLogin(usernameRaw, passwordRaw, adminCodeRaw) {
-    const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z]/g, "");
     const password = String(passwordRaw || "");
     const adminCode = String(adminCodeRaw || "");
     if (!username || !password) {
       return { ok: false, message: "Ilagay ang username at password na assigned sa'yo." };
     }
     const visitorEntry = VISITOR_ROSTER.find((row) => row.username === username);
-    const classmateEntry = CLASSMATE_ROSTER.find((row) => row.username === username);
-    const entry = classmateEntry || visitorEntry;
+    const entry = CLASSMATE_ROSTER.find((row) => row.username === username) || visitorEntry;
     if (!entry) {
-      return { ok: false, message: "Hindi makita ang username sa roster (classmate / visitor)." };
+      return { ok: false, message: "Hindi makita ang username sa roster." };
     }
+    const isVisitorLogin = !!visitorEntry && !CLASSMATE_ROSTER.find((row) => row.username === username);
     const hash = await sha256Hex(password);
-    if (hash !== entry.hash) {
+    const expected = isVisitorLogin
+      ? entry.hash
+      : await getEffectivePasswordHash(username, entry.hash);
+    if (hash !== expected) {
       return { ok: false, message: "Maling password. I-check ulit ang credentials." };
     }
 
-    if (visitorEntry && !classmateEntry) {
+    if (isVisitorLogin) {
       const access = await assertVisitorAccessAllowed(entry.username);
-      if (!access.ok) return { ok: false, message: access.message };
+      if (!access.ok) {
+        return { ok: false, message: access.message || "Visitor access denied" };
+      }
       authState.role = "visitor";
       authState.isAdmin = false;
       authState.username = entry.username;
@@ -540,23 +608,31 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       authState.guestPlayAllowed = false;
       authState.officerTitle = "";
       authState.officerChannels = [];
+      const sessionId = await claimAuthSession(entry.username);
       saveAuthSession({
-        role: "visitor", isAdmin: false, username: entry.username,
-        displayName: entry.displayName, guestPlayAllowed: false,
-        officerTitle: "", officerChannels: [], ts: Date.now()
+        role: "visitor",
+        isAdmin: false,
+        username: entry.username,
+        displayName: entry.displayName,
+        guestPlayAllowed: false,
+        officerTitle: "",
+        officerChannels: [],
+        sessionId: sessionId || localSessionId,
+        ts: Date.now()
       });
+      startSessionWatch(entry.username);
       startVisitorExpiryWatch();
-      setTimeout(() => {
-        if (typeof showShareToast === "function") showShareToast("Visitor · 1 hour access · auto logout when time ends");
-      }, 500);
       return { ok: true, admin: false, visitor: true };
     }
 
     let elevatedAdmin = false;
     if (username === ADMIN_USERNAME && adminCode) {
       const adminHash = await sha256Hex(adminCode);
-      if (adminHash === ADMIN_CODE_HASH) elevatedAdmin = true;
-      else return { ok: false, message: "Admin secret code is incorrect." };
+      if (adminHash === ADMIN_CODE_HASH) {
+        elevatedAdmin = true;
+      } else {
+        return { ok: false, message: "Admin secret code is incorrect." };
+      }
     }
 
     authState.role = elevatedAdmin ? "admin" : "classmate";
@@ -568,17 +644,114 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const officer = resolveOfficerProfile(entry.username);
     authState.officerTitle = officer.title;
     authState.officerChannels = officer.channels;
+    const sessionId = await claimAuthSession(entry.username);
     saveAuthSession({
-      role: authState.role, isAdmin: elevatedAdmin, username: entry.username,
-      displayName: entry.displayName, guestPlayAllowed: true,
-      officerTitle: officer.title, officerChannels: officer.channels, ts: Date.now()
+      role: authState.role,
+      isAdmin: elevatedAdmin,
+      username: entry.username,
+      displayName: entry.displayName,
+      guestPlayAllowed: true,
+      officerTitle: officer.title,
+      officerChannels: officer.channels,
+      sessionId: sessionId || localSessionId,
+      ts: Date.now()
     });
+    startSessionWatch(entry.username);
     recordClassmateLogin({
-      username: entry.username, displayName: entry.displayName,
+      username: entry.username,
+      displayName: entry.displayName,
       role: elevatedAdmin ? "admin" : "classmate"
     }).catch((error) => console.warn("[Auth] login log failed:", error));
-    try { recordHubPresence("login"); } catch (e) { /* ignore */ }
     return { ok: true, admin: elevatedAdmin };
+  }
+
+  async function changeClassmatePassword(currentPassword, newPassword, confirmPassword) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Sign in first");
+    const user = String(authState.username || "").toLowerCase();
+    if (!user) throw new Error("No account");
+    const entry = CLASSMATE_ROSTER.find((row) => row.username === user);
+    if (!entry) throw new Error("Account not in roster");
+    const cur = String(currentPassword || "");
+    const next = String(newPassword || "");
+    const conf = String(confirmPassword || "");
+    if (next.length < 6) throw new Error("New password must be at least 6 characters");
+    if (next !== conf) throw new Error("New password confirmation does not match");
+    if (next === cur) throw new Error("New password must be different");
+    const curHash = await sha256Hex(cur);
+    const expected = await getEffectivePasswordHash(user, entry.hash);
+    if (curHash !== expected) throw new Error("Current password is incorrect");
+    const newHash = await sha256Hex(next);
+    const payload = {
+      hash: newHash,
+      updatedAt: Date.now(),
+      updatedBy: user
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_pw_overrides_v1") || "{}");
+      local[user] = payload;
+      localStorage.setItem("bscs1a_pw_overrides_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, PASSWORD_OVERRIDES_PATH + "/" + user), payload);
+    }
+    // Re-claim session so other devices using old login still get kicked on next claim; keep this device
+    await claimAuthSession(user);
+    startSessionWatch(user);
+    return true;
+  }
+
+  function openChangePasswordModal() {
+    if (!(isClassmate() || isAdmin())) {
+      if (typeof showShareToast === "function") showShareToast("Sign in first");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.change-password");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay change-password";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Change password</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        Account: <strong style="color:var(--text);">${escapeHtml(authState.username || "")}</strong><br>
+        One account = one active device. Kapag may nag-login sa iba, auto sign-out dito.
+      </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">CURRENT PASSWORD</label>
+      <input id="pwCur" type="password" autocomplete="current-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.5rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">NEW PASSWORD</label>
+      <input id="pwNew" type="password" autocomplete="new-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.5rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.25rem;">CONFIRM NEW PASSWORD</label>
+      <input id="pwConf" type="password" autocomplete="new-password" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.65rem;" />
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="pwSave">Save new password</button>
+        <button type="button" class="lifeline-btn" id="pwClose">Close</button>
+      </div>
+      <p id="pwStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#pwStatus");
+    bindTap(panel.querySelector("#pwClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#pwSave"), async (e) => {
+      e.preventDefault();
+      try {
+        status.textContent = "Saving…";
+        await changeClassmatePassword(
+          panel.querySelector("#pwCur").value,
+          panel.querySelector("#pwNew").value,
+          panel.querySelector("#pwConf").value
+        );
+        status.textContent = "Password updated. Use the new password next login.";
+        panel.querySelector("#pwCur").value = "";
+        panel.querySelector("#pwNew").value = "";
+        panel.querySelector("#pwConf").value = "";
+        if (typeof showShareToast === "function") showShareToast("Password changed");
+      } catch (error) {
+        status.textContent = error.message || "Failed";
+      }
+    });
   }
 
   function formatLoginStamp(ts) {
@@ -669,6 +842,185 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       if (Number(row.ts || 0) >= weekAgo && row.username) seen.add(row.username);
     });
     return seen.size;
+  }
+
+  let presenceTimer = null;
+  let lastPresenceWrite = 0;
+
+  async function recordHubPresence(reason) {
+    if (!(isClassmate() || isAdmin())) return;
+    const user = String(authState.username || "").toLowerCase();
+    if (!user) return;
+    const now = Date.now();
+    // throttle heartbeats
+    if (reason === "heartbeat" && now - lastPresenceWrite < 45000) return;
+    lastPresenceWrite = now;
+    const entry = {
+      username: user,
+      displayName: authState.displayName || user,
+      role: isAdmin() ? "admin" : "classmate",
+      lastSeen: now,
+      lastOpen: now,
+      reason: reason || "open",
+      online: true,
+      company: COMPANY_NAME
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}");
+      local[user] = entry;
+      localStorage.setItem("bscs1a_presence_local_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (!db) return;
+    try {
+      await set(ref(db, `${PRESENCE_PATH}/${user}`), entry);
+      // Open events (not only login) — keep recent keys
+      if (reason === "open" || reason === "resume" || reason === "login") {
+        const eventId = `${user}_${now}`;
+        await set(ref(db, `${PRESENCE_OPENS_PATH}/${eventId}`), {
+          username: user,
+          displayName: entry.displayName,
+          role: entry.role,
+          ts: now,
+          reason: reason || "open"
+        });
+      }
+    } catch (error) {
+      console.warn("[Presence] write failed:", error);
+    }
+  }
+
+  function startPresenceHeartbeat() {
+    if (presenceTimer) window.clearInterval(presenceTimer);
+    if (!(isClassmate() || isAdmin())) return;
+    recordHubPresence("open");
+    presenceTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        recordHubPresence("heartbeat");
+      }
+    }, 60000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        recordHubPresence("resume");
+      }
+    });
+  }
+
+  async function fetchPresenceMap() {
+    if (db) {
+      try {
+        const snap = await get(ref(db, PRESENCE_PATH));
+        if (snap.exists()) return snap.val() || {};
+      } catch (error) {
+        console.warn("[Presence] fetch failed:", error);
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function fetchRecentOpens(limitN) {
+    const limit = Math.max(10, Math.min(80, Number(limitN) || 40));
+    let events = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, PRESENCE_OPENS_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((key) => {
+            const row = val[key];
+            if (row && typeof row === "object") events.push({ id: key, ...row });
+          });
+        }
+      } catch (error) {
+        console.warn("[Presence] opens fetch failed:", error);
+      }
+    }
+    return events
+      .slice()
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0))
+      .slice(0, limit);
+  }
+
+  async function savePushToken(token) {
+    if (!token || !(isClassmate() || isAdmin())) return;
+    const user = String(authState.username || "").toLowerCase();
+    if (!user || !db) return;
+    try {
+      await set(ref(db, `${PUSH_TOKENS_PATH}/${user}`), {
+        token: String(token),
+        username: user,
+        displayName: authState.displayName || user,
+        updatedAt: Date.now()
+      });
+    } catch (error) {
+      console.warn("[Push] token save failed:", error);
+    }
+  }
+
+  async function signalPushToSection(title, body, tag) {
+    // Signal for open clients + stored for future Cloud Function / FCM sender
+    if (!db) return;
+    try {
+      await set(ref(db, PUSH_SIGNAL_PATH), {
+        title: title || "BSCS 1-A Hub",
+        body: body || "May bagong update.",
+        tag: tag || ("sig-" + Date.now()),
+        ts: Date.now(),
+        by: authState.username || "system"
+      });
+    } catch (error) {
+      console.warn("[Push] signal failed:", error);
+    }
+  }
+
+  function listenPushSignal() {
+    // Poll push_signal while hub is open (closed-app push needs FCM server / Cloud Function)
+    if (!db) return;
+    let lastTs = 0;
+    try {
+      lastTs = Number(localStorage.getItem("bscs1a_last_push_signal_ts") || 0);
+    } catch (e) { /* ignore */ }
+    window.setInterval(async () => {
+      if (!(isClassmate() || isAdmin())) return;
+      if (document.visibilityState !== "visible" && !document.hidden) return;
+      try {
+        const snap = await get(ref(db, PUSH_SIGNAL_PATH));
+        if (!snap.exists()) return;
+        const val = snap.val();
+        const ts = Number(val && val.ts || 0);
+        if (!ts || ts <= lastTs) return;
+        if (String(val.by || "") === String(authState.username || "")) {
+          lastTs = ts;
+          try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
+          return;
+        }
+        lastTs = ts;
+        try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
+        if (notificationsSupported() && Notification.permission === "granted") {
+          const icon = hubAssetUrl("logo.png");
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: "SHOW_UPDATE",
+              title: val.title || "BSCS 1-A Hub",
+              body: val.body || "",
+              icon,
+              tag: val.tag || ("sig-" + ts)
+            });
+          } else {
+            new Notification(val.title || "BSCS 1-A Hub", {
+              body: val.body || "",
+              icon,
+              tag: val.tag || ("sig-" + ts)
+            });
+          }
+        }
+      } catch (error) {
+        /* ignore */
+      }
+    }, 45000);
   }
 
   /* ---------------- Mistake Notebook (persistent) ---------------- */
@@ -804,7 +1156,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
       if (local[code] && local[code].active) {
         if (local[code].expiresAt && Number(local[code].expiresAt) < Date.now()) {
-          return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+          return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin or a P.O. for a new one." };
         }
         return { ok: true, allowed: true, code, source: "local" };
       }
@@ -824,7 +1176,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
           const val = passSnap.val();
           if (val && val.active !== false) {
             if (val.expiresAt && Number(val.expiresAt) < Date.now()) {
-              return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin for a new one." };
+              return { ok: false, allowed: false, message: "Guest Pass expired. Ask RST Admin or a P.O. for a new one." };
             }
             return { ok: true, allowed: true, code, source: "firebase" };
           }
@@ -868,9 +1220,12 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
 
-  function signOutHub() {
+  function signOutHub(kicked) {
+    stopSessionWatch();
     if (typeof stopVisitorExpiryWatch === "function") stopVisitorExpiryWatch();
     clearAuthSession();
+    localSessionId = null;
+    try { localStorage.removeItem("bscs1a_local_session_id_v1"); } catch (e) { /* ignore */ }
     authState.role = null;
     authState.username = "";
     authState.displayName = "";
@@ -891,14 +1246,68 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const gate = $("authGate");
     if (gate) {
       gate.hidden = false;
-      document.body.classList.remove("authed", "role-guest", "role-classmate");
+      document.body.classList.remove("authed", "role-guest", "role-classmate", "role-admin", "role-visitor");
+    }
+    if (kicked) {
+      /* toast handled by caller */
+    }
+  }
+
+
+  const VIEW_MODE_KEY = "bscs1a_view_mode_v1";
+
+  function getViewMode() {
+    try {
+      const v = localStorage.getItem(VIEW_MODE_KEY);
+      return v === "desktop" ? "desktop" : "mobile";
+    } catch (e) {
+      return "mobile";
+    }
+  }
+
+  function applyViewMode(mode) {
+    const m = mode === "desktop" ? "desktop" : "mobile";
+    document.body.classList.toggle("view-desktop", m === "desktop");
+    document.body.classList.toggle("view-mobile", m === "mobile");
+    try { localStorage.setItem(VIEW_MODE_KEY, m); } catch (e) { /* ignore */ }
+    const mob = document.getElementById("navViewMobile");
+    const desk = document.getElementById("navViewDesktop");
+    if (mob) mob.classList.toggle("is-view-active", m === "mobile");
+    if (desk) desk.classList.toggle("is-view-active", m === "desktop");
+  }
+
+  function initViewModeControls() {
+    applyViewMode(getViewMode());
+    const mob = document.getElementById("navViewMobile");
+    const desk = document.getElementById("navViewDesktop");
+    const closeNav = () => {
+      const navLinks = document.getElementById("navLinks");
+      if (navLinks) navLinks.classList.remove("open");
+      const navToggle = document.getElementById("navToggle");
+      if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+    };
+    if (mob) {
+      mob.addEventListener("click", (e) => {
+        e.preventDefault();
+        applyViewMode("mobile");
+        closeNav();
+        if (typeof showShareToast === "function") showShareToast("Mobile layout");
+      });
+    }
+    if (desk) {
+      desk.addEventListener("click", (e) => {
+        e.preventDefault();
+        applyViewMode("desktop");
+        closeNav();
+        if (typeof showShareToast === "function") showShareToast("Desktop site · wider updates & larger popups");
+      });
     }
   }
 
   function initAuthGate() {
     const existing = loadAuthSession();
     if (existing) {
-      authState.role = existing.role === "admin" ? "admin" : existing.role;
+      authState.role = existing.role === "admin" ? "admin" : (existing.role === "visitor" ? "visitor" : existing.role);
       authState.username = existing.username || "";
       authState.displayName = existing.displayName || "";
       authState.isAdmin = !!existing.isAdmin || existing.role === "admin";
@@ -911,19 +1320,71 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         : resolveOfficerProfile(existing.username).channels;
       authState.ready = true;
       applyAuthUI();
-      // Refresh saved session timestamp so recurring opens keep stay-signed-in alive
-      saveAuthSession({
-        role: authState.role,
-        isAdmin: authState.isAdmin,
-        username: authState.username,
-        displayName: authState.displayName,
-        guestPlayAllowed: authState.guestPlayAllowed,
-        guestPassCode: authState.guestPassCode || "",
-        officerTitle: authState.officerTitle || "",
-        officerChannels: authState.officerChannels || [],
-        ts: Date.now(),
-        remember: true
-      });
+      // Restore single-device session watch (or claim if older session has no id)
+      if (authState.role === "visitor" && authState.username) {
+        (async () => {
+          try {
+            const access = await assertVisitorAccessAllowed(authState.username);
+            if (!access.ok) {
+              signOutHub(true);
+              if (typeof showShareToast === "function") showShareToast(access.message || "Visitor session ended");
+              return;
+            }
+            if (existing.sessionId) {
+              localSessionId = existing.sessionId;
+              try { localStorage.setItem("bscs1a_local_session_id_v1", localSessionId); } catch (e) { /* ignore */ }
+              startSessionWatch(authState.username);
+            } else {
+              await claimAuthSession(authState.username);
+              startSessionWatch(authState.username);
+            }
+            startVisitorExpiryWatch();
+          } catch (e) {
+            console.warn("[Auth] visitor restore failed:", e);
+          }
+        })();
+      } else if ((authState.role === "classmate" || authState.role === "admin") && authState.username) {
+        (async () => {
+          try {
+            if (existing.sessionId) {
+              localSessionId = existing.sessionId;
+              try { localStorage.setItem("bscs1a_local_session_id_v1", localSessionId); } catch (e) { /* ignore */ }
+              startSessionWatch(authState.username);
+            } else {
+              await claimAuthSession(authState.username);
+              startSessionWatch(authState.username);
+            }
+          } catch (e) {
+            console.warn("[Auth] session restore watch failed:", e);
+          }
+          saveAuthSession({
+            role: authState.role,
+            isAdmin: authState.isAdmin,
+            username: authState.username,
+            displayName: authState.displayName,
+            guestPlayAllowed: authState.guestPlayAllowed,
+            guestPassCode: authState.guestPassCode || "",
+            officerTitle: authState.officerTitle || "",
+            officerChannels: authState.officerChannels || [],
+            sessionId: localSessionId || existing.sessionId || null,
+            ts: Date.now(),
+            remember: true
+          });
+        })();
+      } else {
+        saveAuthSession({
+          role: authState.role,
+          isAdmin: authState.isAdmin,
+          username: authState.username,
+          displayName: authState.displayName,
+          guestPlayAllowed: authState.guestPlayAllowed,
+          guestPassCode: authState.guestPassCode || "",
+          officerTitle: authState.officerTitle || "",
+          officerChannels: authState.officerChannels || [],
+          ts: Date.now(),
+          remember: true
+        });
+      }
     } else {
       applyAuthUI();
     }
@@ -1021,190 +1482,269 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
     }
 
+    const navFinanceLink = $("navFinanceLink");
+    if (navFinanceLink) {
+      bindTap(navFinanceLink, (event) => {
+        event.preventDefault();
+        const navLinks = $("navLinks");
+        if (navLinks) navLinks.classList.remove("open");
+        const navToggle = $("navToggle");
+        if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+        if (typeof openFinanceHub === "function") openFinanceHub();
+      });
+    }
+
+    const navChangePasswordLink = $("navChangePasswordLink");
+    if (navChangePasswordLink) {
+      bindTap(navChangePasswordLink, (event) => {
+        event.preventDefault();
+        const navLinks = $("navLinks");
+        if (navLinks) navLinks.classList.remove("open");
+        const navToggle = $("navToggle");
+        if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+        openChangePasswordModal();
+      });
+    }
+
+    const navLogoutLink = $("navLogoutLink");
+    if (navLogoutLink) {
+      bindTap(navLogoutLink, (event) => {
+        event.preventDefault();
+        if (window.confirm("Sign out of the Section Hub?")) {
+          const navLinks = $("navLinks");
+          if (navLinks) navLinks.classList.remove("open");
+          const navToggle = $("navToggle");
+          if (navToggle) navToggle.setAttribute("aria-expanded", "false");
+          signOutHub();
+        }
+      });
+    }
+
     if (adminHubBtn) {
       bindTap(adminHubBtn, (event) => {
         event.preventDefault();
         openRstAdminPanel();
       });
     }
-  }
-
-  /* ---------------- RST Admin Panel: guest play control ---------------- */
-
-  let presenceTimer = null;
-  let lastPresenceWrite = 0;
-
-  async function recordHubPresence(reason) {
-    if (!(isClassmate() || isAdmin())) return;
-    const user = String(authState.username || "").toLowerCase();
-    if (!user) return;
-    const now = Date.now();
-    if (reason === "heartbeat" && now - lastPresenceWrite < 45000) return;
-    lastPresenceWrite = now;
-    const entry = {
-      username: user,
-      displayName: authState.displayName || user,
-      role: isAdmin() ? "admin" : "classmate",
-      lastSeen: now,
-      lastOpen: now,
-      reason: reason || "open",
-      online: true
-    };
-    try {
-      const local = JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}");
-      local[user] = entry;
-      localStorage.setItem("bscs1a_presence_local_v1", JSON.stringify(local));
-    } catch (e) { /* ignore */ }
-    if (!db) return;
-    try {
-      await set(ref(db, PRESENCE_PATH + "/" + user), entry);
-      if (reason === "open" || reason === "login" || reason === "resume") {
-        await set(ref(db, PRESENCE_OPENS_PATH + "/" + user + "_" + now), {
-          username: user, displayName: entry.displayName, role: entry.role, ts: now, reason: reason || "open"
-        });
-      }
-      // Notify admin when classmate opens (not admin self)
-      if ((reason === "open" || reason === "login") && !isAdmin() && isClassmate()) {
-        const name = (entry.displayName || user).split(",")[0];
-        const tag = "classmate-open-" + user + "-" + Math.floor(now / 60000);
-        try {
-          if (localStorage.getItem("bscs1a_last_open_signal_tag") !== tag) {
-            localStorage.setItem("bscs1a_last_open_signal_tag", tag);
-            await set(ref(db, PUSH_SIGNAL_PATH), {
-              type: "classmate_open",
-              title: "Classmate opened hub",
-              body: name + " is now on BSCS 1-A Hub",
-              tag, ts: now, by: user, target: "admin"
-            });
-          }
-        } catch (e) { /* ignore */ }
-      }
-    } catch (error) {
-      console.warn("[Presence]", error);
+    const adminHubBtnTop = $("openAdminHubBtnTop");
+    if (adminHubBtnTop) {
+      bindTap(adminHubBtnTop, (event) => {
+        event.preventDefault();
+        openRstAdminPanel();
+      });
     }
-  }
-
-  let presenceVisBound = false;
-  function startPresenceHeartbeat() {
-    if (presenceTimer) window.clearInterval(presenceTimer);
-    if (!(isClassmate() || isAdmin())) return;
-    recordHubPresence("open");
-    presenceTimer = window.setInterval(() => {
-      if (document.visibilityState === "visible") recordHubPresence("heartbeat");
-    }, 60000);
-    if (!presenceVisBound) {
-      presenceVisBound = true;
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") recordHubPresence("resume");
+    const officerPanelBtn = $("openOfficerPanelBtn");
+    if (officerPanelBtn) {
+      bindTap(officerPanelBtn, (event) => {
+        event.preventDefault();
+        openOfficerPanel();
       });
     }
   }
 
-  async function fetchPresenceMap() {
-    if (db) {
-      try {
-        const snap = await get(ref(db, PRESENCE_PATH));
-        if (snap.exists()) return snap.val() || {};
-      } catch (e) { /* ignore */ }
-    }
-    try { return JSON.parse(localStorage.getItem("bscs1a_presence_local_v1") || "{}") || {}; }
-    catch (e) { return {}; }
-  }
-
-  async function fetchRecentOpens(limit) {
-    const lim = limit || 30;
-    if (db) {
-      try {
-        const snap = await get(ref(db, PRESENCE_OPENS_PATH));
-        if (snap.exists()) {
-          const val = snap.val() || {};
-          return Object.keys(val).map((k) => val[k])
-            .filter((r) => isTrackedClassmateUser(r.username))
-            .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0))
-            .slice(0, lim);
-        }
-      } catch (e) { /* ignore */ }
-    }
-    return [];
-  }
-
-  function notificationsSupported() {
-    return typeof window !== "undefined" && "Notification" in window;
-  }
-
-  async function requestHubNotifications() {
-    if (!notificationsSupported()) {
-      if (typeof showShareToast === "function") showShareToast("Notifications not supported");
-      return false;
-    }
+  function hubAssetUrl(path) {
     try {
-      const perm = await Notification.requestPermission();
-      if (typeof showShareToast === "function") {
-        showShareToast(perm === "granted" ? "Alerts ON" : "Alerts blocked");
-      }
-      return perm === "granted";
-    } catch (e) { return false; }
+      return new URL(path, window.location.href).href;
+    } catch (error) {
+      return path;
+    }
   }
 
-  let pushListenStarted = false;
-  function listenPushSignal() {
-    if (!db) return;
-    if (pushListenStarted) return;
-    pushListenStarted = true;
-    let lastTs = 0;
-    try { lastTs = Number(localStorage.getItem("bscs1a_last_push_signal_ts") || 0); } catch (e) { /* ignore */ }
-    window.setInterval(async () => {
-      if (!isAdmin()) return;
+  function openOfficerPanel() {
+    if (!isOfficer()) {
+      if (typeof showShareToast === "function") showShareToast("Officers only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.officer-panel");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay officer-panel";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    const title = authState.officerTitle || "Officer";
+    const name = (authState.displayName || authState.username || "").split(",")[0];
+    const specialBits = [];
+    if (canManageAttendance()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opAttendance">📋 Attendance manager · Secretary / Admin</button>`);
+    }
+    if (canIssueGuestPass()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opGuestPassFocus">🔑 Guest Pass desk · P.O. / Admin</button>`);
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opVisitorCtrl">⏱ Visitor time / force logout · P.O. / Admin</button>`);
+    }
+    if (canManageFinance()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opFinance">💰 Section Finance · Treasurer / Auditor</button>`);
+    }
+    if (canManageLeadership()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opLeadership">👑 Leadership Desk · President / VP</button>`);
+    }
+    if (isAdmin()) {
+      specialBits.push(`<button type="button" class="lifeline-btn op-special" id="opOpenAdmin">⚙ Full RST Admin panel</button>`);
+    }
+    const specialHtml = specialBits.length
+      ? `<div class="op-special-box">
+          <div class="op-special-label">YOUR SPECIAL ACCESS</div>
+          <div class="op-special-grid">${specialBits.join("")}</div>
+        </div>`
+      : "";
+    const guestPassHtml = canIssueGuestPass()
+      ? `<div class="op-guest-box" id="opGuestPassBox">
+          <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">GUEST PASS · P.O. / RST ADMIN</h4>
+          <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);line-height:1.45;">
+            P.O. Boy (Guia), P.O. Girl (Calamba), and RST Admin can issue or revoke a Guest Pass for visitors.
+          </p>
+          <input id="opGuestPassInput" type="text" maxlength="16" placeholder="Code (blank = auto-generate)" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.45rem;" />
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" class="lifeline-btn" id="opIssuePass">Issue Pass</button>
+            <button type="button" class="lifeline-btn" id="opRevokePass">Revoke Pass</button>
+          </div>
+        </div>`
+      : "";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Officer Panel</h3>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
+        ${escapeHtml(title)} · ${escapeHtml(name)} · shortcuts &amp; duty tools
+      </p>
+      ${specialHtml}
+      <div class="officer-panel-grid">
+        <button type="button" class="lifeline-btn" id="opDesk">Officer Desk</button>
+        <button type="button" class="lifeline-btn" id="opUpdates">Updates board</button>
+        <button type="button" class="lifeline-btn" id="opSchedule">Schedule</button>
+        <button type="button" class="lifeline-btn" id="opResources">Resources</button>
+        <button type="button" class="lifeline-btn" id="opDashboard">Dashboard</button>
+        <button type="button" class="lifeline-btn" id="opArena">Reviewer Arena</button>
+        <button type="button" class="lifeline-btn" id="opFinanceView" style="grid-column:1/-1;">Section Finance (view)</button>
+      </div>
+      ${guestPassHtml}
+      <h4 style="margin:0.55rem 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN</h4>
+      <p style="margin:0 0 8px;font-size:0.75rem;color:var(--muted);">Pinned message on home. Your name will show as the announcer.</p>
+      <textarea id="opPinInput" maxlength="240" placeholder="Pin a short section announcement…" style="width:100%;min-height:84px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.5rem;"></textarea>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="opPinSave">Publish pin</button>
+        <button type="button" class="lifeline-btn" id="opClose">Close</button>
+      </div>
+      <p id="opStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#opStatus");
+    const pinInput = panel.querySelector("#opPinInput");
+    (async () => {
       try {
-        const snap = await get(ref(db, PUSH_SIGNAL_PATH));
-        if (!snap.exists()) return;
-        const val = snap.val() || {};
-        const ts = Number(val.ts || 0);
-        if (!ts || ts <= lastTs) return;
-        if (String(val.by || "") === String(authState.username || "")) {
-          lastTs = ts;
-          try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
-          return;
+        if (db && pinInput) {
+          const snap = await get(ref(db, ANNOUNCEMENT_PATH));
+          if (snap.exists()) {
+            const val = snap.val();
+            pinInput.value = typeof val === "string" ? val : (val && val.text) || "";
+          }
         }
-        lastTs = ts;
-        try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
-        if (notificationsSupported() && Notification.permission === "granted") {
-          try {
-            new Notification(val.title || "BSCS 1-A Hub", {
-              body: val.body || "",
-              tag: val.tag || ("sig-" + ts)
-            });
-          } catch (e) { /* ignore */ }
-        }
-        if (typeof showShareToast === "function" && val.type === "classmate_open") {
-          showShareToast(val.body || "Classmate online");
-        }
-      } catch (e) { /* ignore */ }
-    }, 8000);
-  }
-
-  function maybeNotifyAdminDashboardTasks() {
-    if (!isAdmin()) return;
-    try {
-      const day = new Date().toISOString().slice(0, 10);
-      if (localStorage.getItem("bscs1a_dash_notify_day") === day) return;
-      localStorage.setItem("bscs1a_dash_notify_day", day);
-      let pending = null;
-      try { pending = JSON.parse(localStorage.getItem("bscs1a_dashboard_pending_v1") || "null"); } catch (e) { /* ignore */ }
-      const active = pending ? Number(pending.activeCount || 0) : 0;
-      const urgent = pending ? Number(pending.urgentCount || 0) : 0;
-      if (!active) return;
-      const body = urgent
-        ? (active + " active · " + urgent + " urgent on Class Dashboard")
-        : (active + " active task(s) on Class Dashboard");
-      if (typeof showShareToast === "function") showShareToast("Dashboard · " + body);
-      if (notificationsSupported() && Notification.permission === "granted") {
-        try { new Notification("Class Dashboard reminder", { body, tag: "dashboard-pending" }); } catch (e) { /* ignore */ }
+      } catch (error) { /* ignore */ }
+    })();
+    const go = (href) => {
+      overlay.remove();
+      if (href.startsWith("#")) {
+        const target = document.querySelector(href);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        try { history.replaceState(null, "", href); } catch (e) { /* ignore */ }
+      } else {
+        window.location.href = href;
       }
-    } catch (e) { /* ignore */ }
+    };
+    bindTap(panel.querySelector("#opClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#opDesk"), (e) => { e.preventDefault(); overlay.remove(); openOfficerDesk(); });
+    bindTap(panel.querySelector("#opUpdates"), (e) => { e.preventDefault(); go("#officer-updates"); });
+    bindTap(panel.querySelector("#opSchedule"), (e) => { e.preventDefault(); go("#schedule"); });
+    bindTap(panel.querySelector("#opResources"), (e) => { e.preventDefault(); go("#resources"); });
+    bindTap(panel.querySelector("#opDashboard"), (e) => { e.preventDefault(); go("dashboard.html"); });
+    bindTap(panel.querySelector("#opArena"), (e) => { e.preventDefault(); go("#reviewer-arena"); });
+    const attBtn = panel.querySelector("#opAttendance");
+    if (attBtn) {
+      bindTap(attBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
+    const finBtn = panel.querySelector("#opFinance");
+    const finView = panel.querySelector("#opFinanceView");
+    const openFin = (e) => {
+      e.preventDefault();
+      overlay.remove();
+      openFinanceHub();
+    };
+    if (finBtn) bindTap(finBtn, openFin);
+    if (finView) bindTap(finView, openFin);
+    const leadBtn = panel.querySelector("#opLeadership");
+    if (leadBtn) {
+      bindTap(leadBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openLeadershipHub();
+      });
+    }
+    const adminOpen = panel.querySelector("#opOpenAdmin");
+    if (adminOpen) {
+      bindTap(adminOpen, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openRstAdminPanel();
+      });
+    }
+    const visCtrlBtn = panel.querySelector("#opVisitorCtrl");
+    if (visCtrlBtn) {
+      bindTap(visCtrlBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openVisitorControlPanel();
+      });
+    }
+    const focusPass = panel.querySelector("#opGuestPassFocus");
+    if (focusPass) {
+      bindTap(focusPass, (e) => {
+        e.preventDefault();
+        const box = panel.querySelector("#opGuestPassBox");
+        if (box) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    }
+    const issueBtn = panel.querySelector("#opIssuePass");
+    const revokeBtn = panel.querySelector("#opRevokePass");
+    const passInput = panel.querySelector("#opGuestPassInput");
+    if (issueBtn) {
+      bindTap(issueBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const { code } = await issueGuestPassCode(passInput ? passInput.value : "");
+          if (passInput) passInput.value = code;
+          status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
+        } catch (error) {
+          status.textContent = error.message || "Issue failed";
+        }
+      });
+    }
+    if (revokeBtn) {
+      bindTap(revokeBtn, async (e) => {
+        e.preventDefault();
+        try {
+          const code = await revokeGuestPassCode(passInput ? passInput.value : "");
+          status.textContent = `Guest Pass revoked: ${code}`;
+        } catch (error) {
+          status.textContent = error.message || "Revoke failed";
+        }
+      });
+    }
+    bindTap(panel.querySelector("#opPinSave"), async (e) => {
+      e.preventDefault();
+      try {
+        await saveAdminPin(pinInput ? pinInput.value : "");
+        status.textContent = "Section pin published · your name is shown on home.";
+      } catch (error) {
+        status.textContent = "Pin saved locally (cloud write failed).";
+        console.warn(error);
+      }
+    });
   }
 
-
+  /* ---------------- RST Admin Panel: guest play control ---------------- */
   function openRstAdminPanel() {
     if (!isAdmin()) {
       showShareToast && showShareToast("Admin only");
@@ -1220,22 +1760,29 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">RST Admin Panel</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${COMPANY_NAME} Admin · Pin, guests, login activity.
+        ${COMPANY_NAME} Admin · Pin, deadlines, guests, live PWA opens.
       </p>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
       <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
       <button type="button" class="lifeline-btn" id="adminSavePin" style="margin-bottom:0.75rem;">Publish pin</button>
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">LIVE DEADLINES</h4>
+      <div class="deadline-add-row">
+        <input id="adminDeadlineName" type="text" maxlength="80" placeholder="Deadline title" />
+        <input id="adminDeadlineDate" type="date" />
+        <button type="button" class="lifeline-btn" id="adminAddDeadline">Add</button>
+      </div>
+      <div id="adminDeadlineList" style="max-height:22vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">RESOURCE REQUESTS</h4>
       <div id="adminRequestList" style="max-height:28vh;overflow:auto;margin-bottom:0.75rem;font-size:0.8rem;"><span style="color:var(--muted)">Loading…</span></div>
-      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE LOGIN LOG</h4>
-      <div id="adminLoginLog" style="max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
-        Loading login activity…
+      <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">CLASSMATE ACTIVITY (opens + logins)</h4>
+      <div id="adminLoginLog" style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.14);border-radius:12px;padding:0.55rem 0.65rem;margin-bottom:0.85rem;background:rgba(0,0,0,0.2);font-size:0.78rem;">
+        Loading activity…
       </div>
       <label style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;margin-bottom:0.75rem;">
         <input type="checkbox" id="adminGuestGlobal" /> Enable guest play globally (all guests)
       </label>
       <div class="auth-field">
-        <label for="adminNewPass">Issue / revoke Guest Pass code</label>
+        <label for="adminNewPass">Issue / revoke Guest Pass (Admin + P.O. Boy/Girl)</label>
         <input id="adminNewPass" type="text" maxlength="16" placeholder="e.g. RST-GUEST-01" style="width:100%;padding:0.7rem;border-radius:10px;border:1px solid rgba(255,255,255,0.16);background:rgba(0,0,0,0.3);color:var(--text);" />
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
@@ -1243,10 +1790,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         <button type="button" class="lifeline-btn admin-danger" id="adminRevokePass">Revoke Pass</button>
         <button type="button" class="lifeline-btn" id="adminSaveGlobal">Save Global Toggle</button>
         <button type="button" class="lifeline-btn" id="adminRefreshLog">Refresh Log</button>
+        <button type="button" class="lifeline-btn" id="adminOpenLeadership">Leadership Desk</button>
+        <button type="button" class="lifeline-btn" id="adminOpenFinance">Section Finance</button>
+        <button type="button" class="lifeline-btn" id="adminOpenAttendance">Attendance</button>
+        <button type="button" class="lifeline-btn" id="adminOpenVisitorCtrl">Visitor control</button>
         <button type="button" class="lifeline-btn" id="adminCloseHub">Close</button>
       </div>
       <p id="adminHubStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
-      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Login log = last sign-in per classmate (date &amp; time). Guests are not listed.</p>
+      <p style="margin:10px 0 0;font-size:0.72rem;color:var(--muted);">Shows PWA opens (not only password login) + sign-in history. Guests are not listed.</p>
     `;
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
@@ -1262,26 +1813,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       logHost.textContent = "Loading activity…";
       const latest = await fetchClassmateLoginLog();
       const events = await fetchClassmateLoginEvents(40);
+      const weekly = countActiveThisWeek(events.length ? events : latest);
       const presence = await fetchPresenceMap();
-      const opens = await fetchRecentOpens(25);
+      const opens = await fetchRecentOpens(30);
       const now = Date.now();
-      const isCm = (u) => {
-        const key = String(u || "").toLowerCase();
-        return key && key !== ADMIN_USERNAME && !key.startsWith("visitor");
-      };
-      const cmEvents = (events.length ? events : latest).filter((row) => isCm(row.username) && row.role !== "admin");
-      const weekly = countActiveThisWeek(cmEvents);
-      const uniqueCm = new Set(cmEvents.map((r) => String(r.username || "").toLowerCase())).size;
-      const activeNow = Object.keys(presence || {}).filter((u) => {
-        if (!isCm(u)) return false;
+      const activeNow = Object.keys(presence).filter((u) => {
         const row = presence[u];
         return row && Number(row.lastSeen || 0) > now - 2 * 60 * 1000;
       });
+      const recentOpen = Object.keys(presence)
+        .map((u) => presence[u])
+        .filter((row) => row && Number(row.lastSeen || 0) > now - 24 * 60 * 60 * 1000)
+        .sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
+
       const statsHtml = `<div class="admin-stat-row">
           <div class="admin-stat"><b>${activeNow.length}</b><span>Active now</span></div>
           <div class="admin-stat"><b>${weekly}</b><span>Active this week</span></div>
-          <div class="admin-stat"><b>${uniqueCm}</b><span>Unique logins</span></div>
+          <div class="admin-stat"><b>${latest.length}</b><span>Unique logins</span></div>
         </div>`;
+
       const liveHtml = activeNow.length
         ? activeNow.map((u) => {
             const row = presence[u];
@@ -1291,28 +1841,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
             </div>`;
           }).join("")
         : `<span style="color:var(--muted);font-size:0.8rem;">Walang active classmate ngayon.</span>`;
-      const openHtml = opens.filter((r) => isCm(r.username)).slice(0, 20).map((row) => {
+
+      const openHtml = (opens.length ? opens : recentOpen.map((r) => ({ ...r, ts: r.lastSeen }))).slice(0, 25).map((row) => {
         const when = formatLoginStamp(row.ts || row.lastSeen);
-        const name = escapeHtml((row.displayName || row.username || "").split(",")[0]);
+        const name = escapeHtml((row.displayName || row.username || "Unknown").split(",")[0]);
+        const user = escapeHtml(row.username || "");
+        const why = escapeHtml(row.reason || "open");
         return `<div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
           <div style="font-weight:800;color:#eafffb;">${name}</div>
-          <div style="color:var(--muted);margin-top:0.1rem;font-size:0.72rem;">@${escapeHtml(row.username || "")} · ${escapeHtml(row.reason || "open")}</div>
+          <div style="color:var(--muted);margin-top:0.1rem;font-size:0.72rem;">@${user} · ${why}</div>
           <div style="color:var(--accent);margin-top:0.1rem;font-weight:700;font-size:0.78rem;">${escapeHtml(when)}</div>
         </div>`;
-      }).join("") || `<span style="color:var(--muted)">No classmate opens yet.</span>`;
-      const loginHtml = cmEvents.slice(0, 20).map((row) => {
+      }).join("") || `<span style="color:var(--muted)">No PWA opens recorded yet.</span>`;
+
+      const loginHtml = (events.length ? events : latest).slice(0, 20).map((row) => {
         const when = formatLoginStamp(row.ts);
-        const name = escapeHtml((row.displayName || row.username || "").split(",")[0]);
+        const role = row.role === "admin" ? "ADMIN" : "CLASSMATE";
+        const name = escapeHtml(row.displayName || row.username || "Unknown");
+        const user = escapeHtml(row.username || "");
         return `<div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
           <div style="font-weight:800;color:#eafffb;">${name}</div>
-          <div style="color:var(--muted);margin-top:0.1rem;">@${escapeHtml(row.username || "")} · CLASSMATE</div>
+          <div style="color:var(--muted);margin-top:0.1rem;">@${user} · ${role} · sign-in</div>
           <div style="color:var(--accent);margin-top:0.1rem;font-weight:700;">${escapeHtml(when)}</div>
         </div>`;
-      }).join("") || `<span style="color:var(--muted)">No classmate sign-ins yet.</span>`;
+      }).join("") || `<span style="color:var(--muted)">No sign-ins yet.</span>`;
+
       logHost.innerHTML = statsHtml +
-        `<div style="font-size:0.72rem;font-weight:800;color:#7ee7d4;margin:0.45rem 0 0.25rem;letter-spacing:0.05em;">ACTIVE NOW (PWA open)</div>` + liveHtml +
-        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">RECENT OPENS (classmates only)</div>` + openHtml +
-        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">SIGN-IN HISTORY (classmates only)</div>` + loginHtml;
+        `<div style="font-size:0.72rem;font-weight:800;color:#7ee7d4;margin:0.45rem 0 0.25rem;letter-spacing:0.05em;">ACTIVE NOW (PWA open)</div>` +
+        liveHtml +
+        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">RECENT OPENS (app / page)</div>` +
+        openHtml +
+        `<div style="font-size:0.72rem;font-weight:800;color:#ffd27d;margin:0.65rem 0 0.25rem;letter-spacing:0.05em;">SIGN-IN HISTORY</div>` +
+        loginHtml;
     }
 
     // Load global flag + login log
@@ -1364,6 +1924,36 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       }
     });
 
+    const dlHost = panel.querySelector("#adminDeadlineList");
+    const renderAdminDeadlines = async () => {
+      if (!dlHost) return;
+      const rows = await fetchLiveDeadlines();
+      if (!rows.length) {
+        dlHost.innerHTML = `<span style="color:var(--muted)">No live deadlines yet. Fallback list still shows on home.</span>`;
+        return;
+      }
+      dlHost.innerHTML = rows
+        .slice()
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        .map((d) => `<div style="padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;gap:0.5rem;"><span>${escapeHtml(d.name)}</span><strong style="color:#ffd27d;white-space:nowrap;">${escapeHtml(d.date)}</strong></div>`)
+        .join("");
+    };
+    renderAdminDeadlines();
+    bindTap(panel.querySelector("#adminAddDeadline"), async (e) => {
+      e.preventDefault();
+      const nameEl = panel.querySelector("#adminDeadlineName");
+      const dateEl = panel.querySelector("#adminDeadlineDate");
+      try {
+        await saveLiveDeadline(nameEl && nameEl.value, dateEl && dateEl.value);
+        if (nameEl) nameEl.value = "";
+        status.textContent = "Deadline added to live board.";
+        await renderAdminDeadlines();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Failed to add deadline.";
+      }
+    });
+
     const reqHost = panel.querySelector("#adminRequestList");
     if (reqHost) {
       (async () => {
@@ -1387,6 +1977,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     bindTap(panel.querySelector("#adminCloseHub"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    const adminOpenLead = panel.querySelector("#adminOpenLeadership");
+    if (adminOpenLead) {
+      bindTap(adminOpenLead, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openLeadershipHub();
+      });
+    }
+    const adminOpenFin = panel.querySelector("#adminOpenFinance");
+    if (adminOpenFin) {
+      bindTap(adminOpenFin, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openFinanceHub();
+      });
+    }
+    const adminOpenAtt = panel.querySelector("#adminOpenAttendance");
+    if (adminOpenAtt) {
+      bindTap(adminOpenAtt, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
+    const adminOpenVis = panel.querySelector("#adminOpenVisitorCtrl");
+    if (adminOpenVis) {
+      bindTap(adminOpenVis, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openVisitorControlPanel();
+      });
+    }
 
     bindTap(panel.querySelector("#adminSaveGlobal"), async (e) => {
       e.preventDefault();
@@ -1406,64 +2028,23 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
     bindTap(panel.querySelector("#adminIssuePass"), async (e) => {
       e.preventDefault();
-      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
-      if (!code) {
-        code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      try {
+        const { code } = await issueGuestPassCode(passInput.value);
         passInput.value = code;
-      }
-      const payload = {
-        active: true,
-        createdBy: ADMIN_USERNAME,
-        company: COMPANY_NAME,
-        ts: Date.now(),
-        expiresAt: Date.now() + 7 * 86400000 // 7 days
-      };
-      try {
-        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
-        local[code] = payload;
-        localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
-      } catch (error) {
-        /* ignore */
-      }
-      try {
-        if (db) {
-          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), payload);
-        }
         status.textContent = `Guest Pass issued: ${code} — give this to the visitor.`;
       } catch (error) {
-        status.textContent = `Local pass saved: ${code} (Firebase write failed — still works on this device).`;
+        status.textContent = error.message || "Issue failed";
         console.warn(error);
       }
     });
 
     bindTap(panel.querySelector("#adminRevokePass"), async (e) => {
       e.preventDefault();
-      let code = String(passInput.value || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
-      if (!code) {
-        status.textContent = "Type the Guest Pass code to revoke.";
-        return;
-      }
       try {
-        const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
-        if (local[code]) {
-          local[code].active = false;
-          localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
-        }
-      } catch (error) {
-        /* ignore */
-      }
-      try {
-        if (db) {
-          await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), {
-            active: false,
-            revokedBy: ADMIN_USERNAME,
-            company: COMPANY_NAME,
-            ts: Date.now()
-          });
-        }
+        const code = await revokeGuestPassCode(passInput.value);
         status.textContent = `Guest Pass revoked: ${code}`;
       } catch (error) {
-        status.textContent = `Revoked locally: ${code} (Firebase update failed).`;
+        status.textContent = error.message || "Revoke failed";
         console.warn(error);
       }
     });
@@ -1893,6 +2474,68 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { s: "ITEC 102", q: "Which of the following best describes 'parameter passing'?", choices: ["Sending values into a function or method for it to use", "Deleting a function permanently", "Compiling a class", "Declaring a constant"], answer: "Sending values into a function or method for it to use" },
     { s: "ITEC 102", q: "What is recursion in programming?", choices: ["A function calling itself to solve a smaller instance of a problem", "A loop that never runs", "A type of data type", "A file reading method"], answer: "A function calling itself to solve a smaller instance of a problem" },
     { s: "ITEC 102", q: "Why does a recursive function need a base case?", choices: ["To stop the recursive calls and prevent infinite recursion", "To make the function run faster", "To avoid declaring variables", "To skip parameter passing"], answer: "To stop the recursive calls and prevent infinite recursion" },
+
+    /* ===== ITEC 102 · Module: Introduction to C# Programming (Relevo) ===== */
+    { s: "ITEC 102", q: "What is C# (C-Sharp)?", choices: ["A modern, general-purpose programming language developed by Microsoft", "A database management system", "A type of computer hardware", "An operating system by Apple"], answer: "A modern, general-purpose programming language developed by Microsoft" },
+    { s: "ITEC 102", q: "Which company developed the C# programming language?", choices: ["Microsoft", "Google", "Apple", "Oracle"], answer: "Microsoft" },
+    { s: "ITEC 102", q: "Which of the following is a key characteristic of C#?", choices: ["Object-oriented programming language", "Only used for web design", "Not type-safe", "Cannot work with .NET"], answer: "Object-oriented programming language" },
+    { s: "ITEC 102", q: "C# is described as which of the following?", choices: ["Strongly typed", "Weakly typed only", "Not typed at all", "Assembly language only"], answer: "Strongly typed" },
+    { s: "ITEC 102", q: "C# was designed to work primarily with which platform?", choices: [".NET platform", "Only Android SDK", "Only iOS Cocoa", "Only WordPress"], answer: ".NET platform" },
+    { s: "ITEC 102", q: "Who led the development team of C#?", choices: ["Anders Hejlsberg", "Bill Gates", "Linus Torvalds", "James Gosling"], answer: "Anders Hejlsberg" },
+    { s: "ITEC 102", q: "Around what year was C# introduced?", choices: ["2000", "1990", "2010", "1985"], answer: "2000" },
+    { s: "ITEC 102", q: "When was the first official version, C# 1.0, released?", choices: ["2002", "1999", "2012", "2008"], answer: "2002" },
+    { s: "ITEC 102", q: "C# development began in which period?", choices: ["Late 1990s", "Early 1980s", "2015 only", "1970s"], answer: "Late 1990s" },
+    { s: "ITEC 102", q: "C# was created as part of which Microsoft initiative?", choices: [".NET initiative", "Windows Phone only", "Xbox Live only", "MS-DOS initiative"], answer: ".NET initiative" },
+    { s: "ITEC 102", q: "In the relationship between C# and .NET, what is C#?", choices: ["A programming language used to write source code", "The runtime that executes all apps", "A hardware driver", "A file compression tool"], answer: "A programming language used to write source code" },
+    { s: "ITEC 102", q: "In the relationship between C# and .NET, what is .NET?", choices: ["A development platform with libraries, runtime, and tools", "Only a text editor", "A single keyword in C#", "A type of variable"], answer: "A development platform with libraries, runtime, and tools" },
+    { s: "ITEC 102", q: "What does IDE stand for?", choices: ["Integrated Development Environment", "Internal Data Engine", "Internet Download Extension", "Independent Design Element"], answer: "Integrated Development Environment" },
+    { s: "ITEC 102", q: "What is an IDE?", choices: ["A software application that helps programmers write, test, and debug code in one place", "A computer virus scanner only", "A type of printer", "A network cable standard"], answer: "A software application that helps programmers write, test, and debug code in one place" },
+    { s: "ITEC 102", q: "Which of the following is typically included in an IDE?", choices: ["Code editor", "Only a web browser", "Only a calculator", "Only a music player"], answer: "Code editor" },
+    { s: "ITEC 102", q: "In an IDE, what does the compiler or interpreter do?", choices: ["Converts your code into a program that can run", "Deletes all errors automatically without rules", "Connects only to social media", "Formats PowerPoint slides"], answer: "Converts your code into a program that can run" },
+    { s: "ITEC 102", q: "What is the debugger used for in an IDE?", choices: ["Helping find and fix errors", "Increasing screen brightness", "Installing games", "Compressing images"], answer: "Helping find and fix errors" },
+    { s: "ITEC 102", q: "What is SharpDevelop (#develop)?", choices: ["A free and open-source IDE for .NET and C# development", "A Microsoft Office app", "A type of C# keyword", "A database server only"], answer: "A free and open-source IDE for .NET and C# development" },
+    { s: "ITEC 102", q: "What is Microsoft Visual Studio?", choices: ["An Integrated Development Environment (IDE) developed by Microsoft", "A social media platform", "A programming language itself", "A type of computer monitor"], answer: "An Integrated Development Environment (IDE) developed by Microsoft" },
+    { s: "ITEC 102", q: "Visual Studio is commonly used for which kind of programming?", choices: ["C# and .NET programming", "Only HTML coloring", "Only spreadsheet macros", "Only photo editing"], answer: "C# and .NET programming" },
+    { s: "ITEC 102", q: "Which is a correct step when installing Visual Studio?", choices: ["Run the Visual Studio Installer and select a development workload", "Only download a random .txt file", "Install without selecting any components", "Avoid launching Visual Studio after install"], answer: "Run the Visual Studio Installer and select a development workload" },
+    { s: "ITEC 102", q: "Where can you download Visual Studio?", choices: ["https://visualstudio.microsoft.com/downloads/", "Only from a USB without official site", "From random email attachments", "Only from mobile app stores as games"], answer: "https://visualstudio.microsoft.com/downloads/" },
+    { s: "ITEC 102", q: "When creating a C# Console Application in Visual Studio, what should you select first after opening Visual Studio?", choices: ["Create a new project", "Delete all templates", "Close the IDE immediately", "Only open Paint"], answer: "Create a new project" },
+    { s: "ITEC 102", q: "Which project template is used for a basic text-based C# program?", choices: ["Console App", "Empty Excel sheet", "Photoshop document", "PowerPoint template"], answer: "Console App" },
+    { s: "ITEC 102", q: "When creating a Console App, which programming language should you select?", choices: ["C#", "Only Python always", "Only JavaScript always", "Only assembly always"], answer: "C#" },
+    { s: "ITEC 102", q: "After choosing the Console App template, what do you typically enter next?", choices: ["Project name and location", "Your Wi-Fi password only", "A random phone number", "Nothing; it auto-finishes"], answer: "Project name and location" },
+    { s: "ITEC 102", q: "What does 'syntax' refer to in programming?", choices: ["The rules that determine how a programming language must be written", "The speed of the computer fan", "The color of the desktop wallpaper", "The brand of the keyboard"], answer: "The rules that determine how a programming language must be written" },
+    { s: "ITEC 102", q: "Which of the following is part of C# syntax elements?", choices: ["Statements, keywords, identifiers, variables, methods, classes", "Only images and videos", "Only network cables", "Only printer drivers"], answer: "Statements, keywords, identifiers, variables, methods, classes" },
+    { s: "ITEC 102", q: "What is a statement in C#?", choices: ["An instruction that tells the computer to perform an action", "A type of monitor", "A folder on the desktop", "A Wi-Fi standard"], answer: "An instruction that tells the computer to perform an action" },
+    { s: "ITEC 102", q: "What are keywords in C#?", choices: ["Special words with predefined meaning that cannot normally be used as names", "Any random username online", "Folder names only", "Mouse click patterns"], answer: "Special words with predefined meaning that cannot normally be used as names" },
+    { s: "ITEC 102", q: "Which of the following is a C# keyword?", choices: ["int", "helloWorldVar", "myAge123", "studentNameX"], answer: "int" },
+    { s: "ITEC 102", q: "Which of these is also a C# keyword?", choices: ["class", "myClassNameOnly", "dataHolder99", "valueBox"], answer: "class" },
+    { s: "ITEC 102", q: "Which keyword is commonly used for the entry-point method return type in console samples?", choices: ["void", "wifi", "folder", "monitor"], answer: "void" },
+    { s: "ITEC 102", q: "What are identifiers in C#?", choices: ["Names given by the programmer to variables, methods, classes, and other elements", "Only Microsoft product serial numbers", "Only IP addresses", "Only file sizes"], answer: "Names given by the programmer to variables, methods, classes, and other elements" },
+    { s: "ITEC 102", q: "What is a variable?", choices: ["A named storage location used to hold data", "A type of computer virus", "A permanent unchangeable hardware chip only", "A network topology"], answer: "A named storage location used to hold data" },
+    { s: "ITEC 102", q: "A variable is best compared to which everyday idea?", choices: ["A labeled container that stores information", "A locked empty room with no label", "A random internet meme", "A broken keyboard key"], answer: "A labeled container that stores information" },
+    { s: "ITEC 102", q: "What is a method in C#?", choices: ["A block of code that performs a specific task", "A type of hard disk", "A Wi-Fi password", "A monitor resolution setting"], answer: "A block of code that performs a specific task" },
+    { s: "ITEC 102", q: "What are braces { } used for in C#?", choices: ["To define a block of code", "To end every statement only", "To name variables only", "To connect to the internet"], answer: "To define a block of code" },
+    { s: "ITEC 102", q: "What are parentheses ( ) commonly used for in C#?", choices: ["Passing information to methods and writing conditions", "Only drawing circles on screen", "Only closing the IDE", "Only naming projects"], answer: "Passing information to methods and writing conditions" },
+    { s: "ITEC 102", q: "What does a semicolon (;) usually mark in C#?", choices: ["The end of a statement", "The start of a class only", "A comment block only", "A new project template"], answer: "The end of a statement" },
+    { s: "ITEC 102", q: "What does the line 'using System;' do in a basic C# program?", choices: ["Allows the program to use members of the System namespace", "Deletes the System folder", "Installs Visual Studio", "Creates a new user account"], answer: "Allows the program to use members of the System namespace" },
+    { s: "ITEC 102", q: "What does 'class Program' define in a basic C# console structure?", choices: ["A class named Program", "A variable named Program only", "A keyword that ends the app", "A folder path"], answer: "A class named Program" },
+    { s: "ITEC 102", q: "What is Main() in a traditional C# console program?", choices: ["The traditional entry point of the program", "A type of loop only", "A data type for numbers only", "A debugger tool outside the code"], answer: "The traditional entry point of the program" },
+    { s: "ITEC 102", q: "What does Console.WriteLine() do?", choices: ["Displays information in the console", "Deletes console history permanently", "Opens Visual Studio settings", "Compiles the entire .NET runtime"], answer: "Displays information in the console" },
+    { s: "ITEC 102", q: "Which rule is true about C#?", choices: ["C# is case-sensitive", "C# ignores letter case completely", "C# does not use semicolons", "C# cannot use braces"], answer: "C# is case-sensitive" },
+    { s: "ITEC 102", q: "How do C# statements usually end?", choices: ["With a semicolon ;", "With a colon only", "With a period only", "With a hashtag only"], answer: "With a semicolon ;" },
+    { s: "ITEC 102", q: "What do code blocks in C# use?", choices: ["Curly braces { }", "Square brackets only for all blocks", "Angle brackets only", "No symbols at all"], answer: "Curly braces { }" },
+    { s: "ITEC 102", q: "Methods and conditions in C# typically use which symbols?", choices: ["Parentheses ( )", "Only curly braces with no parentheses", "Only quotation marks", "Only commas"], answer: "Parentheses ( )" },
+    { s: "ITEC 102", q: "File names in C# projects usually follow which naming style?", choices: ["Pascal Case (e.g., ComputerScience)", "alllowercasewithnospacesonly", "ONLY_SNAKE_WITH_NUMBERS_999", "random!!!symbols"], answer: "Pascal Case (e.g., ComputerScience)" },
+    { s: "ITEC 102", q: "Which statement correctly displays text on the console?", choices: ["Console.WriteLine(\"Hello\");", "print Hello", "echo Hello;", "System.out.println Hello"], answer: "Console.WriteLine(\"Hello\");" },
+    { s: "ITEC 102", q: "If age is an integer variable, which declaration uses a keyword correctly?", choices: ["int age;", "integer age;", "num age;", "varInteger age;"], answer: "int age;" },
+    { s: "ITEC 102", q: "Why can you not normally use 'class' as a variable name in C#?", choices: ["Because class is a keyword with a predefined meaning", "Because class is too short", "Because C# bans all short names", "Because variables cannot store data"], answer: "Because class is a keyword with a predefined meaning" },
+    { s: "ITEC 102", q: "Which pair correctly matches language vs platform?", choices: ["C# = language; .NET = platform", "C# = platform; .NET = language", "Both are only hardware", "Both are only databases"], answer: "C# = language; .NET = platform" },
+    { s: "ITEC 102", q: "Which IDE is developed by Microsoft and widely used for C#?", choices: ["Visual Studio", "SharpPaint", "Only Notepad with no tools", "Photoshop"], answer: "Visual Studio" },
+    { s: "ITEC 102", q: "Which free/open-source IDE is mentioned for .NET and C# development?", choices: ["SharpDevelop", "Microsoft Word", "Excel Online", "PowerPoint"], answer: "SharpDevelop" },
+    { s: "ITEC 102", q: "Which step comes after selecting the Console App template in Visual Studio?", choices: ["Click Next, then enter project name and location", "Uninstall Visual Studio", "Delete the template", "Switch to a different language only"], answer: "Click Next, then enter project name and location" },
+    { s: "ITEC 102", q: "Before clicking Create for a new Console App, you typically choose what?", choices: ["The framework", "The desktop wallpaper", "The default printer", "The system volume"], answer: "The framework" },
+    { s: "ITEC 102", q: "Which is NOT a typical part of an IDE?", choices: ["A kitchen recipe book", "Code editor", "Debugger", "Build and run tools"], answer: "A kitchen recipe book" },
+    { s: "ITEC 102", q: "C# supports which programming styles mentioned in the module?", choices: ["Structured and object-oriented programming", "Only pure assembly with no structure", "Only drag-and-drop with no code", "Only spreadsheet formulas"], answer: "Structured and object-oriented programming" },
+    { s: "ITEC 102", q: "Which best summarizes why C# is called versatile?", choices: ["It can be used to create different types of applications", "It only prints Hello World forever", "It only runs on one abandoned OS", "It cannot use libraries"], answer: "It can be used to create different types of applications" },
 
     { s: "GEC 101", q: "According to Socrates, what is the self synonymous with?", choices: ["The soul", "The body", "The government", "The community"], answer: "The soul" },
     { s: "GEC 101", q: "What is Socrates' famous statement about self-examination?", choices: ["An unexamined life is not worth living", "I think, therefore I am", "The self is a blank slate", "There is no self"], answer: "An unexamined life is not worth living" },
@@ -2502,15 +3145,49 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   }
 
   /* ---------------- Bind helper: click + touch without double-fire ---------------- */
+  /* Ignores touchend after finger moved (scroll) so accidental game taps stop. */
   function bindTap(el, handler) {
     if (!el) return;
     let touched = false;
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    const MOVE_THRESH = 14;
+
+    el.addEventListener(
+      "touchstart",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        if (
+          Math.abs(t.clientX - startX) > MOVE_THRESH ||
+          Math.abs(t.clientY - startY) > MOVE_THRESH
+        ) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
     el.addEventListener(
       "touchend",
       (event) => {
+        if (moved) return;
         touched = true;
         handler(event);
-        window.setTimeout(() => { touched = false; }, 400);
+        window.setTimeout(() => {
+          touched = false;
+        }, 400);
       },
       { passive: false }
     );
@@ -2527,8 +3204,39 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     let lastTap = 0;
     let armed = false;
     const armClass = "double-tap-armed";
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    const MOVE_THRESH = 14;
+
+    el.addEventListener(
+      "touchstart",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+      },
+      { passive: true }
+    );
+    el.addEventListener(
+      "touchmove",
+      (event) => {
+        const t = event.changedTouches && event.changedTouches[0];
+        if (!t) return;
+        if (
+          Math.abs(t.clientX - startX) > MOVE_THRESH ||
+          Math.abs(t.clientY - startY) > MOVE_THRESH
+        ) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
 
     const onTap = (event) => {
+      if (event.type === "touchend" && moved) return;
       event.preventDefault();
       const now = Date.now();
       if (armed && now - lastTap <= gap) {
@@ -2600,6 +3308,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
   function openModal(id) {
     const modal = $(id);
     if (!modal) return;
+    if (id === "leaderboardModal" && typeof isGuest === "function" && isGuest()) {
+      if (typeof showShareToast === "function") showShareToast("Leaderboard is for classmates only");
+      return;
+    }
     modal.removeAttribute("hidden");
     document.body.classList.add("no-scroll");
     if (id === "leaderboardModal") {
@@ -2672,6 +3384,14 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       });
     }
 
+    const menuOnlyIds = {
+      "section-status": true,
+      "vision-mission": true,
+      "officers": true,
+      "freshmen": true,
+      "quick-links": true
+    };
+
     document.querySelectorAll(".js-smooth, .nav-links a").forEach((a) => {
       a.addEventListener("click", (event) => {
         const href = a.getAttribute("href") || "";
@@ -2679,12 +3399,37 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         const target = document.querySelector(href);
         if (!target) return;
         event.preventDefault();
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // Classmates: reveal menu-only sections that are hidden from main scroll
+        const id = href.slice(1);
+        if (menuOnlyIds[id] && (isClassmate() || isAdmin())) {
+          document.querySelectorAll(".menu-revealed").forEach((el) => {
+            if (el !== target) el.classList.remove("menu-revealed");
+          });
+          target.classList.add("menu-revealed");
+        }
+        // Opening Officer Updates clears the "new update" badge
+        if (id === "officer-updates" && (isClassmate() || isAdmin())) {
+          fetchOfficerUpdates().then((rows) => {
+            if (rows[0]) markOfficerUpdatesSeen(rows[0].ts);
+            else markOfficerUpdatesSeen(Date.now());
+          }).catch(() => markOfficerUpdatesSeen(Date.now()));
+        }
+
+        // Allow layout to apply before scrolling
+        window.requestAnimationFrame(() => {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
         if (links) {
           links.classList.remove("open");
           if (toggle) toggle.setAttribute("aria-expanded", "false");
         }
-        history.replaceState(null, "", href);
+        try {
+          history.replaceState(null, "", href);
+        } catch (error) {
+          /* ignore */
+        }
       });
     });
   }
@@ -2738,7 +3483,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         '<span class="mode-title">' + escapeHtml(mode.label) + '</span>' +
         '<span class="mode-desc">' + escapeHtml(mode.description) + '</span>';
 
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         selectMode(mode.id);
       });
 
@@ -2904,7 +3650,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     const grid = elements.runTypeGrid || $("runTypeGrid");
     if (!grid) return;
     grid.querySelectorAll("[data-run-type]").forEach((btn) => {
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         selectRunType(btn.getAttribute("data-run-type") || "ranked");
       });
     });
@@ -2972,7 +3719,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     if (elements.loginStatus) {
       if (!canPlayArena()) {
-        elements.loginStatus.textContent = "Arena locked for browse-only guests. Ask RST Admin for a Guest Pass.";
+        elements.loginStatus.textContent = "Arena locked for browse-only guests. Ask RST Admin or a P.O. (Boy/Girl) for a Guest Pass.";
       } else if (state.runType === "practice") {
         elements.loginStatus.textContent = "Practice mode: walang heart loss at hindi nasesave ang score sa leaderboard.";
       } else if (state.runType === "study") {
@@ -3049,19 +3796,25 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     { text: "Check the Freedom Wall for section shout-outs and study tips." }
   ];
 
-  // Editable deadline radar (YYYY-MM-DD). Update these as the term goes.
+  // Fallback deadline radar (YYYY-MM-DD). Live board from Firebase overrides when present.
   const SECTION_DEADLINES = [
     { name: "ITEC 102 Quiz window", date: "2026-08-25" },
     { name: "GEC reading check", date: "2026-08-28" },
     { name: "Midterm focus block", date: "2026-09-15" },
     { name: "Finals season opens", date: "2026-10-16" }
   ];
+  const DEADLINES_PATH = "hub_config/deadlines";
+  const DEADLINES_LOCAL_KEY = "bscs1a_deadlines_v1";
+  const OFFICER_SEEN_KEY = "bscs1a_officer_updates_seen_ts_v1";
+  const OFFICER_BADGE_KEY = "bscs1a_officer_updates_latest_ts_v1";
 
-  // Set to a future date string "YYYY-MM-DD" to show countdown, or null to hide.
+  // Fallback exam focus date (YYYY-MM-DD). Live value from Firebase overrides when present.
   const NEXT_EXAM_DATE = "2026-09-15";
+  const EXAM_FOCUS_PATH = "hub_config/exam_focus";
+  const EXAM_FOCUS_LOCAL_KEY = "bscs1a_exam_focus_v1";
   const BADGES_KEY = "bscs1a_badges_v1";
 
-  /* Weekly schedule snapshot for Command Center "next class" */
+  /* Weekly schedule snapshot for Command Center "next class" / room finder */
   const WEEKLY_SCHEDULE = {
     1: [ // Monday
       { time: "8:30–10:00 AM", subj: "GEC 102 · Philippine History", tag: "Online" },
@@ -3088,19 +3841,172 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     0: []
   };
 
-  function getNextClassInfo() {
-    const now = new Date();
-    const day = now.getDay();
-    const slots = WEEKLY_SCHEDULE[day] || [];
-    if (!slots.length) {
-      return { value: "Vacant / Weekend", sub: "Walang scheduled class ngayong araw" };
-    }
-    // Simple: show first slot of the day (reliable on phones without parsing every time format)
-    const first = slots[0];
+  function parseClockToMinutes(token, inheritedMeridiem) {
+    const raw = String(token || "").trim();
+    const m = raw.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
+    if (!m) return null;
+    let hour = Number(m[1]);
+    const minute = Number(m[2] || 0);
+    let mer = (m[3] || inheritedMeridiem || "").toUpperCase();
+    if (!mer) mer = hour >= 7 && hour <= 11 ? "AM" : "PM";
+    if (mer === "PM" && hour < 12) hour += 12;
+    if (mer === "AM" && hour === 12) hour = 0;
+    return hour * 60 + minute;
+  }
+
+  function parseScheduleSlot(slot, baseDate) {
+    const time = String(slot.time || "");
+    const parts = time.split(/[–—-]/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    const endMer = (parts[1].match(/\b(AM|PM)\b/i) || [])[1];
+    const startMer = (parts[0].match(/\b(AM|PM)\b/i) || [])[1] || endMer;
+    const startMin = parseClockToMinutes(parts[0].replace(/\b(AM|PM)\b/i, "").trim() + (startMer ? " " + startMer : ""), startMer);
+    const endMin = parseClockToMinutes(parts[1], endMer || startMer);
+    if (startMin == null || endMin == null) return null;
+    const day = new Date(baseDate);
+    day.setHours(0, 0, 0, 0);
     return {
-      value: first.subj,
-      sub: `${first.time} · ${first.tag}`
+      ...slot,
+      startMs: day.getTime() + startMin * 60000,
+      endMs: day.getTime() + endMin * 60000
     };
+  }
+
+  function getScheduleSnapshot(nowInput) {
+    const now = nowInput instanceof Date ? nowInput : new Date();
+    const day = now.getDay();
+    const slots = (WEEKLY_SCHEDULE[day] || [])
+      .map((s) => parseScheduleSlot(s, now))
+      .filter(Boolean)
+      .sort((a, b) => a.startMs - b.startMs);
+
+    if (!slots.length) {
+      return {
+        room: { value: "No class today", sub: "Vacant / weekend · check weekly schedule" },
+        next: { value: "Vacant / Weekend", sub: "Walang scheduled class ngayong araw" },
+        status: "off"
+      };
+    }
+
+    const t = now.getTime();
+    const current = slots.find((s) => t >= s.startMs && t < s.endMs) || null;
+    const upcoming = slots.find((s) => t < s.startMs) || null;
+
+    let room;
+    if (current) {
+      room = {
+        value: current.subj,
+        sub: `${current.time} · ${current.tag} · ONGOING`,
+        status: "live"
+      };
+    } else if (upcoming) {
+      room = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag} · up next`,
+        status: "soon"
+      };
+    } else {
+      const last = slots[slots.length - 1];
+      room = {
+        value: "Classes done for today",
+        sub: last ? `Last: ${last.subj} · ${last.time}` : "Walang class",
+        status: "done"
+      };
+    }
+
+    let next;
+    if (current && upcoming) {
+      next = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag}`
+      };
+    } else if (!current && upcoming) {
+      next = {
+        value: upcoming.subj,
+        sub: `${upcoming.time} · ${upcoming.tag}`
+      };
+    } else if (current && !upcoming) {
+      next = {
+        value: "Last class of the day",
+        sub: `${current.time} · ${current.tag}`
+      };
+    } else {
+      next = {
+        value: "Done for today",
+        sub: "See you next class day"
+      };
+    }
+
+    return { room, next, status: room.status };
+  }
+
+  function getNextClassInfo() {
+    return getScheduleSnapshot().next;
+  }
+
+  function canEditExamFocus() {
+    if (isAdmin()) return true;
+    const user = String(authState.username || "").toLowerCase();
+    return user === "cainto" || user === "tabifranca";
+  }
+
+  async function fetchExamFocus() {
+    let data = { date: NEXT_EXAM_DATE, label: "Exam focus" };
+    if (db) {
+      try {
+        const snap = await get(ref(db, EXAM_FOCUS_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          if (val && val.date) {
+            data = {
+              date: String(val.date),
+              label: String(val.label || "Exam focus")
+            };
+            try {
+              localStorage.setItem(EXAM_FOCUS_LOCAL_KEY, JSON.stringify(data));
+            } catch (e) { /* ignore */ }
+            return data;
+          }
+        }
+      } catch (error) {
+        console.warn("[Hub] exam focus fetch failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem(EXAM_FOCUS_LOCAL_KEY) || "null");
+      if (local && local.date) data = local;
+    } catch (e) { /* ignore */ }
+    return data;
+  }
+
+  async function saveExamFocus(date, label) {
+    if (!canEditExamFocus()) throw new Error("Admin / P.I.O. only");
+    const payload = {
+      date: String(date || "").trim(),
+      label: String(label || "Exam focus").trim().slice(0, 60) || "Exam focus",
+      updatedAt: Date.now(),
+      updatedBy: authState.username || "editor"
+    };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+      throw new Error("Use date format YYYY-MM-DD");
+    }
+    try {
+      localStorage.setItem(EXAM_FOCUS_LOCAL_KEY, JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, EXAM_FOCUS_PATH), payload);
+    }
+    return payload;
+  }
+
+  async function clearExamFocus() {
+    if (!canEditExamFocus()) throw new Error("Admin / P.I.O. only");
+    try {
+      localStorage.removeItem(EXAM_FOCUS_LOCAL_KEY);
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, EXAM_FOCUS_PATH), null);
+    }
   }
 
   function getDailyStatusInfo() {
@@ -3137,61 +4043,412 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
   }
 
-  function renderTodayStrip() {
+  async function renderTodayStrip() {
     const host = elements.todayStrip || $("todayStrip");
     if (!host) return;
 
+    const snap = getScheduleSnapshot();
+    const daily = getDailyStatusInfo();
+    const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
+    const exam = await fetchExamFocus();
     let countdownHtml = "";
-    if (NEXT_EXAM_DATE) {
-      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+    if (exam && exam.date) {
+      const target = new Date(exam.date + "T00:00:00");
       if (!Number.isNaN(target.getTime())) {
         const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
         if (diffDays >= 0) {
+          const editBtn = canEditExamFocus()
+            ? `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Edit</button>`
+            : "";
           countdownHtml =
-            `<span class="countdown-pill">Exam focus · ${escapeHtml(NEXT_EXAM_DATE)} · ${diffDays} day${diffDays === 1 ? "" : "s"} left</span>`;
+            `<div class="countdown-pill exam-focus-pill">` +
+              `<span>${escapeHtml(exam.label || "Exam focus")} · ${escapeHtml(exam.date)} · ${diffDays} day${diffDays === 1 ? "" : "s"} left</span>` +
+              editBtn +
+            `</div>`;
+        } else if (canEditExamFocus()) {
+          countdownHtml =
+            `<div class="countdown-pill exam-focus-pill">` +
+              `<span>Exam focus expired · set a new date</span>` +
+              `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Edit</button>` +
+            `</div>`;
         }
       }
+    } else if (canEditExamFocus()) {
+      countdownHtml =
+        `<div class="countdown-pill exam-focus-pill">` +
+          `<span>No exam focus set</span>` +
+          `<button type="button" class="exam-edit-btn" id="examFocusEditBtn">Add</button>` +
+        `</div>`;
     }
 
-    const nextClass = getNextClassInfo();
-    const daily = getDailyStatusInfo();
-    const items = SECTION_ANNOUNCEMENTS.map((a) => `<li>${escapeHtml(a.text)}</li>`).join("");
-
-    const deadlinesHtml = buildDeadlineRadarHtml();
+    const roomStatusClass = snap.status === "live" ? " is-live" : snap.status === "soon" ? " is-soon" : "";
     host.innerHTML =
       `<div class="today-card command-center">` +
         `<h3>Command Center · RST</h3>` +
-        `<div class="cmd-grid">` +
-          `<div class="cmd-tile"><span class="cmd-label">Next class</span><span class="cmd-value">${escapeHtml(nextClass.value)}</span><span class="cmd-sub">${escapeHtml(nextClass.sub)}</span></div>` +
-          `<div class="cmd-tile"><span class="cmd-label">Daily Challenge</span><span class="cmd-value">${escapeHtml(daily.value)}</span><span class="cmd-sub">${escapeHtml(daily.sub)}</span></div>` +
+        `<div class="room-finder cmd-highlight${roomStatusClass}">` +
+          `<div class="rf-label">Room finder · now</div>` +
+          `<div class="rf-value">${escapeHtml(snap.room.value)}</div>` +
+          `<div class="rf-sub">${escapeHtml(snap.room.sub)}</div>` +
         `</div>` +
-        `<div class="room-finder"><div class="rf-label">Room finder · today</div><div class="rf-value">${escapeHtml(nextClass.value)} · ${escapeHtml(nextClass.sub)}</div></div>` +
+        `<div class="cmd-grid cmd-grid-stack">` +
+          `<div class="cmd-tile cmd-highlight is-next">` +
+            `<span class="cmd-label">Next class</span>` +
+            `<span class="cmd-value">${escapeHtml(snap.next.value)}</span>` +
+            `<span class="cmd-sub">${escapeHtml(snap.next.sub)}</span>` +
+          `</div>` +
+          `<div class="cmd-tile">` +
+            `<span class="cmd-label">Daily Challenge</span>` +
+            `<span class="cmd-value">${escapeHtml(daily.value)}</span>` +
+            `<span class="cmd-sub">${escapeHtml(daily.sub)}</span>` +
+          `</div>` +
+        `</div>` +
         `<div class="pulse-line" id="sectionPulseLine">Section Pulse · loading…</div>` +
-        deadlinesHtml +
         `<ul style="margin-top:0.65rem">${items}</ul>` +
         countdownHtml +
         buildQotdHtml() +
       `</div>`;
     refreshSectionPulse();
+    refreshOfficerUpdateBadge();
+
+    const examBtn = $("examFocusEditBtn");
+    if (examBtn) {
+      bindTap(examBtn, (e) => {
+        e.preventDefault();
+        openExamFocusEditor(exam);
+      });
+    }
   }
 
-  function buildDeadlineRadarHtml() {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const rows = (SECTION_DEADLINES || []).map((d) => {
-      const target = new Date(d.date + "T00:00:00");
-      const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
-      let when = d.date;
-      if (!Number.isNaN(diff)) {
-        if (diff < 0) when = "Passed";
-        else if (diff === 0) when = "Today";
-        else if (diff === 1) when = "Tomorrow";
-        else when = `${diff}d left`;
+  function openExamFocusEditor(current) {
+    if (!canEditExamFocus()) {
+      if (typeof showShareToast === "function") showShareToast("Admin / P.I.O. only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.exam-focus-edit");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay exam-focus-edit";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Exam Focus</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">RST Admin / P.I.O. only · visible on Command Center.</p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">LABEL</label>
+      <input id="examFocusLabel" type="text" maxlength="60" value="${escapeHtml((current && current.label) || "Exam focus")}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.55rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">DATE</label>
+      <input id="examFocusDate" type="date" value="${escapeHtml((current && current.date) || "")}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.75rem;" />
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        <button type="button" class="lifeline-btn" id="examFocusSave">Save</button>
+        <button type="button" class="lifeline-btn admin-danger" id="examFocusClear">Remove</button>
+        <button type="button" class="lifeline-btn" id="examFocusClose">Close</button>
+      </div>
+      <p id="examFocusStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const status = panel.querySelector("#examFocusStatus");
+    bindTap(panel.querySelector("#examFocusClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#examFocusSave"), async (e) => {
+      e.preventDefault();
+      try {
+        await saveExamFocus(
+          panel.querySelector("#examFocusDate").value,
+          panel.querySelector("#examFocusLabel").value
+        );
+        status.textContent = "Exam focus saved.";
+        overlay.remove();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Save failed.";
       }
-      return `<li><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-when">${escapeHtml(when)}</span></li>`;
-    }).join("");
+    });
+    bindTap(panel.querySelector("#examFocusClear"), async (e) => {
+      e.preventDefault();
+      if (!window.confirm("Remove exam focus from Command Center?")) return;
+      try {
+        await clearExamFocus();
+        overlay.remove();
+        renderTodayStrip();
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : "Remove failed.";
+      }
+    });
+  }
+
+  function buildDeadlineRadarHtml(deadlines) {
+    const source = Array.isArray(deadlines) && deadlines.length ? deadlines : SECTION_DEADLINES;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const rows = (source || [])
+      .slice()
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .map((d) => {
+        const target = new Date(d.date + "T00:00:00");
+        const diff = Math.ceil((target.getTime() - today.getTime()) / 86400000);
+        let when = d.date;
+        if (!Number.isNaN(diff)) {
+          if (diff < 0) when = "Passed";
+          else if (diff === 0) when = "Today";
+          else if (diff === 1) when = "Tomorrow";
+          else when = `${diff}d left`;
+        }
+        return `<li><span class="dl-name">${escapeHtml(d.name)}</span><span class="dl-when">${escapeHtml(when)}</span></li>`;
+      })
+      .join("");
     if (!rows) return "";
     return `<div style="margin-top:0.55rem;"><span class="cmd-label" style="display:block;margin-bottom:0.25rem;">DEADLINE RADAR</span><ul class="deadline-list">${rows}</ul></div>`;
+  }
+
+  async function fetchLiveDeadlines() {
+    let list = [];
+    if (db) {
+      try {
+        const snap = await get(ref(db, DEADLINES_PATH));
+        if (snap.exists()) {
+          const val = snap.val();
+          Object.keys(val).forEach((id) => {
+            const row = val[id];
+            if (row && row.name && row.date) list.push({ id, name: row.name, date: row.date });
+          });
+        }
+      } catch (error) {
+        console.warn("[Arena] live deadlines fetch failed:", error);
+      }
+    }
+    if (!list.length) {
+      try {
+        const local = JSON.parse(localStorage.getItem(DEADLINES_LOCAL_KEY) || "[]");
+        if (Array.isArray(local)) list = local.filter((d) => d && d.name && d.date);
+      } catch (error) {
+        list = [];
+      }
+    }
+    return list;
+  }
+
+  async function saveLiveDeadline(name, date) {
+    const payload = {
+      name: String(name || "").trim().slice(0, 80),
+      date: String(date || "").trim(),
+      ts: Date.now(),
+      by: authState.username || "admin"
+    };
+    if (!payload.name || !/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+      throw new Error("Need title + date (YYYY-MM-DD)");
+    }
+    const id = "dl_" + Date.now();
+    try {
+      const local = JSON.parse(localStorage.getItem(DEADLINES_LOCAL_KEY) || "[]");
+      const arr = Array.isArray(local) ? local : [];
+      arr.push({ id, ...payload });
+      localStorage.setItem(DEADLINES_LOCAL_KEY, JSON.stringify(arr.slice(-30)));
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await set(ref(db, DEADLINES_PATH + "/" + id), payload);
+    }
+    return payload;
+  }
+
+  function getOfficerSeenTs() {
+    try {
+      return Number(localStorage.getItem(OFFICER_SEEN_KEY) || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function markOfficerUpdatesSeen(ts) {
+    try {
+      const value = Number(ts || Date.now());
+      localStorage.setItem(OFFICER_SEEN_KEY, String(value));
+      localStorage.setItem(OFFICER_BADGE_KEY, String(value));
+    } catch (error) {
+      /* ignore */
+    }
+    const badge = $("navUpdateBadge");
+    if (badge) badge.hidden = true;
+  }
+
+  async function refreshOfficerUpdateBadge() {
+    const badge = $("navUpdateBadge");
+    if (!badge) return;
+    if (!(isClassmate() || isAdmin())) {
+      badge.hidden = true;
+      return;
+    }
+    try {
+      const rows = await fetchOfficerUpdates();
+      if (!rows.length) {
+        badge.hidden = true;
+        return;
+      }
+      const latest = Number(rows[0].ts || 0);
+      const seen = getOfficerSeenTs();
+      if (latest > seen) {
+        badge.hidden = false;
+        badge.textContent = "•";
+        badge.title = "New Officer Update";
+        maybeNotifyNewOfficerUpdate(rows[0], latest);
+      } else {
+        badge.hidden = true;
+      }
+    } catch (error) {
+      badge.hidden = true;
+    }
+  }
+
+  const NOTIF_LAST_KEY = "bscs1a_last_notif_ou_ts_v1";
+
+  function notificationsSupported() {
+    return typeof window !== "undefined" && "Notification" in window;
+  }
+
+  function syncNotifButton() {
+    const btn = $("enableNotifBtn");
+    if (!btn) return;
+    if (!notificationsSupported() || !(isClassmate() || isAdmin())) {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    if (Notification.permission === "granted") {
+      btn.textContent = "Alerts on";
+    } else if (Notification.permission === "denied") {
+      btn.textContent = "Alerts blocked";
+    } else {
+      btn.textContent = "Enable alerts";
+    }
+  }
+
+  async function requestHubNotifications() {
+    if (!notificationsSupported()) {
+      if (typeof showShareToast === "function") {
+        showShareToast("Notifications not supported on this browser");
+      }
+      return false;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      syncNotifButton();
+      if (perm === "granted" && typeof showShareToast === "function") {
+        showShareToast("Alerts enabled · new Officer Updates will notify you");
+      }
+      return perm === "granted";
+    } catch (error) {
+      console.warn("[Hub] notification permission failed:", error);
+      return false;
+    }
+  }
+
+  function maybeNotifyNewOfficerUpdate(row, latestTs) {
+    if (!notificationsSupported()) return;
+    if (Notification.permission !== "granted") return;
+    if (!(isClassmate() || isAdmin())) return;
+    try {
+      const lastNotified = Number(localStorage.getItem(NOTIF_LAST_KEY) || 0);
+      if (latestTs <= lastNotified) return;
+      localStorage.setItem(NOTIF_LAST_KEY, String(latestTs));
+      const title = "BSCS 1-A · New Officer Update";
+      const body = String((row && row.text) || "May bagong update sa section hub.").slice(0, 120);
+      const icon = hubAssetUrl("logo.png");
+      // Prefer service worker notification when available (better on installed PWA)
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: "SHOW_UPDATE",
+          title,
+          body,
+          icon,
+          tag: "ou-" + latestTs,
+          url: hubAssetUrl("index.html") + "#officer-updates"
+        });
+      } else {
+        new Notification(title, {
+          body,
+          icon,
+          badge: icon,
+          tag: "ou-" + latestTs
+        });
+      }
+    } catch (error) {
+      console.warn("[Hub] notify failed:", error);
+    }
+  }
+
+  function openPwaInstallHelp() {
+    const existing = document.querySelector(".admin-overlay.pwa-help");
+    if (existing) existing.remove();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay pwa-help";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.innerHTML = isIOS
+      ? `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Install on iPhone / iPad</h3>
+      <p style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);line-height:1.55;">
+        Chrome sa iPhone <strong>walang</strong> “Add to Home Screen”. Gamitin ang <strong>Safari</strong>:
+      </p>
+      <ol style="margin:0 0 12px;padding-left:1.15rem;font-size:0.86rem;line-height:1.6;color:var(--text);">
+        <li>Buksan ang hub link sa <strong>Safari</strong>.</li>
+        <li>I-tap ang <strong>Share</strong> button (parisukat na may arrow pataas) sa baba o taas.</li>
+        <li>Scroll at piliin <strong>Add to Home Screen</strong>.</li>
+        <li>I-tap <strong>Add</strong> — lalabas ang RST icon sa Home Screen.</li>
+      </ol>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);line-height:1.5;">
+        Para sa alerts: buksan ang app mula sa Home Screen, login as classmate, then i-tap <strong>Enable alerts</strong>.
+      </p>
+      <button type="button" class="lifeline-btn" id="pwaHelpClose">Got it</button>
+    `
+      : `
+      <h3 style="margin:0 0 8px;font-size:1rem;">Install on Android / desktop</h3>
+      <ol style="margin:0 0 12px;padding-left:1.15rem;font-size:0.86rem;line-height:1.6;color:var(--text);">
+        <li>Buksan sa <strong>Chrome</strong> (or Edge).</li>
+        <li>Menu <strong>⋮</strong> → <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li>
+        <li>Confirm install — app icon lalabas sa home / app drawer.</li>
+      </ol>
+      <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);line-height:1.5;">
+        Pagkatapos mag-install, login as classmate at i-tap <strong>Enable alerts</strong> para sa Officer Update notifications.
+      </p>
+      <button type="button" class="lifeline-btn" id="pwaHelpClose">Got it</button>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    bindTap(panel.querySelector("#pwaHelpClose"), (e) => {
+      e.preventDefault();
+      overlay.remove();
+    });
+    bindTap(overlay, (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  function initPwaAndNotificationsUi() {
+    const helpBtn = $("pwaHelpBtn");
+    if (helpBtn) {
+      bindTap(helpBtn, (e) => {
+        e.preventDefault();
+        openPwaInstallHelp();
+      });
+    }
+    const notifBtn = $("enableNotifBtn");
+    if (notifBtn) {
+      bindTap(notifBtn, (e) => {
+        e.preventDefault();
+        requestHubNotifications();
+      });
+    }
+    syncNotifButton();
+    // Poll for new officer updates while hub is open
+    window.setInterval(() => {
+      try {
+        if (isClassmate() || isAdmin()) refreshOfficerUpdateBadge();
+      } catch (e) { /* ignore */ }
+    }, 90000);
+    listenPushSignal();
   }
 
   async function refreshSectionPulse() {
@@ -3223,6 +4480,1775 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
 
 
   let officerUpdateFilter = "all";
+  let officerUpdateSearch = "";
+
+  const ATTENDANCE_PATH = "hub_config/attendance";
+  const SECRETARY_USERNAMES = new Set(["flores"]); // class secretary
+  const PO_USERNAMES = new Set(["guia", "calamba"]); // P.O. Boy + P.O. Girl
+  const ATTENDANCE_PROMPT_KEY = "bscs1a_att_prompt_v1";
+
+  function canManageAttendance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return SECRETARY_USERNAMES.has(u);
+  }
+
+
+  let visitorExpiryTimer = null;
+
+  function canManageVisitors() {
+    return canIssueGuestPass(); // Admin + P.O. Boy/Girl
+  }
+
+  async function loadVisitorControl() {
+    const defaults = {};
+    VISITOR_ROSTER.forEach((v) => {
+      defaults[v.username] = {
+        username: v.username,
+        enabled: true,
+        durationHours: 2,
+        expiresAt: 0,
+        forceLogout: false,
+        note: "",
+        updatedBy: "",
+        updatedAt: 0
+      };
+    });
+    if (db) {
+      try {
+        const snap = await get(ref(db, VISITOR_CONTROL_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          Object.keys(defaults).forEach((u) => {
+            if (val[u] && typeof val[u] === "object") {
+              defaults[u] = Object.assign({}, defaults[u], val[u]);
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("[Visitor] load control failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_visitor_control_v1") || "null");
+      if (local && typeof local === "object") {
+        Object.keys(defaults).forEach((u) => {
+          if (local[u]) defaults[u] = Object.assign({}, defaults[u], local[u]);
+        });
+      }
+    } catch (e) { /* ignore */ }
+    return defaults;
+  }
+
+  async function saveVisitorControlEntry(username, patch) {
+    const all = await loadVisitorControl();
+    const user = String(username || "").toLowerCase();
+    const next = Object.assign({}, all[user] || { username: user }, patch, {
+      username: user,
+      updatedBy: authState.username || "",
+      updatedAt: Date.now()
+    });
+    all[user] = next;
+    try {
+      localStorage.setItem("bscs1a_visitor_control_v1", JSON.stringify(all));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, VISITOR_CONTROL_PATH + "/" + user), next);
+    }
+    return next;
+  }
+
+  function formatExpiry(ts) {
+    if (!ts || Number(ts) <= 0) return "No active timed session";
+    const n = Number(ts);
+    if (Date.now() >= n) return "EXPIRED";
+    try {
+      return new Date(n).toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    } catch {
+      return String(ts);
+    }
+  }
+
+  function remainingVisitorMs(ctrl) {
+    if (!ctrl) return 0;
+    if (ctrl.forceLogout) return 0;
+    if (!ctrl.enabled) return 0;
+    const exp = Number(ctrl.expiresAt || 0);
+    if (!exp) return -1; // no timed limit
+    return exp - Date.now();
+  }
+
+  async function assertVisitorAccessAllowed(username) {
+    const all = await loadVisitorControl();
+    const ctrl = all[String(username || "").toLowerCase()];
+    if (!ctrl) return { ok: true };
+    if (ctrl.forceLogout) {
+      return { ok: false, message: "Visitor access revoked by P.O. / Admin. Ask them to re-enable." };
+    }
+    if (ctrl.enabled === false) {
+      return { ok: false, message: "This visitor account is disabled." };
+    }
+    const left = remainingVisitorMs(ctrl);
+    if (left === 0 || (left >= 0 && left <= 0)) {
+      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    }
+    if (Number(ctrl.expiresAt) > 0 && Date.now() >= Number(ctrl.expiresAt)) {
+      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    }
+    return { ok: true, ctrl: ctrl };
+  }
+
+  function stopVisitorExpiryWatch() {
+    if (visitorExpiryTimer) {
+      clearInterval(visitorExpiryTimer);
+      visitorExpiryTimer = null;
+    }
+  }
+
+  function startVisitorExpiryWatch() {
+    stopVisitorExpiryWatch();
+    if (!isVisitor()) return;
+    visitorExpiryTimer = setInterval(async () => {
+      if (!isVisitor()) {
+        stopVisitorExpiryWatch();
+        return;
+      }
+      try {
+        const check = await assertVisitorAccessAllowed(authState.username);
+        if (!check.ok) {
+          stopVisitorExpiryWatch();
+          signOutHub(true);
+          if (typeof showShareToast === "function") {
+            showShareToast(check.message || "Visitor session ended");
+          } else {
+            window.alert(check.message || "Visitor session ended");
+          }
+        }
+      } catch (e) {
+        console.warn("[Visitor] expiry check failed:", e);
+      }
+    }, 15000);
+  }
+
+  async function openVisitorControlPanel() {
+    if (!canManageVisitors()) {
+      if (typeof showShareToast === "function") showShareToast("P.O. / Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.visitor-control");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay visitor-control";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Visitor access control</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        P.O. Boy · P.O. Girl · RST Admin · set <strong>hours</strong> per visitor (1–3) or force logout.
+        Timed window starts when you click <em>Start timer</em>.
+      </p>
+      <div id="visCtrlBody" style="max-height:min(60vh,520px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="visCtrlRefresh">Refresh</button>
+        <button type="button" class="lifeline-btn" id="visCtrlClose">Close</button>
+      </div>
+      <p id="visCtrlStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#visCtrlBody");
+    const status = panel.querySelector("#visCtrlStatus");
+
+    async function render() {
+      const all = await loadVisitorControl();
+      body.innerHTML = VISITOR_ROSTER.map((v) => {
+        const c = all[v.username] || {};
+        const hours = Number(c.durationHours) > 0 ? Number(c.durationHours) : 2;
+        const expLabel = formatExpiry(c.expiresAt);
+        const enabled = c.enabled !== false;
+        const forced = !!c.forceLogout;
+        return `
+          <div class="op-guest-box" style="margin-bottom:0.65rem;" data-vis-user="${escapeHtml(v.username)}">
+            <div style="font-weight:900;color:#ffe6b0;margin-bottom:0.25rem;">${escapeHtml(v.username)} · ${escapeHtml(v.displayName)}</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-bottom:0.45rem;">
+              Status: ${forced ? '<span style="color:#ffb4b4;">FORCE LOGGED OUT</span>' : enabled ? '<span style="color:#7ee7d4;">Enabled</span>' : '<span style="color:#ffb4b4;">Disabled</span>'}
+              · Timer ends: <strong style="color:var(--text);">${escapeHtml(expLabel)}</strong>
+            </div>
+            <label style="display:block;font-size:0.7rem;font-weight:800;color:var(--muted);margin-bottom:0.2rem;">HOURS ALLOWED (this session)</label>
+            <input type="number" min="0.25" max="72" step="0.25" class="vis-hours" value="${hours}" style="width:100%;min-height:42px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;margin-bottom:0.4rem;" />
+            <input type="text" class="vis-note" maxlength="80" placeholder="Optional note" value="${escapeHtml(c.note || "")}" style="width:100%;min-height:40px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;margin-bottom:0.45rem;" />
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <button type="button" class="lifeline-btn vis-start">Start / reset timer</button>
+              <button type="button" class="lifeline-btn vis-kick">Force logout now</button>
+              <button type="button" class="ou-action-btn vis-clear">Clear force + enable</button>
+            </div>
+          </div>`;
+      }).join("");
+
+      body.querySelectorAll("[data-vis-user]").forEach((box) => {
+        const user = box.getAttribute("data-vis-user");
+        const hoursEl = box.querySelector(".vis-hours");
+        const noteEl = box.querySelector(".vis-note");
+        bindTap(box.querySelector(".vis-start"), async (e) => {
+          e.preventDefault();
+          try {
+            const hours = Math.max(0.25, Math.min(72, Number(hoursEl.value) || 2));
+            const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+            await saveVisitorControlEntry(user, {
+              enabled: true,
+              forceLogout: false,
+              durationHours: hours,
+              expiresAt: expiresAt,
+              note: String(noteEl.value || "").trim()
+            });
+            // Kick any existing session so they must re-login under new window
+            if (db) {
+              await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), {
+                sessionId: "revoked_" + Date.now(),
+                username: user,
+                ts: Date.now(),
+                revoked: true
+              });
+            }
+            status.textContent = user + " · timer set for " + hours + " hour(s). Ends " + formatExpiry(expiresAt);
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+        bindTap(box.querySelector(".vis-kick"), async (e) => {
+          e.preventDefault();
+          try {
+            await saveVisitorControlEntry(user, {
+              forceLogout: true,
+              expiresAt: Date.now(),
+              note: String(noteEl.value || "").trim()
+            });
+            if (db) {
+              await set(ref(db, AUTH_SESSIONS_PATH + "/" + user), {
+                sessionId: "kicked_" + Date.now(),
+                username: user,
+                ts: Date.now(),
+                revoked: true
+              });
+            }
+            status.textContent = user + " · force logout sent.";
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+        bindTap(box.querySelector(".vis-clear"), async (e) => {
+          e.preventDefault();
+          try {
+            await saveVisitorControlEntry(user, {
+              forceLogout: false,
+              enabled: true,
+              expiresAt: 0,
+              durationHours: Number(hoursEl.value) || 2,
+              note: String(noteEl.value || "").trim()
+            });
+            status.textContent = user + " · enabled (no timer until you Start timer).";
+            await render();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+      });
+    }
+
+    bindTap(panel.querySelector("#visCtrlClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#visCtrlRefresh"), async (e) => {
+      e.preventDefault();
+      status.textContent = "Refreshing…";
+      await render();
+      status.textContent = "Updated.";
+    });
+    await render();
+  }
+
+
+  function canIssueGuestPass() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return PO_USERNAMES.has(u);
+  }
+
+  const TREASURER_USERNAMES = new Set(["bacero"]);
+  const AUDITOR_USERNAMES = new Set(["lumacad"]);
+  const FINANCE_PATH = "hub_config/finance";
+  const FINANCE_LOCAL_KEY = "bscs1a_finance_v1";
+
+  function canManageFinance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return TREASURER_USERNAMES.has(u) || AUDITOR_USERNAMES.has(u);
+  }
+
+  function canWriteLedger() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return TREASURER_USERNAMES.has(u);
+  }
+
+  function canAuditFinance() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return AUDITOR_USERNAMES.has(u);
+  }
+
+
+  const PRESIDENT_USERNAMES = new Set(["oclarino"]);
+  const VP_USERNAMES = new Set(["baldemor"]);
+  const LEADERSHIP_PATH = "hub_config/leadership";
+  const LEADERSHIP_LOCAL_KEY = "bscs1a_leadership_v1";
+
+  function canManageLeadership() {
+    if (isAdmin()) return true;
+    const u = String(authState.username || "").toLowerCase();
+    return PRESIDENT_USERNAMES.has(u) || VP_USERNAMES.has(u);
+  }
+
+  function isPresident() {
+    if (isAdmin()) return true;
+    return PRESIDENT_USERNAMES.has(String(authState.username || "").toLowerCase());
+  }
+
+  async function loadLeadershipData() {
+    let data = {
+      decisions: {},
+      tasks: {},
+      escalations: {},
+      meetings: {},
+      goals: {},
+      handoff: null,
+      locks: { freedomWall: false, collectionsFrozen: false, emergencyNote: "" }
+    };
+    if (db) {
+      try {
+        const snap = await get(ref(db, LEADERSHIP_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          data.decisions = val.decisions || {};
+          data.tasks = val.tasks || {};
+          data.escalations = val.escalations || {};
+          data.meetings = val.meetings || {};
+          data.goals = val.goals || {};
+          data.handoff = val.handoff || null;
+          data.locks = Object.assign(data.locks, val.locks || {});
+        }
+      } catch (error) {
+        console.warn("[Leadership] load failed:", error);
+      }
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem(LEADERSHIP_LOCAL_KEY) || "null");
+      if (local && typeof local === "object") {
+        if (!Object.keys(data.decisions).length) data.decisions = local.decisions || {};
+        if (!Object.keys(data.tasks).length) data.tasks = local.tasks || {};
+        if (!Object.keys(data.escalations).length) data.escalations = local.escalations || {};
+        if (!Object.keys(data.meetings).length) data.meetings = local.meetings || {};
+        if (!Object.keys(data.goals).length) data.goals = local.goals || {};
+        if (!data.handoff && local.handoff) data.handoff = local.handoff;
+        if (local.locks) data.locks = Object.assign(data.locks, local.locks);
+      }
+    } catch (e) { /* ignore */ }
+    return data;
+  }
+
+  function saveLeadershipLocal(data) {
+    try { localStorage.setItem(LEADERSHIP_LOCAL_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  async function saveLeadershipBranch(branch, id, payload) {
+    const data = await loadLeadershipData();
+    if (branch === "handoff" || branch === "locks") {
+      data[branch] = payload;
+      saveLeadershipLocal(data);
+      if (db) await set(ref(db, LEADERSHIP_PATH + "/" + branch), payload);
+      return payload;
+    }
+    if (!data[branch]) data[branch] = {};
+    data[branch][id] = payload;
+    saveLeadershipLocal(data);
+    if (db) await set(ref(db, LEADERSHIP_PATH + "/" + branch + "/" + id), payload);
+    return payload;
+  }
+
+  function mapToList(obj) {
+    return Object.keys(obj || {}).map((id) => Object.assign({ id: id }, obj[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  const OFFICER_ASSIGN_OPTIONS = [
+    { u: "oclarino", t: "President" },
+    { u: "baldemor", t: "Vice President" },
+    { u: "flores", t: "Secretary" },
+    { u: "bacero", t: "Treasurer" },
+    { u: "lumacad", t: "Auditor" },
+    { u: "cainto", t: "P.I.O." },
+    { u: "cinena", t: "Representative" },
+    { u: "guia", t: "P.O. Boy" },
+    { u: "calamba", t: "P.O. Girl" },
+    { u: "tabifranca", t: "Technical Manager" }
+  ];
+
+  async function openLeadershipHub() {
+    if (!canManageLeadership()) {
+      if (typeof showShareToast === "function") showShareToast("President / VP / Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.leadership-hub");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay leadership-hub";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Leadership Desk</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        President · Vice President · RST Admin · decisions, tasks, escalations, meetings, goals, locks
+      </p>
+      <div id="leadHandoffBanner" style="display:none;margin-bottom:0.55rem;padding:0.55rem 0.65rem;border-radius:12px;border:1px solid rgba(255,210,125,0.4);background:rgba(255,210,125,0.1);font-size:0.8rem;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.65rem;">
+        <button type="button" class="ou-action-btn fin-tab active" data-lead-tab="decisions">Decisions</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="tasks">Tasks</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="escalations">Escalations</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="meetings">Meetings</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="goals">Goals</button>
+        <button type="button" class="ou-action-btn fin-tab" data-lead-tab="controls">Controls</button>
+      </div>
+      <div id="leadBody" style="max-height:min(55vh,460px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="leadShare">Copy / share summary</button>
+        <button type="button" class="lifeline-btn" id="leadClose">Close</button>
+      </div>
+      <p id="leadStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#leadBody");
+    const status = panel.querySelector("#leadStatus");
+    const handoffBanner = panel.querySelector("#leadHandoffBanner");
+    let tab = "decisions";
+    let data = await loadLeadershipData();
+
+    function showHandoff() {
+      const h = data.handoff;
+      if (h && h.active) {
+        handoffBanner.style.display = "block";
+        handoffBanner.innerHTML = `<strong>Duty coverage:</strong> ${escapeHtml(h.message || "VP / backup active")}${h.until ? " · until " + escapeHtml(h.until) : ""} · by ${escapeHtml(h.byName || h.by || "")}`;
+      } else {
+        handoffBanner.style.display = "none";
+        handoffBanner.innerHTML = "";
+      }
+    }
+
+    function renderDecisions() {
+      const rows = mapToList(data.decisions);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">OFFICIAL DECISION</div>
+          <textarea id="leadDecText" maxlength="500" placeholder="Section decision…" style="width:100%;min-height:72px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadDecAdd">Publish decision</button>
+        </div>
+        ${rows.length ? rows.map((r) => `
+          <div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;font-size:0.86rem;">${escapeHtml(r.text || "")}</div>
+            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.byName || r.by || "")} · ${escapeHtml(formatLoginStamp(r.ts))}</div>
+          </div>`).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No decisions posted yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadDecAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const text = String(body.querySelector("#leadDecText").value || "").trim();
+          if (!text) throw new Error("Decision text required");
+          const id = "dec_" + Date.now();
+          await saveLeadershipBranch("decisions", id, {
+            text: text,
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            roleTitle: authState.officerTitle || "Leadership",
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Decision published.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderTasks() {
+      const rows = mapToList(data.tasks);
+      const opts = OFFICER_ASSIGN_OPTIONS.map((o) =>
+        `<option value="${o.u}">${escapeHtml(o.t)} (${o.u})</option>`
+      ).join("");
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">ASSIGN OFFICER TASK</div>
+          <input id="leadTaskTitle" type="text" maxlength="120" placeholder="Task title" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <select id="leadTaskWho" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">${opts}</select>
+          <input id="leadTaskDue" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadTaskAdd">Assign task</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const st = r.status || "todo";
+          const color = st === "done" ? "#7ee7d4" : st === "doing" ? "#ffd27d" : "var(--muted)";
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;">${escapeHtml(r.title || "")}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">→ ${escapeHtml(r.assigneeTitle || r.assignee || "")} · due ${escapeHtml(r.due || "—")}</div>
+            <div style="font-size:0.72rem;color:${color};font-weight:800;margin:0.2rem 0;">${escapeHtml(String(st).toUpperCase())}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;">
+              <button type="button" class="ou-action-btn" data-task-st="todo" data-id="${escapeHtml(r.id)}">Todo</button>
+              <button type="button" class="ou-action-btn" data-task-st="doing" data-id="${escapeHtml(r.id)}">Doing</button>
+              <button type="button" class="ou-action-btn" data-task-st="done" data-id="${escapeHtml(r.id)}">Done</button>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No officer tasks yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadTaskAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadTaskTitle").value || "").trim();
+          if (!title) throw new Error("Task title required");
+          const who = body.querySelector("#leadTaskWho").value;
+          const opt = OFFICER_ASSIGN_OPTIONS.find((o) => o.u === who);
+          const id = "task_" + Date.now();
+          await saveLeadershipBranch("tasks", id, {
+            title: title,
+            assignee: who,
+            assigneeTitle: opt ? opt.t : who,
+            due: body.querySelector("#leadTaskDue").value || "",
+            status: "todo",
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Task assigned.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      body.querySelectorAll("[data-task-st]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-id");
+          const row = data.tasks[id];
+          if (!row) return;
+          try {
+            await saveLeadershipBranch("tasks", id, Object.assign({}, row, {
+              status: btn.getAttribute("data-task-st"),
+              updatedAt: Date.now(),
+              updatedBy: authState.username
+            }));
+            data = await loadLeadershipData();
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderEscalations() {
+      const rows = mapToList(data.escalations);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">NEW ESCALATION</div>
+          <select id="leadEscSource" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+            <option value="general">General</option>
+            <option value="rep">From Representative</option>
+            <option value="finance">Finance / Auditor</option>
+            <option value="attendance">Attendance / Secretary</option>
+            <option value="pio">Announcements / PIO</option>
+            <option value="faculty">Faculty / Dept</option>
+          </select>
+          <textarea id="leadEscText" maxlength="500" placeholder="Issue to escalate…" style="width:100%;min-height:72px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadEscAdd">Add to inbox</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const st = r.status || "open";
+          const color = st === "resolved" ? "#7ee7d4" : st === "progress" ? "#ffd27d" : "#ffb4b4";
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.68rem;font-weight:900;color:#ffd27d;text-transform:uppercase;">${escapeHtml(r.source || "general")} · <span style="color:${color}">${escapeHtml(st)}</span></div>
+            <div style="font-weight:800;margin:0.2rem 0;">${escapeHtml(r.text || "")}</div>
+            <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.byName || r.by || "")} · ${escapeHtml(formatLoginStamp(r.ts))}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.3rem;">
+              <button type="button" class="ou-action-btn" data-esc-st="open" data-id="${escapeHtml(r.id)}">Open</button>
+              <button type="button" class="ou-action-btn" data-esc-st="progress" data-id="${escapeHtml(r.id)}">In progress</button>
+              <button type="button" class="ou-action-btn" data-esc-st="resolved" data-id="${escapeHtml(r.id)}">Resolved</button>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">Escalation inbox empty.</p>`}
+      `;
+      bindTap(body.querySelector("#leadEscAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const text = String(body.querySelector("#leadEscText").value || "").trim();
+          if (!text) throw new Error("Describe the issue");
+          const id = "esc_" + Date.now();
+          await saveLeadershipBranch("escalations", id, {
+            text: text,
+            source: body.querySelector("#leadEscSource").value,
+            status: "open",
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Escalation added.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      body.querySelectorAll("[data-esc-st]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-id");
+          const row = data.escalations[id];
+          if (!row) return;
+          try {
+            await saveLeadershipBranch("escalations", id, Object.assign({}, row, {
+              status: btn.getAttribute("data-esc-st"),
+              updatedAt: Date.now(),
+              updatedBy: authState.username
+            }));
+            data = await loadLeadershipData();
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderMeetings() {
+      const rows = mapToList(data.meetings);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">MEETING NOTES</div>
+          <input id="leadMeetTitle" type="text" maxlength="100" placeholder="Meeting title" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadMeetDate" type="date" value="${localDateKey()}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <textarea id="leadMeetAgenda" maxlength="800" placeholder="Agenda + minutes / actions…" style="width:100%;min-height:90px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;"></textarea>
+          <button type="button" class="lifeline-btn" id="leadMeetAdd">Save meeting note</button>
+        </div>
+        ${rows.length ? rows.map((r) => `
+          <div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:900;">${escapeHtml(r.title || "Meeting")}</div>
+            <div style="font-size:0.72rem;color:var(--muted);">${escapeHtml(r.date || "")} · ${escapeHtml(r.byName || r.by || "")}</div>
+            <div style="font-size:0.82rem;margin-top:0.25rem;white-space:pre-wrap;">${escapeHtml(r.agenda || "")}</div>
+          </div>`).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No meeting notes yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadMeetAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadMeetTitle").value || "").trim();
+          const agenda = String(body.querySelector("#leadMeetAgenda").value || "").trim();
+          if (!title || !agenda) throw new Error("Title and notes required");
+          const id = "meet_" + Date.now();
+          await saveLeadershipBranch("meetings", id, {
+            title: title,
+            date: body.querySelector("#leadMeetDate").value || localDateKey(),
+            agenda: agenda,
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Meeting note saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderGoals() {
+      const rows = mapToList(data.goals);
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">SECTION GOAL</div>
+          <input id="leadGoalTitle" type="text" maxlength="100" placeholder="Goal (e.g. Collection completion)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalTarget" type="number" min="0" step="1" placeholder="Target number" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalCurrent" type="number" min="0" step="1" placeholder="Current progress" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadGoalUnit" type="text" maxlength="20" placeholder="Unit (%, people, ₱…)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadGoalAdd">Save goal</button>
+        </div>
+        ${rows.length ? rows.map((r) => {
+          const target = Number(r.target) || 0;
+          const current = Number(r.current) || 0;
+          const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+          return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;">${escapeHtml(r.title || "")}</div>
+            <div style="font-size:0.8rem;color:var(--muted);">${current} / ${target} ${escapeHtml(r.unit || "")} · ${pct}%</div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.08);margin-top:0.35rem;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#64ffda,#ffd27d);"></div>
+            </div>
+          </div>`;
+        }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No section goals yet.</p>`}
+      `;
+      bindTap(body.querySelector("#leadGoalAdd"), async (e) => {
+        e.preventDefault();
+        try {
+          const title = String(body.querySelector("#leadGoalTitle").value || "").trim();
+          if (!title) throw new Error("Goal title required");
+          const id = "goal_" + Date.now();
+          await saveLeadershipBranch("goals", id, {
+            title: title,
+            target: Number(body.querySelector("#leadGoalTarget").value || 0),
+            current: Number(body.querySelector("#leadGoalCurrent").value || 0),
+            unit: String(body.querySelector("#leadGoalUnit").value || "").trim() || "%",
+            by: authState.username,
+            ts: Date.now()
+          });
+          data = await loadLeadershipData();
+          status.textContent = "Goal saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderControls() {
+      const locks = data.locks || {};
+      const h = data.handoff || {};
+      body.innerHTML = `
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">DUTY HANDOFF / COVERAGE</div>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadHandActive" ${h.active ? "checked" : ""} /> Coverage active (e.g. VP acting)
+          </label>
+          <input id="leadHandUntil" type="date" value="${escapeHtml(h.until || "")}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <input id="leadHandMsg" type="text" maxlength="160" placeholder="Coverage note" value="${escapeHtml(h.message || "")}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+          <button type="button" class="lifeline-btn" id="leadHandSave">Save handoff</button>
+        </div>
+        <div class="op-guest-box" style="margin-bottom:0.65rem;">
+          <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">SECTION LOCKS / OVERRIDES</div>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadLockFW" ${locks.freedomWall ? "checked" : ""} /> Pause Freedom Wall note (show warning)
+          </label>
+          <label style="display:flex;gap:0.45rem;align-items:center;font-size:0.82rem;margin-bottom:0.35rem;">
+            <input type="checkbox" id="leadLockCol" ${locks.collectionsFrozen ? "checked" : ""} /> Freeze new finance collections note
+          </label>
+          <textarea id="leadEmerg" maxlength="240" placeholder="Emergency message (optional, shown to officers)" style="width:100%;min-height:64px;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.35rem;">${escapeHtml(locks.emergencyNote || "")}</textarea>
+          <button type="button" class="lifeline-btn" id="leadLocksSave">Save controls</button>
+        </div>
+        <p style="font-size:0.75rem;color:var(--muted);line-height:1.4;">Admin can access this desk anytime. Locks are guidance flags for the officer team (not a hard server lock).</p>
+      `;
+      bindTap(body.querySelector("#leadHandSave"), async (e) => {
+        e.preventDefault();
+        try {
+          const payload = {
+            active: !!(body.querySelector("#leadHandActive").checked),
+            until: body.querySelector("#leadHandUntil").value || "",
+            message: String(body.querySelector("#leadHandMsg").value || "").trim(),
+            by: authState.username,
+            byName: (authState.displayName || authState.username || "").split(",")[0],
+            ts: Date.now()
+          };
+          await saveLeadershipBranch("handoff", null, payload);
+          data = await loadLeadershipData();
+          status.textContent = "Handoff updated.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+      bindTap(body.querySelector("#leadLocksSave"), async (e) => {
+        e.preventDefault();
+        try {
+          const payload = {
+            freedomWall: !!(body.querySelector("#leadLockFW").checked),
+            collectionsFrozen: !!(body.querySelector("#leadLockCol").checked),
+            emergencyNote: String(body.querySelector("#leadEmerg").value || "").trim(),
+            updatedBy: authState.username,
+            ts: Date.now()
+          };
+          await saveLeadershipBranch("locks", null, payload);
+          data = await loadLeadershipData();
+          status.textContent = "Controls saved.";
+          renderAll();
+        } catch (error) { status.textContent = error.message || "Failed"; }
+      });
+    }
+
+    function renderAll() {
+      showHandoff();
+      if (tab === "decisions") renderDecisions();
+      else if (tab === "tasks") renderTasks();
+      else if (tab === "escalations") renderEscalations();
+      else if (tab === "meetings") renderMeetings();
+      else if (tab === "goals") renderGoals();
+      else renderControls();
+    }
+
+    panel.querySelectorAll("[data-lead-tab]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        tab = btn.getAttribute("data-lead-tab") || "decisions";
+        panel.querySelectorAll("[data-lead-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderAll();
+      });
+    });
+    bindTap(panel.querySelector("#leadClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#leadShare"), async (e) => {
+      e.preventDefault();
+      const dec = mapToList(data.decisions).slice(0, 5);
+      const tasks = mapToList(data.tasks).filter((t) => t.status !== "done");
+      const esc = mapToList(data.escalations).filter((x) => x.status !== "resolved");
+      const lines = [
+        "BSCS 1-A Leadership Summary",
+        "Open tasks: " + tasks.length,
+        "Open escalations: " + esc.length,
+        "",
+        "Recent decisions:"
+      ];
+      if (!dec.length) lines.push("(none)");
+      dec.forEach((d) => lines.push("- " + (d.text || "").slice(0, 120)));
+      lines.push("", "Generated from BSCS 1-A RST Hub");
+      const text = lines.join("\n");
+      try {
+        if (navigator.share) { await navigator.share({ title: "Leadership Summary", text: text }); return; }
+      } catch (err) { if (err && err.name === "AbortError") return; }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Summary copied.";
+      } catch (err) { window.prompt("Copy:", text); }
+    });
+    renderAll();
+  }
+
+
+  function peso(n) {
+    const v = Number(n) || 0;
+    return "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  async function loadFinanceData() {
+    let data = { ledger: {}, collections: {}, budgets: {} };
+    if (db) {
+      try {
+        const snap = await get(ref(db, FINANCE_PATH));
+        if (snap.exists() && snap.val()) {
+          const val = snap.val();
+          data.ledger = val.ledger || {};
+          data.collections = val.collections || {};
+          data.budgets = val.budgets || {};
+        }
+      } catch (error) {
+        console.warn("[Finance] load failed:", error);
+      }
+    }
+    if (!Object.keys(data.ledger).length && !Object.keys(data.collections).length && !Object.keys(data.budgets).length) {
+      try {
+        const local = JSON.parse(localStorage.getItem(FINANCE_LOCAL_KEY) || "null");
+        if (local && typeof local === "object") {
+          data.ledger = local.ledger || {};
+          data.collections = local.collections || {};
+          data.budgets = local.budgets || {};
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return data;
+  }
+
+  function saveFinanceLocal(data) {
+    try { localStorage.setItem(FINANCE_LOCAL_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
+  }
+
+  async function saveFinanceBranch(branch, id, payload) {
+    const data = await loadFinanceData();
+    if (!data[branch]) data[branch] = {};
+    data[branch][id] = payload;
+    saveFinanceLocal(data);
+    if (db) await set(ref(db, FINANCE_PATH + "/" + branch + "/" + id), payload);
+    return payload;
+  }
+
+  function ledgerList(data) {
+    return Object.keys(data.ledger || {}).map((id) => Object.assign({ id: id }, data.ledger[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function collectionList(data) {
+    return Object.keys(data.collections || {}).map((id) => Object.assign({ id: id }, data.collections[id]))
+      .sort((a, b) => String(b.dueDate || "").localeCompare(String(a.dueDate || "")) || Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function budgetList(data) {
+    return Object.keys(data.budgets || {}).map((id) => Object.assign({ id: id }, data.budgets[id]))
+      .sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+  }
+
+  function computeBalances(ledgerRows) {
+    let main = 0, petty = 0, pendingIn = 0, pendingOut = 0;
+    (ledgerRows || []).forEach((r) => {
+      const amt = Number(r.amount) || 0;
+      const fund = r.fund === "petty" ? "petty" : "main";
+      const status = r.status || "pending";
+      const signed = r.type === "expense" ? -amt : amt;
+      if (status === "flagged") return;
+      if (status === "pending") {
+        if (r.type === "income") pendingIn += amt; else pendingOut += amt;
+        return;
+      }
+      if (fund === "petty") petty += signed; else main += signed;
+    });
+    return { main: main, petty: petty, total: main + petty, pendingIn: pendingIn, pendingOut: pendingOut };
+  }
+
+  function collectionStats(col) {
+    const payments = col.payments || {};
+    let paid = 0, partial = 0, unpaid = 0, collected = 0;
+    CLASSMATE_ROSTER.forEach((c) => {
+      const p = payments[c.username];
+      const st = p ? (p.status || "unpaid") : "unpaid";
+      const amt = p ? (Number(p.amount) || 0) : 0;
+      if (st === "paid") paid += 1;
+      else if (st === "partial") partial += 1;
+      else unpaid += 1;
+      collected += amt;
+    });
+    return { paid: paid, partial: partial, unpaid: unpaid, collected: collected, totalPeople: CLASSMATE_ROSTER.length };
+  }
+
+  async function openFinanceHub() {
+    if (!(isClassmate() || isAdmin())) {
+      if (typeof showShareToast === "function") showShareToast("Classmates only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.finance-hub");
+    if (existing) existing.remove();
+    const canWrite = canWriteLedger();
+    const canAudit = canAuditFinance();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay finance-hub";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Section Finance · ₱</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.45;">
+        Full section money · Treasurer posts · Auditor verifies · class can view.
+      </p>
+      <div id="finBalBox" class="admin-stat-row" style="margin-bottom:0.65rem;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:0.65rem;">
+        <button type="button" class="ou-action-btn fin-tab active" data-fin-tab="ledger">Ledger</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="collections">Collections</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="budget">Budget</button>
+        <button type="button" class="ou-action-btn fin-tab" data-fin-tab="mydues">My dues</button>
+      </div>
+      <div id="finBody" style="max-height:min(55vh,460px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="finShare">Copy / share report</button>
+        <button type="button" class="lifeline-btn" id="finClose">Close</button>
+      </div>
+      <p id="finStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const body = panel.querySelector("#finBody");
+    const balBox = panel.querySelector("#finBalBox");
+    const status = panel.querySelector("#finStatus");
+    let tab = "ledger";
+    let data = await loadFinanceData();
+
+    function renderBalances() {
+      const bal = computeBalances(ledgerList(data));
+      balBox.innerHTML = `
+        <div class="admin-stat"><b>${peso(bal.main)}</b><span>Main fund</span></div>
+        <div class="admin-stat"><b>${peso(bal.petty)}</b><span>Petty / emergency</span></div>
+        <div class="admin-stat"><b>${peso(bal.total)}</b><span>Total verified</span></div>
+        <div class="admin-stat"><b>${peso(bal.pendingIn)} / ${peso(bal.pendingOut)}</b><span>Pending in / out</span></div>
+      `;
+    }
+
+    function renderLedger() {
+      const rows = ledgerList(data);
+      let form = "";
+      if (canWrite) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">ADD ENTRY · Treasurer</div>
+            <select id="finLedType" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+              <option value="income">Income (+)</option><option value="expense">Expense (−)</option>
+            </select>
+            <select id="finLedFund" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem;">
+              <option value="main">Main fund</option><option value="petty">Petty / emergency</option>
+            </select>
+            <input id="finLedAmt" type="number" min="0" step="0.01" placeholder="Amount (₱)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedDate" type="date" value="${localDateKey()}" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedReason" type="text" maxlength="120" placeholder="Reason / description" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finLedReceipt" type="text" maxlength="120" placeholder="Receipt / GCash ref (optional)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finLedAdd">Post entry (pending audit)</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((r) => {
+        const st = r.status || "pending";
+        const badge = st === "verified" ? "#7ee7d4" : st === "flagged" ? "#ffb4b4" : "#ffd27d";
+        const auditBtns = (canAudit && st === "pending")
+          ? `<div style="display:flex;gap:4px;margin-top:0.35rem;">
+              <button type="button" class="ou-action-btn" data-fin-verify="${escapeHtml(r.id)}">Verify</button>
+              <button type="button" class="ou-action-btn ou-del" data-fin-flag="${escapeHtml(r.id)}">Flag</button>
+            </div>` : "";
+        return `<div style="padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${r.type === "expense" ? "−" : "+"}${peso(r.amount)} · ${escapeHtml(r.fund === "petty" ? "Petty" : "Main")}</div>
+          <div style="font-size:0.8rem;">${escapeHtml(r.reason || "")}</div>
+          <div style="font-size:0.7rem;color:var(--muted);">${escapeHtml(r.date || "")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · <span style="color:${badge};font-weight:800;">${escapeHtml(st.toUpperCase())}</span></div>
+          ${r.receiptNote ? `<div style="font-size:0.7rem;color:#b8fff0;">🧾 ${escapeHtml(r.receiptNote)}</div>` : ""}
+          ${auditBtns}
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">Walang entries pa. Starting balance ₱0.00 — ready when you start collecting.</p>`;
+      body.innerHTML = form + list;
+      const addBtn = body.querySelector("#finLedAdd");
+      if (addBtn) {
+        bindTap(addBtn, async (e) => {
+          e.preventDefault();
+          try {
+            const amount = Number(body.querySelector("#finLedAmt").value || 0);
+            const reason = String(body.querySelector("#finLedReason").value || "").trim();
+            if (!(amount > 0) || !reason) throw new Error("Amount and reason required");
+            const id = "led_" + Date.now();
+            await saveFinanceBranch("ledger", id, {
+              type: body.querySelector("#finLedType").value,
+              fund: body.querySelector("#finLedFund").value,
+              amount: amount,
+              reason: reason,
+              date: body.querySelector("#finLedDate").value || localDateKey(),
+              receiptNote: String(body.querySelector("#finLedReceipt").value || "").trim() || null,
+              status: "pending",
+              by: authState.username,
+              byName: authState.displayName || authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Entry posted · waiting for Auditor verify.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+      body.querySelectorAll("[data-fin-verify], [data-fin-flag]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const id = btn.getAttribute("data-fin-verify") || btn.getAttribute("data-fin-flag");
+          const next = btn.hasAttribute("data-fin-verify") ? "verified" : "flagged";
+          try {
+            const row = data.ledger[id];
+            if (!row) throw new Error("Missing entry");
+            await saveFinanceBranch("ledger", id, Object.assign({}, row, {
+              status: next,
+              auditedBy: authState.username,
+              auditedByName: (authState.displayName || authState.username || "").split(",")[0],
+              auditedAt: Date.now()
+            }));
+            data = await loadFinanceData();
+            status.textContent = next === "verified" ? "Verified." : "Flagged.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderCollections() {
+      const rows = collectionList(data);
+      let form = "";
+      if (canWrite || canAudit) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">NEW COLLECTION CAMPAIGN</div>
+            <input id="finColTitle" type="text" maxlength="80" placeholder="Title (e.g. Section shirt)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColDue" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColTarget" type="number" min="0" step="0.01" placeholder="Target total ₱ (optional)" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finColEach" type="number" min="0" step="0.01" placeholder="Suggested per person ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finColAdd">Create collection</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((c) => {
+        const st = collectionStats(c);
+        return `<div style="padding:0.65rem 0;border-bottom:1px solid rgba(255,255,255,0.1);">
+          <div style="font-weight:900;font-size:0.9rem;">${escapeHtml(c.title || "Collection")}</div>
+          <div style="font-size:0.72rem;color:var(--muted);">Due: ${escapeHtml(c.dueDate || "—")} · Collected ${peso(st.collected)}${c.target ? " / " + peso(c.target) : ""}</div>
+          <div style="font-size:0.72rem;margin:0.25rem 0 0.4rem;">Paid ${st.paid} · Partial ${st.partial} · Unpaid ${st.unpaid} / ${st.totalPeople}</div>
+          <button type="button" class="ou-action-btn" data-fin-open-col="${escapeHtml(c.id)}">Open roster / due list</button>
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No collections yet. Create one when you start maningil.</p>`;
+      body.innerHTML = form + list;
+      const add = body.querySelector("#finColAdd");
+      if (add) {
+        bindTap(add, async (e) => {
+          e.preventDefault();
+          try {
+            const title = String(body.querySelector("#finColTitle").value || "").trim();
+            if (!title) throw new Error("Title required");
+            const id = "col_" + Date.now();
+            await saveFinanceBranch("collections", id, {
+              title: title,
+              dueDate: body.querySelector("#finColDue").value || "",
+              target: Number(body.querySelector("#finColTarget").value || 0) || null,
+              perPerson: Number(body.querySelector("#finColEach").value || 0) || null,
+              payments: {},
+              by: authState.username,
+              byName: authState.displayName || authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Collection created.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+      body.querySelectorAll("[data-fin-open-col]").forEach((btn) => {
+        bindTap(btn, (e) => { e.preventDefault(); renderCollectionDetail(btn.getAttribute("data-fin-open-col")); });
+      });
+    }
+
+    function renderCollectionDetail(colId) {
+      const col = data.collections[colId];
+      if (!col) return;
+      const st = collectionStats(col);
+      const canMark = canWrite || canAudit;
+      const roster = CLASSMATE_ROSTER.slice().sort((a, b) =>
+        String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), "en", { sensitivity: "base" })
+      );
+      body.innerHTML = `
+        <button type="button" class="ou-action-btn" id="finColBack">← Back to collections</button>
+        <h4 style="margin:0.55rem 0 0.25rem;">${escapeHtml(col.title || "")}</h4>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:0.45rem;">
+          Due calendar: <strong style="color:var(--text);">${escapeHtml(col.dueDate || "not set")}</strong>
+          · ${peso(st.collected)} collected · Unpaid: ${st.unpaid}
+        </div>
+        <div class="admin-stat-row" style="margin-bottom:0.55rem;">
+          <div class="admin-stat"><b>${st.paid}</b><span>Paid</span></div>
+          <div class="admin-stat"><b>${st.partial}</b><span>Partial</span></div>
+          <div class="admin-stat"><b>${st.unpaid}</b><span>Unpaid</span></div>
+          <div class="admin-stat"><b>${peso(st.collected)}</b><span>Total in</span></div>
+        </div>
+        ${roster.map((c) => {
+          const p = (col.payments && col.payments[c.username]) || {};
+          const statusPay = p.status || "unpaid";
+          const color = statusPay === "paid" ? "#7ee7d4" : statusPay === "partial" ? "#ffd27d" : "#ffb4b4";
+          const mark = canMark ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:0.3rem;">
+                <button type="button" class="ou-action-btn" data-col-pay="paid" data-user="${escapeHtml(c.username)}">Paid</button>
+                <button type="button" class="ou-action-btn" data-col-pay="partial" data-user="${escapeHtml(c.username)}">Partial</button>
+                <button type="button" class="ou-action-btn ou-del" data-col-pay="unpaid" data-user="${escapeHtml(c.username)}">Unpaid</button>
+              </div>` : "";
+          return `<div style="padding:0.45rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}</div>
+            <div style="font-size:0.7rem;color:${color};font-weight:800;">${escapeHtml(statusPay.toUpperCase())}${p.amount ? " · " + peso(p.amount) : ""}</div>
+            ${mark}
+          </div>`;
+        }).join("")}
+      `;
+      bindTap(body.querySelector("#finColBack"), (e) => { e.preventDefault(); renderCollections(); });
+      body.querySelectorAll("[data-col-pay]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          const user = btn.getAttribute("data-user");
+          const payStatus = btn.getAttribute("data-col-pay");
+          let amount = 0;
+          if (payStatus === "paid") {
+            amount = Number(col.perPerson || 0) || Number(window.prompt("Amount paid (₱)", String(col.perPerson || "0")) || 0);
+          } else if (payStatus === "partial") {
+            amount = Number(window.prompt("Partial amount (₱)", "0") || 0);
+          }
+          const payments = Object.assign({}, col.payments || {});
+          payments[user] = { status: payStatus, amount: payStatus === "unpaid" ? 0 : amount, by: authState.username, ts: Date.now() };
+          try {
+            await saveFinanceBranch("collections", colId, Object.assign({}, col, { payments: payments }));
+            data = await loadFinanceData();
+            status.textContent = "Payment updated.";
+            renderCollectionDetail(colId);
+            renderBalances();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      });
+    }
+
+    function renderBudget() {
+      const rows = budgetList(data);
+      let form = "";
+      if (canWrite || canAudit) {
+        form = `<div class="op-guest-box" style="margin-bottom:0.65rem;">
+            <div style="font-size:0.72rem;font-weight:900;color:#ffe6b0;margin-bottom:0.35rem;">BUDGET VS ACTUAL</div>
+            <input id="finBudTitle" type="text" maxlength="80" placeholder="Activity name" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudPlan" type="number" min="0" step="0.01" placeholder="Planned ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudActual" type="number" min="0" step="0.01" placeholder="Actual spent ₱" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <input id="finBudDate" type="date" style="width:100%;min-height:40px;margin-bottom:0.35rem;border-radius:10px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.4rem 0.55rem;" />
+            <button type="button" class="lifeline-btn" id="finBudAdd">Save budget line</button>
+          </div>`;
+      }
+      const list = rows.length ? rows.map((b) => {
+        const plan = Number(b.planned) || 0;
+        const act = Number(b.actual) || 0;
+        const over = act > plan && plan > 0;
+        return `<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${escapeHtml(b.title || "")}</div>
+          <div style="font-size:0.75rem;color:var(--muted);">${escapeHtml(b.date || "—")}</div>
+          <div style="font-size:0.8rem;">Plan ${peso(plan)} · Actual ${peso(act)}
+            <span style="color:${over ? "#ffb4b4" : "#7ee7d4"};font-weight:800;">${over ? " · OVER" : " · OK"}</span>
+          </div>
+        </div>`;
+      }).join("") : `<p style="color:var(--muted);font-size:0.82rem;">No budget lines yet.</p>`;
+      body.innerHTML = form + list;
+      const add = body.querySelector("#finBudAdd");
+      if (add) {
+        bindTap(add, async (e) => {
+          e.preventDefault();
+          try {
+            const title = String(body.querySelector("#finBudTitle").value || "").trim();
+            if (!title) throw new Error("Activity name required");
+            await saveFinanceBranch("budgets", "bud_" + Date.now(), {
+              title: title,
+              planned: Number(body.querySelector("#finBudPlan").value || 0),
+              actual: Number(body.querySelector("#finBudActual").value || 0),
+              date: body.querySelector("#finBudDate").value || "",
+              by: authState.username,
+              ts: Date.now()
+            });
+            data = await loadFinanceData();
+            status.textContent = "Budget saved.";
+            renderAll();
+          } catch (error) { status.textContent = error.message || "Failed"; }
+        });
+      }
+    }
+
+    function renderMyDues() {
+      const me = String(authState.username || "").toLowerCase();
+      const lines = [];
+      collectionList(data).forEach((c) => {
+        const p = (c.payments && c.payments[me]) || {};
+        const st = p.status || "unpaid";
+        if (st === "paid") return;
+        const due = Number(c.perPerson) || 0;
+        const paidAmt = Number(p.amount) || 0;
+        const remaining = st === "partial" ? Math.max(0, due - paidAmt) : due;
+        lines.push(`<div style="padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;">${escapeHtml(c.title || "")}</div>
+          <div style="font-size:0.75rem;color:var(--muted);">Due date: ${escapeHtml(c.dueDate || "—")}</div>
+          <div style="font-size:0.8rem;color:#ffd27d;font-weight:800;">${escapeHtml(st.toUpperCase())}${due ? " · ~" + peso(remaining) + " left" : ""}</div>
+        </div>`);
+      });
+      body.innerHTML = lines.length ? lines.join("") : `<p style="color:var(--muted);font-size:0.82rem;">Wala kang outstanding dues. 👍</p>`;
+    }
+
+    function renderAll() {
+      renderBalances();
+      if (tab === "ledger") renderLedger();
+      else if (tab === "collections") renderCollections();
+      else if (tab === "budget") renderBudget();
+      else renderMyDues();
+    }
+
+    panel.querySelectorAll("[data-fin-tab]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        tab = btn.getAttribute("data-fin-tab") || "ledger";
+        panel.querySelectorAll("[data-fin-tab]").forEach((b) => b.classList.toggle("active", b === btn));
+        renderAll();
+      });
+    });
+    bindTap(panel.querySelector("#finClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#finShare"), async (e) => {
+      e.preventDefault();
+      const bal = computeBalances(ledgerList(data));
+      const cols = collectionList(data);
+      const lines = [
+        "BSCS 1-A Section Finance Report",
+        "Main: " + peso(bal.main) + " · Petty: " + peso(bal.petty) + " · Total verified: " + peso(bal.total),
+        "Pending in: " + peso(bal.pendingIn) + " · Pending out: " + peso(bal.pendingOut),
+        "", "Collections:"
+      ];
+      if (!cols.length) lines.push("(none yet)");
+      cols.forEach((c) => {
+        const st = collectionStats(c);
+        lines.push("- " + c.title + " | due " + (c.dueDate || "—") + " | " + peso(st.collected) + " | unpaid " + st.unpaid + "/" + st.totalPeople);
+      });
+      lines.push("", "Generated from BSCS 1-A RST Hub");
+      const text = lines.join("\n");
+      try {
+        if (navigator.share) { await navigator.share({ title: "Section Finance", text: text }); return; }
+      } catch (err) { if (err && err.name === "AbortError") return; }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Report copied — paste for adviser/teacher.";
+      } catch (err) { window.prompt("Copy report:", text); }
+    });
+    renderAll();
+  }
+
+
+  async function issueGuestPassCode(rawCode) {
+    if (!canIssueGuestPass()) throw new Error("RST Admin / P.O. only");
+    let code = String(rawCode || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    if (!code) {
+      code = `RST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    }
+    const payload = {
+      active: true,
+      createdBy: authState.username || ADMIN_USERNAME,
+      createdByName: (authState.displayName || authState.username || "").split(",")[0],
+      createdByRole: authState.officerTitle || (isAdmin() ? "RST Admin" : "P.O."),
+      company: COMPANY_NAME,
+      ts: Date.now(),
+      expiresAt: Date.now() + 7 * 86400000
+    };
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+      local[code] = payload;
+      localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), payload);
+    }
+    return { code, payload };
+  }
+
+  async function revokeGuestPassCode(rawCode) {
+    if (!canIssueGuestPass()) throw new Error("RST Admin / P.O. only");
+    const code = String(rawCode || "").trim().toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    if (!code) throw new Error("Type the Guest Pass code to revoke");
+    try {
+      const local = JSON.parse(localStorage.getItem("bscs1a_guest_passes_v1") || "{}");
+      if (local[code]) {
+        local[code].active = false;
+        local[code].revokedBy = authState.username;
+        localStorage.setItem("bscs1a_guest_passes_v1", JSON.stringify(local));
+      }
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, `${GUEST_PASSES_PATH}/${code}`), {
+        active: false,
+        revokedBy: authState.username || ADMIN_USERNAME,
+        revokedByName: (authState.displayName || authState.username || "").split(",")[0],
+        company: COMPANY_NAME,
+        ts: Date.now()
+      });
+    }
+    return code;
+  }
+
+  function subjectKeyFromLabel(subj) {
+    const raw = String(subj || "").split("·")[0].trim().toUpperCase();
+    return raw.replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "") || "CLASS";
+  }
+
+  function localDateKey(d) {
+    const x = d instanceof Date ? d : new Date();
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, "0");
+    const day = String(x.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  /* Attendance window: class time ± 10 minutes */
+  const ATTENDANCE_GRACE_MS = 10 * 60 * 1000;
+
+  function getSlotsForDate(dateObj) {
+    const day = dateObj.getDay();
+    return (WEEKLY_SCHEDULE[day] || [])
+      .map((s) => parseScheduleSlot(s, dateObj))
+      .filter(Boolean)
+      .sort((a, b) => a.startMs - b.startMs);
+  }
+
+  function getAttendanceWindowSlots(nowInput) {
+    const now = nowInput instanceof Date ? nowInput : new Date();
+    const t = now.getTime();
+    return getSlotsForDate(now).filter((s) =>
+      t >= (s.startMs - ATTENDANCE_GRACE_MS) && t <= (s.endMs + ATTENDANCE_GRACE_MS)
+    );
+  }
+
+  function getCurrentClassSlots(nowInput) {
+    return getAttendanceWindowSlots(nowInput);
+  }
+
+  async function fetchAttendanceDay(dateKey) {
+    const key = dateKey || localDateKey();
+    if (db) {
+      try {
+        const snap = await get(ref(db, ATTENDANCE_PATH + "/" + key));
+        if (snap.exists()) return snap.val() || {};
+      } catch (error) {
+        console.warn("[Attendance] fetch failed:", error);
+      }
+    }
+    try {
+      return JSON.parse(localStorage.getItem("bscs1a_att_" + key) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  async function saveAttendanceRecord(dateKey, subjKey, username, record) {
+    const path = `${ATTENDANCE_PATH}/${dateKey}/${subjKey}`;
+    let dayData = await fetchAttendanceDay(dateKey);
+    if (!dayData[subjKey]) {
+      dayData[subjKey] = {
+        subjectKey: subjKey,
+        date: dateKey,
+        records: {}
+      };
+    }
+    if (!dayData[subjKey].records) dayData[subjKey].records = {};
+    // Preserve history trail (never wipe day)
+    const prev = dayData[subjKey].records[username];
+    if (prev && Array.isArray(prev.history)) {
+      record.history = prev.history.slice(-20);
+    } else {
+      record.history = record.history || [];
+    }
+    if (prev && (prev.finalStatus || prev.status)) {
+      record.history.push({
+        status: prev.finalStatus || prev.status,
+        at: prev.editedAt || prev.selfMarkedAt || Date.now(),
+        by: prev.editedBy || (prev.selfMarked ? prev.by || "self" : "system")
+      });
+      if (record.history.length > 20) record.history = record.history.slice(-20);
+    }
+    dayData[subjKey].records[username] = record;
+    try {
+      localStorage.setItem("bscs1a_att_" + dateKey, JSON.stringify(dayData));
+    } catch (e) { /* ignore */ }
+    if (db) {
+      await set(ref(db, path), dayData[subjKey]);
+    }
+    return dayData[subjKey];
+  }
+
+  async function selfMarkAttendance(slot) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    const dateKey = localDateKey();
+    const subjKey = subjectKeyFromLabel(slot.subj);
+    const user = String(authState.username || "").toLowerCase();
+    const day = await fetchAttendanceDay(dateKey);
+    const existing = day[subjKey] && day[subjKey].records && day[subjKey].records[user];
+    if (existing && existing.lockedByStaff) {
+      throw new Error("Attendance already finalized by Secretary/Admin for this subject");
+    }
+    const record = {
+      status: "present",
+      selfMarked: true,
+      selfMarkedAt: Date.now(),
+      by: user,
+      displayName: authState.displayName || user,
+      subjectLabel: slot.subj,
+      timeLabel: slot.time,
+      tag: slot.tag || "",
+      lockedByStaff: false,
+      finalStatus: "present"
+    };
+    await saveAttendanceRecord(dateKey, subjKey, user, record);
+    return record;
+  }
+
+  async function staffSetAttendance(dateKey, subjKey, username, status, subjectLabel, timeLabel) {
+    if (!canManageAttendance()) throw new Error("Admin / Secretary only");
+    const user = String(username || "").toLowerCase();
+    const day = await fetchAttendanceDay(dateKey);
+    const prev = (day[subjKey] && day[subjKey].records && day[subjKey].records[user]) || {};
+    const roster = CLASSMATE_ROSTER.find((c) => c.username === user);
+    const record = {
+      ...prev,
+      status,
+      finalStatus: status,
+      displayName: prev.displayName || (roster && roster.displayName) || user,
+      subjectLabel: subjectLabel || prev.subjectLabel || subjKey,
+      timeLabel: timeLabel || prev.timeLabel || "",
+      lockedByStaff: true,
+      editedBy: authState.username,
+      editedByName: (authState.displayName || authState.username || "").split(",")[0],
+      editedAt: Date.now(),
+      selfMarked: !!prev.selfMarked
+    };
+    await saveAttendanceRecord(dateKey, subjKey, user, record);
+    return record;
+  }
+
+  function attendanceStats(records) {
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let selfMarked = 0;
+    let unmarked = 0;
+    const total = CLASSMATE_ROSTER.length;
+    const seen = new Set();
+    Object.keys(records || {}).forEach((u) => {
+      const st = String((records[u].finalStatus || records[u].status || "")).toLowerCase();
+      seen.add(u);
+      if (st === "present") present += 1;
+      else if (st === "absent") absent += 1;
+      else if (st === "late") late += 1;
+      if (records[u].selfMarked) selfMarked += 1;
+    });
+    unmarked = Math.max(0, total - seen.size);
+    return { present, absent, late, selfMarked, unmarked, total };
+  }
+
+  function buildAttendanceShareText(dateKey, subjLabel, records) {
+    const stats = attendanceStats(records);
+    const lines = [
+      `BSCS 1-A Attendance`,
+      `Date: ${dateKey}`,
+      `Subject: ${subjLabel}`,
+      `Present: ${stats.present} · Absent: ${stats.absent} · Late: ${stats.late} · Unmarked: ${stats.unmarked}`,
+      `Total roster: ${stats.total}`,
+      ``
+    ];
+    CLASSMATE_ROSTER.forEach((c) => {
+      const rec = records[c.username] || {};
+      const st = (rec.finalStatus || rec.status || "unmarked").toUpperCase();
+      const name = (c.displayName || c.username).split(",")[0];
+      lines.push(`${name} — ${st}`);
+    });
+    lines.push(``, `Generated from BSCS 1-A RST Hub`);
+    return lines.join("\n");
+  }
+
+  function maybePromptAttendance() {
+    if (!(isClassmate() || isAdmin())) return;
+    if (document.querySelector(".admin-overlay.attendance-prompt")) return;
+    const slots = getAttendanceWindowSlots();
+    if (!slots.length) return;
+    const dateKey = localDateKey();
+    const slot = slots[0];
+    const subjKey = subjectKeyFromLabel(slot.subj);
+    const user = String(authState.username || "").toLowerCase();
+    const promptKey = `${ATTENDANCE_PROMPT_KEY}:${dateKey}:${subjKey}`;
+    try {
+      if (sessionStorage.getItem(promptKey) === "1") return;
+    } catch (e) { /* ignore */ }
+
+    fetchAttendanceDay(dateKey).then((day) => {
+      const existing = day[subjKey] && day[subjKey].records && day[subjKey].records[user];
+      if (existing && (existing.selfMarked || existing.lockedByStaff)) return;
+
+      const overlay = document.createElement("div");
+      overlay.className = "admin-overlay attendance-prompt";
+      const panel = document.createElement("div");
+      panel.className = "admin-panel";
+      panel.innerHTML = `
+        <h3 style="margin:0 0 8px;font-size:1rem;">Class attendance</h3>
+        <p style="margin:0 0 10px;font-size:0.84rem;color:var(--muted);line-height:1.5;">
+          <strong style="color:var(--text);">${escapeHtml(slot.subj)}</strong><br>
+          ${escapeHtml(slot.time)} · ${escapeHtml(slot.tag || "")}<br>
+          <span style="font-size:0.75rem;">Window: 10 min before → 10 min after class</span>
+        </p>
+        <p style="margin:0 0 12px;font-size:0.8rem;color:var(--muted);">
+          Mark <strong>Present</strong> if you are in class. Secretary / RST Admin verifies the final record.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <button type="button" class="lifeline-btn" id="attPresent">I'm present</button>
+          <button type="button" class="lifeline-btn" id="attLater">Later</button>
+        </div>
+        <p id="attPromptStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+      `;
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+      const status = panel.querySelector("#attPromptStatus");
+      bindTap(panel.querySelector("#attLater"), (e) => {
+        e.preventDefault();
+        try { sessionStorage.setItem(promptKey, "1"); } catch (err) { /* ignore */ }
+        overlay.remove();
+      });
+      bindTap(panel.querySelector("#attPresent"), async (e) => {
+        e.preventDefault();
+        try {
+          status.textContent = "Saving…";
+          await selfMarkAttendance(slot);
+          try { sessionStorage.setItem(promptKey, "1"); } catch (err) { /* ignore */ }
+          status.textContent = "Marked present.";
+          overlay.remove();
+          if (typeof showShareToast === "function") showShareToast("Attendance saved · present");
+        } catch (error) {
+          status.textContent = error.message || "Failed";
+        }
+      });
+    });
+  }
+
+  async function openAttendanceManager() {
+    if (!canManageAttendance()) {
+      if (typeof showShareToast === "function") showShareToast("Admin / Secretary only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.attendance-manager");
+    if (existing) existing.remove();
+
+    let dateKey = localDateKey();
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay attendance-manager";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "540px";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 6px;font-size:1rem;">Attendance manager</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
+        RST Admin + Secretary · permanent records · calendar history · shareable for teachers
+      </p>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">DATE</label>
+      <input id="attDateInput" type="date" value="${escapeHtml(dateKey)}" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem 0.65rem;margin-bottom:0.55rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">SUBJECT / SLOT</label>
+      <select id="attSubjSelect" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;"></select>
+      <div id="attStatsBox" style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.4rem;margin-bottom:0.65rem;"></div>
+      <div id="attRosterBox" style="max-height:min(52vh,420px);overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid rgba(100,255,218,0.12);border-radius:12px;padding:0.35rem 0.55rem;"><p style="color:var(--muted);font-size:0.8rem;">Loading…</p></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+        <button type="button" class="lifeline-btn" id="attShareBtn">Copy / share list</button>
+        <button type="button" class="lifeline-btn" id="attMgrClose">Close</button>
+      </div>
+      <p id="attMgrStatus" style="margin:10px 0 0;font-size:0.78rem;color:var(--accent);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    const dateInput = panel.querySelector("#attDateInput");
+    const select = panel.querySelector("#attSubjSelect");
+    const box = panel.querySelector("#attRosterBox");
+    const statsBox = panel.querySelector("#attStatsBox");
+    const status = panel.querySelector("#attMgrStatus");
+
+    function slotsForSelectedDate() {
+      const d = new Date(dateKey + "T12:00:00");
+      if (Number.isNaN(d.getTime())) return [];
+      return getSlotsForDate(d);
+    }
+
+    function refreshSubjectOptions() {
+      const daySlots = slotsForSelectedDate();
+      if (!daySlots.length) {
+        select.innerHTML = `<option value="NO_CLASS">No class slots this day</option>`;
+        return;
+      }
+      select.innerHTML = daySlots.map((s) =>
+        `<option value="${escapeHtml(subjectKeyFromLabel(s.subj))}" data-label="${escapeHtml(s.subj)}" data-time="${escapeHtml(s.time)}">${escapeHtml(s.subj)} · ${escapeHtml(s.time)}</option>`
+      ).join("");
+    }
+
+    async function countOpensOnDate() {
+      try {
+        const opens = await fetchRecentOpens(80);
+        const dayStart = new Date(dateKey + "T00:00:00").getTime();
+        const dayEnd = dayStart + 86400000;
+        const users = new Set();
+        opens.forEach((o) => {
+          const ts = Number(o.ts || 0);
+          if (ts >= dayStart && ts < dayEnd && o.username) users.add(o.username);
+        });
+        // also presence lastSeen that day
+        const presence = await fetchPresenceMap();
+        Object.keys(presence || {}).forEach((u) => {
+          const ts = Number(presence[u].lastSeen || presence[u].lastOpen || 0);
+          if (ts >= dayStart && ts < dayEnd) users.add(u);
+        });
+        return users.size;
+      } catch (e) {
+        return 0;
+      }
+    }
+
+    async function renderRoster() {
+      const subjKey = select.value;
+      const opt = select.options[select.selectedIndex];
+      const label = opt ? (opt.getAttribute("data-label") || subjKey) : subjKey;
+      const timeLabel = opt ? (opt.getAttribute("data-time") || "") : "";
+      if (subjKey === "NO_CLASS") {
+        statsBox.innerHTML = "";
+        box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">Walang schedule sa selected date.</p>`;
+        return;
+      }
+      const day = await fetchAttendanceDay(dateKey);
+      const records = (day[subjKey] && day[subjKey].records) || {};
+      const stats = attendanceStats(records);
+      const opensCount = await countOpensOnDate();
+      statsBox.innerHTML = `
+        <div class="admin-stat"><b>${stats.present}</b><span>Present</span></div>
+        <div class="admin-stat"><b>${stats.absent}</b><span>Absent</span></div>
+        <div class="admin-stat"><b>${stats.late}</b><span>Late</span></div>
+        <div class="admin-stat"><b>${stats.unmarked}</b><span>Unmarked</span></div>
+        <div class="admin-stat"><b>${stats.selfMarked}</b><span>Self-marked</span></div>
+        <div class="admin-stat"><b>${opensCount}</b><span>PWA opens (day)</span></div>
+      `;
+      const roster = CLASSMATE_ROSTER.slice().sort((a, b) =>
+        String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), "en", { sensitivity: "base" })
+      );
+      box.innerHTML = `<div style="font-size:0.72rem;font-weight:800;color:#7ee7d4;margin:0 0 0.35rem;letter-spacing:0.04em;">FULL SECTION ROSTER · ${roster.length} classmates (officers included)</div>` +
+      roster.map((c) => {
+        const rec = records[c.username] || {};
+        const st = rec.finalStatus || rec.status || "unmarked";
+        const self = rec.selfMarked ? " · self-tap" : "";
+        const staff = rec.lockedByStaff ? ` · staff: ${escapeHtml(rec.editedByName || rec.editedBy || "")}` : "";
+        const color = st === "present" ? "#7ee7d4" : st === "absent" ? "#ffb4b4" : st === "late" ? "#ffd27d" : "var(--muted)";
+        const officer = OFFICER_ROLES[c.username];
+        const roleTag = officer
+          ? `<span style="display:inline-block;margin-left:0.35rem;padding:0.1rem 0.4rem;border-radius:999px;border:1px solid rgba(255,210,125,0.35);color:#ffe6b0;font-size:0.62rem;font-weight:900;letter-spacing:0.04em;">${escapeHtml(officer.title)}</span>`
+          : "";
+        return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;padding:0.55rem 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="flex:1;min-width:140px;">
+            <div style="font-weight:800;font-size:0.82rem;">${escapeHtml((c.displayName || c.username).split(",")[0])}${roleTag}</div>
+            <div style="font-size:0.7rem;color:${color};font-weight:800;">${escapeHtml(String(st).toUpperCase())}${self}${staff}</div>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">
+            <button type="button" class="ou-action-btn" data-att-set="present" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Present</button>
+            <button type="button" class="ou-action-btn ou-del" data-att-set="absent" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Absent</button>
+            <button type="button" class="ou-action-btn" data-att-set="late" data-user="${escapeHtml(c.username)}" data-subj="${escapeHtml(subjKey)}" data-label="${escapeHtml(label)}" data-time="${escapeHtml(timeLabel)}">Late</button>
+          </div>
+        </div>`;
+      }).join("");
+      box.querySelectorAll("[data-att-set]").forEach((btn) => {
+        bindTap(btn, async (e) => {
+          e.preventDefault();
+          try {
+            status.textContent = "Saving…";
+            await staffSetAttendance(
+              dateKey,
+              btn.getAttribute("data-subj"),
+              btn.getAttribute("data-user"),
+              btn.getAttribute("data-att-set"),
+              btn.getAttribute("data-label"),
+              btn.getAttribute("data-time")
+            );
+            status.textContent = "Updated · record kept.";
+            renderRoster();
+          } catch (error) {
+            status.textContent = error.message || "Failed";
+          }
+        });
+      });
+    }
+
+    dateInput.addEventListener("change", () => {
+      dateKey = dateInput.value || localDateKey();
+      refreshSubjectOptions();
+      renderRoster();
+    });
+    select.addEventListener("change", () => { renderRoster(); });
+    bindTap(panel.querySelector("#attMgrClose"), (e) => { e.preventDefault(); overlay.remove(); });
+    bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
+    bindTap(panel.querySelector("#attShareBtn"), async (e) => {
+      e.preventDefault();
+      const subjKey = select.value;
+      if (subjKey === "NO_CLASS") return;
+      const opt = select.options[select.selectedIndex];
+      const label = opt ? (opt.getAttribute("data-label") || subjKey) : subjKey;
+      const day = await fetchAttendanceDay(dateKey);
+      const records = (day[subjKey] && day[subjKey].records) || {};
+      const text = buildAttendanceShareText(dateKey, label, records);
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: `Attendance ${dateKey}`, text });
+          status.textContent = "Shared.";
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        status.textContent = "Attendance list copied — paste to Messenger / teacher.";
+      } catch (err) {
+        window.prompt("Copy attendance list:", text);
+      }
+    });
+
+    refreshSubjectOptions();
+    renderRoster();
+  }
 
 
   async function fetchResourceRequests() {
@@ -3292,6 +6318,38 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }).join("");
   }
 
+  async function pruneExpiredOfficerUpdates(rows) {
+    const now = Date.now();
+    const keep = [];
+    const expired = [];
+    (rows || []).forEach((row) => {
+      const age = now - Number(row.ts || 0);
+      if (Number(row.ts) && age > OFFICER_UPDATE_MAX_AGE_MS) expired.push(row);
+      else keep.push(row);
+    });
+    if (!expired.length) return keep;
+
+    // Clean local mirror
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      expired.forEach((row) => {
+        if (row.id && local[row.id]) delete local[row.id];
+      });
+      localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+    } catch (error) {
+      /* ignore */
+    }
+
+    // Cloud delete (best-effort; works when rules allow writer)
+    if (db) {
+      expired.forEach((row) => {
+        if (!row.id) return;
+        set(ref(db, OFFICER_UPDATES_PATH + "/" + row.id), null).catch(() => {});
+      });
+    }
+    return keep;
+  }
+
   async function fetchOfficerUpdates() {
     let list = [];
     if (db) {
@@ -3316,21 +6374,90 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         list = [];
       }
     }
+    list = await pruneExpiredOfficerUpdates(list);
     return list.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
   }
 
-  async function publishOfficerUpdate(channel, message) {
+  function getAllowedOfficerChannels() {
+    if (isAdmin()) return ALL_OFFICER_CHANNELS.slice();
+    const duty = authState.officerChannels || [];
+    const subjects = ALL_OFFICER_CHANNELS.filter((c) =>
+      ["itec101", "itec102", "gec101", "gec102", "pi100", "komfil", "pathfit", "nstp"].indexOf(c) >= 0
+    );
+    return Array.from(new Set(duty.concat(subjects)));
+  }
+
+  function canDeleteOfficerUpdate(row) {
+    if (!row) return false;
+    if (isAdmin()) return true;
+    if (!isOfficer()) return false;
+    const me = String(authState.username || "").toLowerCase();
+    return me && String(row.by || "").toLowerCase() === me;
+  }
+
+  function getOfficerUpdateShareUrl(id) {
+    const base = `${window.location.origin}${window.location.pathname}`;
+    return `${base}#ou=${encodeURIComponent(id)}`;
+  }
+
+  function compressImageFile(file, maxDim, maxBytes) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type || file.type.indexOf("image/") !== 0) {
+        reject(new Error("Image file only (JPG/PNG/WebP)"));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read image"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width;
+          let h = img.height;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          let quality = 0.82;
+          let dataUrl = canvas.toDataURL("image/jpeg", quality);
+          while (dataUrl.length > maxBytes && quality > 0.45) {
+            quality -= 0.12;
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+          }
+          if (dataUrl.length > maxBytes) {
+            reject(new Error("Image still too large — try a smaller photo"));
+            return;
+          }
+          resolve(dataUrl);
+        };
+        img.onerror = () => reject(new Error("Invalid image"));
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function publishOfficerUpdate(channel, message, extras) {
     if (!isOfficer()) throw new Error("Officers only");
-    const allowed = isAdmin()
-      ? ["announcements", "academics", "events", "tech"]
-      : (authState.officerChannels || []);
+    const allowed = getAllowedOfficerChannels();
     if (allowed.indexOf(channel) < 0) throw new Error("Channel not allowed for your duty");
-    const textValue = String(message || "").trim().slice(0, 280);
+    const textValue = String(message || "").trim();
     if (!textValue) throw new Error("Empty message");
+    const extra = extras || {};
+    let link = String(extra.link || "").trim();
+    if (link && !/^https?:\/\//i.test(link)) link = "https://" + link;
+    if (link && link.length > 500) throw new Error("Link too long");
+    const image = extra.image ? String(extra.image) : "";
+    if (image && image.length > 550000) throw new Error("Image too large");
     const id = "ou_" + Date.now() + "_" + (authState.username || "x");
     const payload = {
       channel,
       text: textValue,
+      link: link || null,
+      image: image || null,
       by: authState.username,
       byName: authState.displayName || authState.username,
       roleTitle: authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"),
@@ -3347,34 +6474,500 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (db) {
       await set(ref(db, OFFICER_UPDATES_PATH + "/" + id), payload);
     }
-    return payload;
+    try {
+      await signalPushToSection(
+        "BSCS 1-A · New Officer Update",
+        textValue.slice(0, 120),
+        "ou-" + id
+      );
+    } catch (e) { /* ignore */ }
+    return { id, ...payload };
+  }
+
+  const OU_REACTION_EMOJIS = ["👍", "❤️", "🔥", "👏", "🎉", "❓"];
+
+  async function deleteOfficerUpdate(id) {
+    if (!id) throw new Error("Missing post id");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === id);
+    if (!canDeleteOfficerUpdate(row)) throw new Error("Not allowed to delete this post");
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      if (local[id]) {
+        delete local[id];
+        localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+      }
+    } catch (error) {
+      /* ignore */
+    }
+    if (db) {
+      await remove(ref(db, OFFICER_UPDATES_PATH + "/" + id));
+    }
+  }
+
+  async function togglePinOfficerUpdate(id) {
+    if (!isOfficer()) throw new Error("Officers only");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("Post not found");
+    const nextPinned = !row.pinned;
+    const patch = {
+      pinned: nextPinned,
+      pinnedBy: nextPinned ? authState.username : null,
+      pinnedByName: nextPinned ? (authState.displayName || authState.username || "").split(",")[0] : null,
+      pinnedAt: nextPinned ? Date.now() : null
+    };
+    patchLocalOfficerUpdate(id, patch);
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinned"), patch.pinned);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedBy"), patch.pinnedBy);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedByName"), patch.pinnedByName);
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + id + "/pinnedAt"), patch.pinnedAt);
+    }
+    return nextPinned;
+  }
+
+  function patchLocalOfficerUpdate(id, patch) {
+    try {
+      const local = JSON.parse(localStorage.getItem(OFFICER_UPDATES_LOCAL) || "{}");
+      if (!local[id]) local[id] = { id };
+      local[id] = { ...local[id], ...patch };
+      localStorage.setItem(OFFICER_UPDATES_LOCAL, JSON.stringify(local));
+    } catch (error) {
+      /* ignore */
+    }
+  }
+
+  function normalizeReactions(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object") return out;
+    Object.keys(raw).forEach((emoji) => {
+      const map = raw[emoji];
+      if (map && typeof map === "object") out[emoji] = { ...map };
+    });
+    return out;
+  }
+
+  function normalizeReplies(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw === "object") {
+      return Object.keys(raw).map((id) => ({ id, ...raw[id] })).filter((r) => r && r.text);
+    }
+    return [];
+  }
+
+  async function toggleOfficerReaction(postId, emoji) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    if (OU_REACTION_EMOJIS.indexOf(emoji) < 0) throw new Error("Invalid reaction");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const me = String(authState.username || "").toLowerCase();
+    if (!me) throw new Error("Sign in first");
+    const display = (authState.displayName || authState.username || me).split(",")[0];
+    const reactions = normalizeReactions(row.reactions);
+    if (!reactions[emoji]) reactions[emoji] = {};
+    if (reactions[emoji][me]) {
+      delete reactions[emoji][me];
+      if (!Object.keys(reactions[emoji]).length) delete reactions[emoji];
+    } else {
+      // one active emoji per user (optional clean switch)
+      Object.keys(reactions).forEach((key) => {
+        if (reactions[key] && reactions[key][me]) {
+          delete reactions[key][me];
+          if (!Object.keys(reactions[key]).length) delete reactions[key];
+        }
+      });
+      if (!reactions[emoji]) reactions[emoji] = {};
+      reactions[emoji][me] = display;
+    }
+    patchLocalOfficerUpdate(postId, { reactions });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/reactions"), reactions);
+    }
+    return reactions;
+  }
+
+  async function addOfficerReply(postId, text, type) {
+    if (!(isClassmate() || isAdmin())) throw new Error("Classmates only");
+    const clean = String(text || "").trim().slice(0, 600);
+    if (!clean) throw new Error("Empty message");
+    const kind = type === "opinion" ? "opinion" : type === "answer" ? "answer" : "question";
+    if (kind === "answer" && !isOfficer()) throw new Error("Officers only can answer");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const replyId = "rep_" + Date.now() + "_" + (authState.username || "x");
+    const reply = {
+      id: replyId,
+      text: clean,
+      type: kind,
+      status: kind === "opinion" ? (isOfficer() ? "approved" : "pending") : "approved",
+      by: authState.username,
+      byName: authState.displayName || authState.username,
+      roleTitle: isOfficer()
+        ? (authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"))
+        : "Classmate",
+      ts: Date.now()
+    };
+    const repliesObj = {};
+    normalizeReplies(row.replies).forEach((r) => {
+      repliesObj[r.id] = r;
+    });
+    repliesObj[replyId] = reply;
+    patchLocalOfficerUpdate(postId, { replies: repliesObj });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/replies/" + replyId), reply);
+    }
+    return reply;
+  }
+
+  async function moderateOfficerReply(postId, replyId, status) {
+    if (!isOfficer()) throw new Error("Officers only");
+    if (["approved", "rejected"].indexOf(status) < 0) throw new Error("Invalid status");
+    const rows = await fetchOfficerUpdates();
+    const row = rows.find((r) => r.id === postId);
+    if (!row) throw new Error("Post not found");
+    const replies = normalizeReplies(row.replies);
+    const target = replies.find((r) => r.id === replyId);
+    if (!target) throw new Error("Reply not found");
+    target.status = status;
+    target.moderatedBy = authState.username;
+    target.moderatedByName = (authState.displayName || authState.username || "").split(",")[0];
+    target.moderatedAt = Date.now();
+    const repliesObj = {};
+    replies.forEach((r) => { repliesObj[r.id] = r; });
+    patchLocalOfficerUpdate(postId, { replies: repliesObj });
+    if (db) {
+      await set(ref(db, OFFICER_UPDATES_PATH + "/" + postId + "/replies/" + replyId), target);
+    }
+    return target;
+  }
+
+  async function shareOfficerUpdate(row) {
+    if (!row || !row.id) return;
+    const url = getOfficerUpdateShareUrl(row.id);
+    const title = "BSCS 1-A · Officer Update";
+    const text = String(row.text || "").slice(0, 160);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch (error) {
+      if (error && error.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      if (typeof showShareToast === "function") showShareToast("Link copied — share it with classmates");
+    } catch (error) {
+      window.prompt("Copy this link:", url);
+    }
+  }
+
+  function buildReactionsHtml(row) {
+    const reactions = normalizeReactions(row.reactions);
+    const me = String(authState.username || "").toLowerCase();
+    const pills = OU_REACTION_EMOJIS.map((emoji) => {
+      const map = reactions[emoji] || {};
+      const count = Object.keys(map).length;
+      const mine = !!(map[me]);
+      return `<button type="button" class="ou-react-btn${mine ? " is-mine" : ""}" data-ou-react="${escapeHtml(row.id)}" data-emoji="${emoji}" title="${emoji}">
+        <span class="ou-react-emoji">${emoji}</span>
+        ${count ? `<span class="ou-react-count">${count}</span>` : ""}
+      </button>`;
+    }).join("");
+    const totalPeople = new Set();
+    Object.keys(reactions).forEach((emoji) => {
+      Object.keys(reactions[emoji] || {}).forEach((u) => totalPeople.add(u));
+    });
+    const whoBtn = totalPeople.size
+      ? `<button type="button" class="ou-action-btn ou-who-btn" data-ou-who="${escapeHtml(row.id)}">Who reacted (${totalPeople.size})</button>`
+      : "";
+    return `<div class="ou-react-row">${pills}${whoBtn}</div>
+      <div class="ou-react-who" id="ou-who-${escapeHtml(row.id)}" hidden></div>`;
+  }
+
+  function buildRepliesHtml(row) {
+    const me = String(authState.username || "").toLowerCase();
+    const replies = normalizeReplies(row.replies).sort((a, b) => Number(a.ts || 0) - Number(b.ts || 0));
+    const visible = replies.filter((r) => {
+      if (r.status === "rejected") return isOfficer() || String(r.by || "").toLowerCase() === me;
+      if (r.status === "pending") return isOfficer() || String(r.by || "").toLowerCase() === me;
+      return true;
+    });
+    const list = visible.length
+      ? visible.map((r) => {
+          const when = formatLoginStamp(r.ts);
+          const typeLabel = r.type === "answer" ? "Officer answer" : r.type === "opinion" ? "Opinion" : "Question";
+          const statusBadge = r.status === "pending"
+            ? `<span class="ou-reply-badge is-pending">Pending officer review</span>`
+            : r.status === "rejected"
+              ? `<span class="ou-reply-badge is-rejected">Not approved</span>`
+              : r.type === "answer"
+                ? `<span class="ou-reply-badge is-answer">Official</span>`
+                : r.type === "opinion"
+                  ? `<span class="ou-reply-badge is-ok">Verified opinion</span>`
+                  : "";
+          const mod = (isOfficer() && r.status === "pending")
+            ? `<div class="ou-reply-mod">
+                <button type="button" class="ou-action-btn" data-ou-approve="${escapeHtml(row.id)}" data-rep="${escapeHtml(r.id)}">Approve</button>
+                <button type="button" class="ou-action-btn ou-del" data-ou-reject="${escapeHtml(row.id)}" data-rep="${escapeHtml(r.id)}">Reject</button>
+              </div>`
+            : "";
+          return `<div class="ou-reply ${r.type === "answer" ? "is-answer" : ""} ${r.status === "pending" ? "is-pending" : ""}">
+            <div class="ou-reply-head">
+              <strong>${escapeHtml(typeLabel)}</strong>
+              ${statusBadge}
+            </div>
+            <p class="ou-reply-text">${escapeHtml(r.text || "")}</p>
+            <div class="ou-reply-meta">${escapeHtml(r.roleTitle || "")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+            ${mod}
+          </div>`;
+        }).join("")
+      : `<p class="ou-reply-empty">No questions or follow-ups yet.</p>`;
+
+    const answerField = isOfficer()
+      ? `<label class="ou-reply-label">Officer answer</label>
+         <textarea class="ou-reply-input" id="ou-ans-${escapeHtml(row.id)}" maxlength="600" placeholder="Official answer for the section…"></textarea>
+         <button type="button" class="ou-action-btn" data-ou-answer="${escapeHtml(row.id)}">Post answer</button>`
+      : "";
+
+    return `<div class="ou-thread">
+      <div class="ou-thread-list">${list}</div>
+      <div class="ou-thread-compose">
+        <label class="ou-reply-label">Ask / follow up</label>
+        <textarea class="ou-reply-input" id="ou-q-${escapeHtml(row.id)}" maxlength="600" placeholder="Magtanong o mag-follow up tungkol sa announcement…"></textarea>
+        <div class="ou-compose-actions">
+          <button type="button" class="ou-action-btn" data-ou-question="${escapeHtml(row.id)}">Ask question</button>
+          <button type="button" class="ou-action-btn" data-ou-opinion="${escapeHtml(row.id)}">Share opinion</button>
+        </div>
+        <p class="ou-compose-note">Questions are public. Opinions need officer verification before everyone sees them.</p>
+        ${answerField}
+      </div>
+    </div>`;
+  }
+
+  function showWhoReacted(postId, hostEl) {
+    const box = document.getElementById("ou-who-" + postId);
+    if (!box) return;
+    if (!box.hidden) {
+      box.hidden = true;
+      return;
+    }
+    fetchOfficerUpdates().then((rows) => {
+      const row = rows.find((r) => r.id === postId);
+      const reactions = normalizeReactions(row && row.reactions);
+      const lines = [];
+      Object.keys(reactions).forEach((emoji) => {
+        const names = Object.keys(reactions[emoji] || {}).map((u) => reactions[emoji][u] || u);
+        if (names.length) {
+          lines.push(`<div class="ou-who-line"><span>${emoji}</span> ${escapeHtml(names.join(", "))}</div>`);
+        }
+      });
+      box.innerHTML = lines.length ? lines.join("") : `<div class="ou-who-line">No reactions yet.</div>`;
+      box.hidden = false;
+    });
+  }
+
+  function bindOfficerUpdateCardActions(host) {
+    if (!host) return;
+    host.querySelectorAll("[data-ou-share]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-share");
+        const rows = await fetchOfficerUpdates();
+        const row = rows.find((r) => r.id === id);
+        await shareOfficerUpdate(row || { id, text: "" });
+      });
+    });
+    host.querySelectorAll("[data-ou-delete]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-delete");
+        if (!window.confirm("Delete this officer update?")) return;
+        try {
+          await deleteOfficerUpdate(id);
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") showShareToast("Update deleted");
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Delete failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-react]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-react");
+        const emoji = btn.getAttribute("data-emoji");
+        try {
+          await toggleOfficerReaction(id, emoji);
+          renderOfficerUpdates();
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Reaction failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-who]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        showWhoReacted(btn.getAttribute("data-ou-who"), host);
+      });
+    });
+    host.querySelectorAll("[data-ou-question], [data-ou-opinion], [data-ou-answer]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-question") ||
+          btn.getAttribute("data-ou-opinion") ||
+          btn.getAttribute("data-ou-answer");
+        const isAnswer = btn.hasAttribute("data-ou-answer");
+        const isOpinion = btn.hasAttribute("data-ou-opinion");
+        const input = $(isAnswer ? ("ou-ans-" + id) : ("ou-q-" + id));
+        const text = input ? input.value : "";
+        try {
+          await addOfficerReply(id, text, isAnswer ? "answer" : isOpinion ? "opinion" : "question");
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") {
+            showShareToast(
+              isAnswer ? "Answer posted" :
+              isOpinion ? "Opinion submitted · waiting for officer review" :
+              "Question posted"
+            );
+          }
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Failed");
+        }
+      });
+    });
+    host.querySelectorAll("[data-ou-approve], [data-ou-reject]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-approve") || btn.getAttribute("data-ou-reject");
+        const rep = btn.getAttribute("data-rep");
+        const status = btn.hasAttribute("data-ou-approve") ? "approved" : "rejected";
+        try {
+          await moderateOfficerReply(id, rep, status);
+          renderOfficerUpdates();
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Moderation failed");
+        }
+      });
+    });
+  }
+
+  function focusSharedOfficerUpdate() {
+    const hash = String(window.location.hash || "");
+    const m = hash.match(/^#ou=(.+)$/);
+    if (!m) return;
+    const id = decodeURIComponent(m[1]);
+    const el = document.getElementById("ou-post-" + id);
+    if (!el) return;
+    el.classList.add("ou-shared-focus");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => el.classList.remove("ou-shared-focus"), 4000);
   }
 
   async function renderOfficerUpdates() {
     const host = $("officerUpdateList");
     if (!host) return;
-    if (!(isClassmate() || isAdmin())) {
-      host.innerHTML = `<p class="arena-note">Classmates only.</p>`;
+    if (!canViewClassContent()) {
+      host.innerHTML = `<p class="arena-note">Classmates / visitors only.</p>`;
+      refreshOfficerUpdateBadge();
       return;
     }
     host.innerHTML = `<p class="arena-note">Loading updates…</p>`;
     const rows = await fetchOfficerUpdates();
-    const filtered = officerUpdateFilter === "all"
-      ? rows
+    let filtered = officerUpdateFilter === "all"
+      ? rows.slice()
       : rows.filter((r) => r.channel === officerUpdateFilter);
+    const q = String(officerUpdateSearch || "").trim().toLowerCase();
+    if (q) {
+      filtered = filtered.filter((r) => {
+        const blob = [
+          r.text,
+          r.channel,
+          CHANNEL_LABELS[r.channel],
+          r.byName,
+          r.by,
+          r.roleTitle,
+          r.link
+        ].join(" ").toLowerCase();
+        return blob.indexOf(q) >= 0;
+      });
+    }
+    filtered.sort((a, b) => {
+      const ap = a.pinned ? 1 : 0;
+      const bp = b.pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return Number(b.ts || 0) - Number(a.ts || 0);
+    });
     if (!filtered.length) {
-      host.innerHTML = `<p class="arena-note">No updates yet in this channel. Officers can post from Officer Desk.</p>`;
+      host.innerHTML = `<p class="arena-note">${q ? "No updates match your search." : "No updates yet in this channel. Officers can post from Officer Desk."}</p>`;
+      refreshOfficerUpdateBadge();
       return;
     }
-    host.innerHTML = filtered.slice(0, 40).map((r) => {
+    host.innerHTML = filtered.slice(0, 60).map((r) => {
       const when = formatLoginStamp(r.ts);
       const ch = CHANNEL_LABELS[r.channel] || r.channel;
-      return `<article class="officer-update-card">
+      const linkHtml = r.link
+        ? `<p class="ou-link"><a href="${escapeHtml(r.link)}" target="_blank" rel="noopener noreferrer">🔗 Open link</a></p>`
+        : "";
+      const imgHtml = r.image
+        ? `<div class="ou-image-wrap"><img class="ou-image" src="${escapeHtml(r.image)}" alt="Update attachment" loading="lazy" /></div>`
+        : "";
+      const canDel = canDeleteOfficerUpdate(r);
+      const delBtn = canDel
+        ? `<button type="button" class="ou-action-btn ou-del" data-ou-delete="${escapeHtml(r.id)}">Delete</button>`
+        : "";
+      const pinBtn = isOfficer()
+        ? `<button type="button" class="ou-action-btn" data-ou-pin="${escapeHtml(r.id)}">${r.pinned ? "Unpin" : "Pin"}</button>`
+        : "";
+      const pinBadge = r.pinned
+        ? `<div class="ou-pin-badge">📌 Pinned${r.pinnedByName ? " · " + escapeHtml(r.pinnedByName) : ""}</div>`
+        : "";
+      return `<article class="officer-update-card${r.pinned ? " is-pinned" : ""}" id="ou-post-${escapeHtml(r.id)}">
+        ${pinBadge}
         <div class="ou-ch">${escapeHtml(ch)}</div>
         <p class="ou-text">${escapeHtml(r.text || "")}</p>
+        ${linkHtml}
+        ${imgHtml}
         <div class="ou-meta">${escapeHtml(r.roleTitle || "Officer")} · ${escapeHtml((r.byName || r.by || "").split(",")[0])} · ${escapeHtml(when)}</div>
+        ${buildReactionsHtml(r)}
+        <div class="ou-actions">
+          <button type="button" class="ou-action-btn" data-ou-share="${escapeHtml(r.id)}">Share</button>
+          <button type="button" class="ou-action-btn" data-ou-toggle-thread="${escapeHtml(r.id)}">Ask / replies</button>
+          ${pinBtn}
+          ${delBtn}
+        </div>
+        <div class="ou-thread-wrap" id="ou-thread-${escapeHtml(r.id)}" hidden>
+          ${buildRepliesHtml(r)}
+        </div>
       </article>`;
     }).join("");
+    host.querySelectorAll("[data-ou-toggle-thread]").forEach((btn) => {
+      bindTap(btn, (e) => {
+        e.preventDefault();
+        const id = btn.getAttribute("data-ou-toggle-thread");
+        const box = document.getElementById("ou-thread-" + id);
+        if (box) box.hidden = !box.hidden;
+      });
+    });
+    host.querySelectorAll("[data-ou-pin]").forEach((btn) => {
+      bindTap(btn, async (e) => {
+        e.preventDefault();
+        try {
+          const pinned = await togglePinOfficerUpdate(btn.getAttribute("data-ou-pin"));
+          renderOfficerUpdates();
+          if (typeof showShareToast === "function") showShareToast(pinned ? "Post pinned" : "Post unpinned");
+        } catch (error) {
+          if (typeof showShareToast === "function") showShareToast(error.message || "Pin failed");
+        }
+      });
+    });
+    bindOfficerUpdateCardActions(host);
+    refreshOfficerUpdateBadge();
+    window.requestAnimationFrame(focusSharedOfficerUpdate);
   }
 
   function openOfficerDesk() {
@@ -3384,9 +6977,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
     const existing = document.querySelector(".admin-overlay.officer-desk");
     if (existing) existing.remove();
-    const channels = isAdmin()
-      ? ["announcements", "academics", "events", "tech"]
-      : (authState.officerChannels || []);
+    const channels = getAllowedOfficerChannels();
     const overlay = document.createElement("div");
     overlay.className = "admin-overlay officer-desk";
     const panel = document.createElement("div");
@@ -3397,12 +6988,18 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;font-size:1rem;">Officer Desk</h3>
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
-        ${escapeHtml(authState.officerTitle || "Officer")} · post only to your duty channels. Visible to classmates only.
+        ${escapeHtml(authState.officerTitle || "Officer")} · full message, optional link &amp; photo. Posts auto-clear after 14 days.
       </p>
       <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">CHANNEL</label>
       <select id="odChannel" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.5rem;margin-bottom:0.55rem;">${opts}</select>
-      <textarea id="odMessage" maxlength="280" placeholder="Short update for the section…" style="width:100%;min-height:96px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;"></textarea>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">MESSAGE</label>
+      <textarea id="odMessage" placeholder="Write the full announcement…" style="width:100%;min-height:140px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.55rem;"></textarea>
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">LINK (optional)</label>
+      <input id="odLink" type="url" placeholder="https://…" style="width:100%;min-height:44px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.55rem 0.7rem;margin-bottom:0.55rem;" />
+      <label style="display:block;font-size:0.72rem;font-weight:800;color:var(--muted);margin-bottom:0.3rem;">PHOTO (optional)</label>
+      <input id="odImage" type="file" accept="image/*" style="width:100%;margin-bottom:0.35rem;color:var(--muted);font-size:0.8rem;" />
+      <p style="margin:0 0 0.65rem;font-size:0.72rem;color:var(--muted);">Photo is compressed before upload. Prefer clear, single images.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">
         <button type="button" class="lifeline-btn" id="odPublish">Publish</button>
         <button type="button" class="lifeline-btn" id="odClose">Close</button>
       </div>
@@ -3411,16 +7008,41 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
     const status = panel.querySelector("#odStatus");
+    let pendingImage = "";
+    const fileInput = panel.querySelector("#odImage");
+    if (fileInput) {
+      fileInput.addEventListener("change", async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          pendingImage = "";
+          return;
+        }
+        status.textContent = "Compressing photo…";
+        try {
+          pendingImage = await compressImageFile(file, 1280, 450000);
+          status.textContent = "Photo ready.";
+        } catch (error) {
+          pendingImage = "";
+          status.textContent = error.message || "Photo failed";
+          fileInput.value = "";
+        }
+      });
+    }
     bindTap(panel.querySelector("#odClose"), (e) => { e.preventDefault(); overlay.remove(); });
     bindTap(overlay, (e) => { if (e.target === overlay) overlay.remove(); });
     bindTap(panel.querySelector("#odPublish"), async (e) => {
       e.preventDefault();
       const ch = panel.querySelector("#odChannel").value;
       const msg = panel.querySelector("#odMessage").value;
+      const link = panel.querySelector("#odLink").value;
       try {
-        await publishOfficerUpdate(ch, msg);
+        status.textContent = "Publishing…";
+        await publishOfficerUpdate(ch, msg, { link, image: pendingImage });
         status.textContent = "Published. Classmates can see it under Officer Updates.";
         panel.querySelector("#odMessage").value = "";
+        panel.querySelector("#odLink").value = "";
+        if (fileInput) fileInput.value = "";
+        pendingImage = "";
         renderOfficerUpdates();
       } catch (error) {
         status.textContent = error.message || "Publish failed";
@@ -3474,6 +7096,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         });
       });
     }
+    const search = $("ouSearchInput");
+    if (search) {
+      let t = null;
+      search.addEventListener("input", () => {
+        officerUpdateSearch = search.value || "";
+        window.clearTimeout(t);
+        t = window.setTimeout(() => renderOfficerUpdates(), 180);
+      });
+    }
     const deskBtns = ["openOfficerDeskBtn", "openOfficerDeskBtnLogin"];
     deskBtns.forEach((id) => {
       const btn = $(id);
@@ -3484,19 +7115,34 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         });
       }
     });
+    window.addEventListener("hashchange", () => {
+      if (String(window.location.hash || "").indexOf("#ou=") === 0) {
+        focusSharedOfficerUpdate();
+      }
+    });
   }
 
   async function loadAdminPin() {
     const pin = $("adminPin");
     const body = $("adminPinBody");
+    const byline = $("adminPinBy");
     if (!pin || !body) return;
     let message = "";
+    let byName = "";
+    let roleTitle = "";
     try {
       if (db) {
         const snap = await get(ref(db, ANNOUNCEMENT_PATH));
         if (snap.exists()) {
           const val = snap.val();
-          message = typeof val === "string" ? val : (val && val.text) || "";
+          if (typeof val === "string") {
+            message = val;
+          } else if (val && typeof val === "object") {
+            message = val.text || "";
+            byName = val.byName || val.updatedByName || "";
+            roleTitle = val.roleTitle || "";
+            if (!byName && val.updatedBy) byName = String(val.updatedBy);
+          }
         }
       }
     } catch (error) {
@@ -3513,39 +7159,55 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       message = "Welcome to BSCS 1-A · RST Hub. Check Command Center for class & Daily status.";
     }
     body.textContent = message;
+    if (byline) {
+      if (byName) {
+        const who = String(byName).split(",")[0];
+        const role = roleTitle ? `${roleTitle} · ` : "";
+        byline.hidden = false;
+        byline.textContent = `Pinned by ${role}${who}`;
+      } else {
+        byline.hidden = true;
+        byline.textContent = "";
+      }
+    }
     pin.classList.add("is-visible");
   }
 
   async function saveAdminPin(textValue) {
+    if (!(isAdmin() || isOfficer())) throw new Error("Officers / Admin only");
     const cleaned = String(textValue || "").trim().slice(0, 240);
     try {
       localStorage.setItem(ANNOUNCEMENT_LOCAL_KEY, cleaned);
     } catch (error) {
       /* ignore */
     }
+    const payload = {
+      text: cleaned,
+      updatedBy: authState.username || ADMIN_USERNAME,
+      byName: authState.displayName || authState.username || ADMIN_USERNAME,
+      roleTitle: authState.officerTitle || (isAdmin() ? "RST Admin" : "Officer"),
+      ts: Date.now(),
+      company: COMPANY_NAME
+    };
     if (db) {
-      await set(ref(db, ANNOUNCEMENT_PATH), {
-        text: cleaned,
-        updatedBy: authState.username || ADMIN_USERNAME,
-        ts: Date.now(),
-        company: COMPANY_NAME
-      });
+      await set(ref(db, ANNOUNCEMENT_PATH), payload);
     }
     await loadAdminPin();
   }
 
-  function applyExamWeekMode() {
+  async function applyExamWeekMode() {
     try {
-      if (!NEXT_EXAM_DATE) return;
-      const target = new Date(NEXT_EXAM_DATE + "T00:00:00");
+      const exam = await fetchExamFocus();
+      if (!exam || !exam.date) {
+        document.body.classList.remove("exam-week");
+        return;
+      }
+      const target = new Date(exam.date + "T00:00:00");
       if (Number.isNaN(target.getTime())) return;
       const diffDays = Math.ceil((target.getTime() - Date.now()) / 86400000);
       // Auto exam-week focus within 14 days of exam date
       const on = diffDays >= 0 && diffDays <= 14;
       document.body.classList.toggle("exam-week", on);
-      if (on && !document.body.classList.contains("exam-mode")) {
-        // soft nudge only via class; user can still use Exam Mode toggle in arena
-      }
     } catch (error) {
       /* ignore */
     }
@@ -3556,20 +7218,32 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     if (!form) return;
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const status = $("reqStatus");
+      // Guests without Guest Pass cannot submit resource requests
+      if (authState.role === "guest" && !authState.guestPlayAllowed) {
+        if (status) {
+          status.textContent = "Guest · Browse only — hindi pwede mag-request. Sign in as classmate o gumamit ng Guest Pass.";
+        }
+        return;
+      }
+      if (!authState.role) {
+        if (status) status.textContent = "Sign in muna bago mag-send ng request.";
+        return;
+      }
       const topic = String(($("reqTopic") && $("reqTopic").value) || "").trim();
       const name = String(($("reqName") && $("reqName").value) || "").trim().slice(0, 40);
       const note = String(($("reqNote") && $("reqNote").value) || "").trim().slice(0, 200);
-      const status = $("reqStatus");
       if (!topic) {
         if (status) status.textContent = "Ilagay kung ano ang kailangan mo.";
         return;
       }
       const payload = {
         topic,
-        name: name || "Anonymous",
+        name: name || (authState.displayName ? String(authState.displayName).split(",")[0] : "Anonymous"),
         note,
         ts: Date.now(),
-        by: authState.username || "guest"
+        by: authState.username || "guest",
+        role: authState.role || "guest"
       };
       try {
         const key = "req_" + Date.now();
@@ -3595,6 +7269,52 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
         console.warn("[PWA] SW register skipped:", error);
       });
     });
+    initPwaAndNotificationsUi();
+  }
+
+  /* One-tap Back to Top (shows after scrolling down) */
+  function initBackToTop() {
+    const btn = $("backToTopBtn");
+    if (!btn) return;
+    const showAfter = 380;
+    let ticking = false;
+
+    const sync = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      btn.classList.toggle("is-visible", y > showAfter);
+      ticking = false;
+    };
+
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (ticking) return;
+        ticking = true;
+        window.requestAnimationFrame(sync);
+      },
+      { passive: true }
+    );
+
+    bindTap(btn, (event) => {
+      event.preventDefault();
+      try {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (error) {
+        window.scrollTo(0, 0);
+      }
+      // Also focus brand / top for a11y
+      const brand = document.querySelector(".brand, .nav");
+      if (brand && typeof brand.focus === "function") {
+        try {
+          brand.setAttribute("tabindex", "-1");
+          brand.focus({ preventScroll: true });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    });
+
+    sync();
   }
 
 
@@ -3749,6 +7469,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     }
 
     initAuthGate();
+    try { initViewModeControls(); } catch (e) { /* ignore */ }
     initNotebookButton();
     initExamModeToggle();
     initWelcomeModal();
@@ -3766,6 +7487,7 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       event.preventDefault();
       toggleMute();
     });
+    initBackToTop();
 
     bindTap(elements.startBtn, (event) => {
       event.preventDefault();
@@ -3838,6 +7560,10 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
     migrateLegacyScores().then(() => renderLeaderboard());
     renderMasteryBars();
     renderTodayStrip();
+    // Keep Room Finder / Next Class in sync with real clock
+    window.setInterval(() => {
+      try { renderTodayStrip(); } catch (e) { /* ignore */ }
+    }, 60000);
     initStudyRooms();
     renderMyDesk();
     loadAdminPin();
@@ -4787,7 +8513,8 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       btn.className = "lb-mode-tab" + (tab.id === state.leaderboardMode ? " selected" : "");
       btn.textContent = tab.label;
       btn.setAttribute("aria-pressed", tab.id === state.leaderboardMode ? "true" : "false");
-      bindDoubleTap(btn, (event) => {
+      bindTap(btn, (event) => {
+        event.preventDefault();
         if (state.leaderboardMode === tab.id) return;
         state.leaderboardMode = tab.id;
         renderLeaderboard();
@@ -4928,6 +8655,9 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       </p>
       <div id="adminRows"></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button type="button" class="lifeline-btn" id="adminAttendance">Attendance</button>
+        <button type="button" class="lifeline-btn" id="adminLeadership">Leadership Desk</button>
+        <button type="button" class="lifeline-btn" id="adminFinance">Section Finance</button>
         <button type="button" class="lifeline-btn" id="adminClose">Close</button>
         <button type="button" class="lifeline-btn admin-danger" id="adminResetBoard">Reset THIS Board</button>
       </div>`;
@@ -4983,6 +8713,15 @@ import { getDatabase, ref, get, set, remove } from "https://www.gstatic.com/fire
       event.preventDefault();
       overlay.remove();
     });
+
+    const adminAtt = panel.querySelector("#adminAttendance");
+    if (adminAtt) {
+      bindTap(adminAtt, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openAttendanceManager();
+      });
+    }
 
     bindTap(panel.querySelector("#adminResetBoard"), async (event) => {
       event.preventDefault();
