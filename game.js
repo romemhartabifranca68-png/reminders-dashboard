@@ -556,6 +556,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     if (typeof startPresenceHeartbeat === "function" && (isClassmate() || isAdmin())) {
       startPresenceHeartbeat();
     }
+    if (typeof maybeNotifyAdminDashboardTasks === "function" && isAdmin()) {
+      try { setTimeout(() => maybeNotifyAdminDashboardTasks(), 1500); } catch (e) { /* ignore */ }
+    }
 
     // Show admin code field when username is tabifranca
     const adminField = $("adminCodeField");
@@ -622,6 +625,17 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       });
       startSessionWatch(entry.username);
       startVisitorExpiryWatch();
+      try {
+        const exp = access.expiresAt || (access.ctrl && access.ctrl.expiresAt);
+        if (exp) {
+          const mins = Math.max(1, Math.round((Number(exp) - Date.now()) / 60000));
+          setTimeout(() => {
+            if (typeof showShareToast === "function") {
+              showShareToast("Visitor session · ~" + mins + " min left · auto logout when time ends");
+            }
+          }, 400);
+        }
+      } catch (e) { /* ignore */ }
       return { ok: true, admin: false, visitor: true };
     }
 
@@ -839,7 +853,10 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     const weekAgo = Date.now() - 7 * 86400000;
     const seen = new Set();
     (logRows || []).forEach((row) => {
-      if (Number(row.ts || 0) >= weekAgo && row.username) seen.add(row.username);
+      const u = String(row.username || "").toLowerCase();
+      if (!u || u === ADMIN_USERNAME || u.startsWith("visitor")) return;
+      if (row.role === "admin") return;
+      if (Number(row.ts || 0) >= weekAgo) seen.add(u);
     });
     return seen.size;
   }
@@ -883,6 +900,28 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
           ts: now,
           reason: reason || "open"
         });
+      }
+      // Notify Admin when a classmate (not admin / visitor) opens the hub
+      if ((reason === "open" || reason === "login") && !isAdmin() && isClassmate()) {
+        const name = (entry.displayName || user).split(",")[0];
+        const minuteTag = "classmate-open-" + user + "-" + Math.floor(now / 60000);
+        try {
+          const lastTag = localStorage.getItem("bscs1a_last_open_signal_tag") || "";
+          if (lastTag !== minuteTag) {
+            localStorage.setItem("bscs1a_last_open_signal_tag", minuteTag);
+            await set(ref(db, PUSH_SIGNAL_PATH), {
+              type: "classmate_open",
+              title: "Classmate opened hub",
+              body: name + " is now on BSCS 1-A Hub",
+              tag: minuteTag,
+              ts: now,
+              by: user,
+              target: "admin"
+            });
+          }
+        } catch (sigErr) {
+          console.warn("[Presence] open signal failed:", sigErr);
+        }
       }
     } catch (error) {
       console.warn("[Presence] write failed:", error);
@@ -996,6 +1035,14 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
           lastTs = ts;
           try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
           return;
+        }
+        // Classmate-open alerts → Admin only
+        if (val.type === "classmate_open" || (val.tag && String(val.tag).indexOf("classmate-open-") === 0) || val.target === "admin") {
+          if (!isAdmin()) {
+            lastTs = ts;
+            try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
+            return;
+          }
         }
         lastTs = ts;
         try { localStorage.setItem("bscs1a_last_push_signal_ts", String(ts)); } catch (e) { /* ignore */ }
@@ -1817,13 +1864,20 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       const presence = await fetchPresenceMap();
       const opens = await fetchRecentOpens(30);
       const now = Date.now();
+      const isTrackedClassmate = (u) => {
+        const key = String(u || "").toLowerCase();
+        if (!key || key === ADMIN_USERNAME) return false;
+        if (key.startsWith("visitor")) return false;
+        return true;
+      };
       const activeNow = Object.keys(presence).filter((u) => {
+        if (!isTrackedClassmate(u)) return false;
         const row = presence[u];
         return row && Number(row.lastSeen || 0) > now - 2 * 60 * 1000;
       });
       const recentOpen = Object.keys(presence)
         .map((u) => presence[u])
-        .filter((row) => row && Number(row.lastSeen || 0) > now - 24 * 60 * 60 * 1000)
+        .filter((row) => row && isTrackedClassmate(row.username || "") && Number(row.lastSeen || 0) > now - 24 * 60 * 60 * 1000)
         .sort((a, b) => Number(b.lastSeen || 0) - Number(a.lastSeen || 0));
 
       const statsHtml = `<div class="admin-stat-row">
@@ -1842,7 +1896,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
           }).join("")
         : `<span style="color:var(--muted);font-size:0.8rem;">Walang active classmate ngayon.</span>`;
 
-      const openHtml = (opens.length ? opens : recentOpen.map((r) => ({ ...r, ts: r.lastSeen }))).slice(0, 25).map((row) => {
+      const openSource = (opens.length ? opens : recentOpen.map((r) => ({ ...r, ts: r.lastSeen })))
+        .filter((row) => isTrackedClassmate(row.username || ""));
+      const openHtml = openSource.slice(0, 25).map((row) => {
         const when = formatLoginStamp(row.ts || row.lastSeen);
         const name = escapeHtml((row.displayName || row.username || "Unknown").split(",")[0]);
         const user = escapeHtml(row.username || "");
@@ -1854,9 +1910,11 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         </div>`;
       }).join("") || `<span style="color:var(--muted)">No PWA opens recorded yet.</span>`;
 
-      const loginHtml = (events.length ? events : latest).slice(0, 20).map((row) => {
+      const loginSource = (events.length ? events : latest)
+        .filter((row) => isTrackedClassmate(row.username || "") && row.role !== "admin");
+      const loginHtml = loginSource.slice(0, 20).map((row) => {
         const when = formatLoginStamp(row.ts);
-        const role = row.role === "admin" ? "ADMIN" : "CLASSMATE";
+        const role = "CLASSMATE";
         const name = escapeHtml(row.displayName || row.username || "Unknown");
         const user = escapeHtml(row.username || "");
         return `<div style="padding:0.4rem 0;border-bottom:1px solid rgba(255,255,255,0.06);">
@@ -4426,6 +4484,72 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     });
   }
 
+
+  function getDashboardPendingFromLocal() {
+    try {
+      const raw = localStorage.getItem("bscs1a_dashboard_pending_v1");
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  function countBuiltInDashboardPending() {
+    // Fallback snapshot of active schoolwork deadlines (same spirit as Class Dashboard)
+    const now = Date.now();
+    const samples = [
+      { title: "GEC 102 · Quiz Module 2", due: "2026-08-12T08:30:00" },
+      { title: "GEC 102 · Reporting First Mass Site", due: "2026-08-17T07:00:00" },
+      { title: "P.I. 101 · Rizal book on hand", due: "2026-08-12T07:00:00" },
+      { title: "P.I. 101 · Mind Mapping", due: "2026-08-10T10:00:00" },
+      { title: "Exam focus window", due: "2026-09-15T08:00:00" }
+    ];
+    const active = samples.filter((t) => new Date(t.due).getTime() > now);
+    const urgent = active.filter((t) => new Date(t.due).getTime() - now <= 3 * 86400000);
+    return {
+      activeCount: active.length,
+      urgentCount: urgent.length,
+      nextTitles: active.slice(0, 3).map((t) => t.title),
+      ts: now,
+      source: "builtin"
+    };
+  }
+
+  function maybeNotifyAdminDashboardTasks() {
+    if (!isAdmin()) return;
+    const pending = getDashboardPendingFromLocal() || countBuiltInDashboardPending();
+    if (!pending || !Number(pending.activeCount)) return;
+    const key = "bscs1a_dash_notify_" + (pending.ts ? String(pending.ts).slice(0, 8) : "x");
+    // At most once per local calendar day
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      const last = localStorage.getItem("bscs1a_dash_notify_day") || "";
+      if (last === day && !pending.force) return;
+      localStorage.setItem("bscs1a_dash_notify_day", day);
+    } catch (e) { /* ignore */ }
+
+    const urgent = Number(pending.urgentCount || 0);
+    const active = Number(pending.activeCount || 0);
+    const titles = (pending.nextTitles || []).slice(0, 3).join(" · ");
+    const body = urgent > 0
+      ? (active + " active task(s), " + urgent + " urgent (≤3 days). " + (titles || "Open Class Dashboard."))
+      : (active + " active task(s) on Class Dashboard. " + (titles || "Review before class."));
+
+    if (typeof showShareToast === "function") {
+      showShareToast("Dashboard · " + active + " pending · " + urgent + " urgent");
+    }
+    if (notificationsSupported() && Notification.permission === "granted") {
+      try {
+        const icon = typeof hubAssetUrl === "function" ? hubAssetUrl("logo.png") : "logo.png";
+        new Notification("Class Dashboard reminder", {
+          body: body,
+          icon: icon,
+          tag: "dashboard-pending"
+        });
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+
   function initPwaAndNotificationsUi() {
     const helpBtn = $("pwaHelpBtn");
     if (helpBtn) {
@@ -4580,24 +4704,53 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     return exp - Date.now();
   }
 
-  async function assertVisitorAccessAllowed(username) {
+  async function assertVisitorAccessAllowed(username, opts) {
+    const options = opts || {};
+    const autoGrant = options.autoGrant !== false; // default true on login
+    const user = String(username || "").toLowerCase();
     const all = await loadVisitorControl();
-    const ctrl = all[String(username || "").toLowerCase()];
-    if (!ctrl) return { ok: true };
+    let ctrl = all[user] || {
+      username: user,
+      enabled: true,
+      durationHours: 1,
+      expiresAt: 0,
+      forceLogout: false
+    };
     if (ctrl.forceLogout) {
-      return { ok: false, message: "Visitor access revoked by P.O. / Admin. Ask them to re-enable." };
+      return { ok: false, message: "Visitor access revoked by P.O. / Admin. Ask them to Clear force + enable." };
     }
     if (ctrl.enabled === false) {
-      return { ok: false, message: "This visitor account is disabled." };
+      return { ok: false, message: "This visitor account is disabled by P.O. / Admin." };
     }
-    const left = remainingVisitorMs(ctrl);
-    if (left === 0 || (left >= 0 && left <= 0)) {
-      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    const exp = Number(ctrl.expiresAt || 0);
+    if (exp > Date.now()) {
+      return { ok: true, ctrl: ctrl, expiresAt: exp };
     }
-    if (Number(ctrl.expiresAt) > 0 && Date.now() >= Number(ctrl.expiresAt)) {
-      return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
+    // No active window (never set, or expired) → auto-grant 1 hour so visitors can always enter
+    if (autoGrant) {
+      const hours = 1;
+      const expiresAt = Date.now() + hours * 60 * 60 * 1000;
+      try {
+        ctrl = await saveVisitorControlEntry(user, {
+          enabled: true,
+          forceLogout: false,
+          durationHours: Number(ctrl.durationHours) > 0 ? Number(ctrl.durationHours) : 1,
+          expiresAt: expiresAt,
+          autoGranted: true,
+          note: ctrl.note || "Auto 1-hour session on login"
+        });
+      } catch (e) {
+        // Offline: still allow local 1-hour session
+        ctrl = Object.assign({}, ctrl, { expiresAt: expiresAt, autoGranted: true });
+        try {
+          const localAll = all;
+          localAll[user] = ctrl;
+          localStorage.setItem("bscs1a_visitor_control_v1", JSON.stringify(localAll));
+        } catch (err) { /* ignore */ }
+      }
+      return { ok: true, ctrl: ctrl, expiresAt: expiresAt, autoGranted: true };
     }
-    return { ok: true, ctrl: ctrl };
+    return { ok: false, message: "Visitor timed session expired. Ask P.O. / Admin for a new time window." };
   }
 
   function stopVisitorExpiryWatch() {
