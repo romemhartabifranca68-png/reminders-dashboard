@@ -183,81 +183,34 @@
         }
 
         .stat-card {
-            position: relative;
-            padding: 20px 18px 18px;
-            border-radius: 22px;
-            background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-            overflow: hidden;
-        }
-        .stat-card::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 5px;
-            border-radius: 22px 0 0 22px;
-            background: linear-gradient(180deg, #38bdf8, #8b5cf6);
-        }
-        .stat-card.stat-all::before { background: linear-gradient(180deg, #38bdf8, #22d3ee); }
-        .stat-card.stat-urgent::before { background: linear-gradient(180deg, #fb7185, #ef4444); }
-        .stat-card.stat-nearest::before { background: linear-gradient(180deg, #fbbf24, #f59e0b); }
-
-        .stat-card.stat-all {
-            background: linear-gradient(155deg, rgba(56, 189, 248, 0.2), rgba(15, 23, 42, 0.35));
-            border-color: rgba(56, 189, 248, 0.4);
-            box-shadow: 0 12px 30px rgba(56, 189, 248, 0.12), 0 10px 28px rgba(0, 0, 0, 0.2);
-        }
-        .stat-card.stat-urgent {
-            background: linear-gradient(155deg, rgba(239, 68, 68, 0.2), rgba(15, 23, 42, 0.35));
-            border-color: rgba(248, 113, 113, 0.42);
-            box-shadow: 0 12px 30px rgba(239, 68, 68, 0.14), 0 10px 28px rgba(0, 0, 0, 0.2);
-        }
-        .stat-card.stat-nearest {
-            background: linear-gradient(155deg, rgba(245, 158, 11, 0.2), rgba(15, 23, 42, 0.35));
-            border-color: rgba(251, 191, 36, 0.42);
-            box-shadow: 0 12px 30px rgba(245, 158, 11, 0.14), 0 10px 28px rgba(0, 0, 0, 0.2);
+            padding: 18px;
+            border-radius: 20px;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow);
         }
 
         .stat-label {
-            font-size: 0.78rem;
-            font-weight: 800;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: rgba(248, 250, 252, 0.88);
-            margin-bottom: 10px;
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 8px;
         }
 
         .stat-value {
-            font-size: clamp(2rem, 6vw, 2.45rem);
-            font-weight: 900;
-            letter-spacing: -0.02em;
-            line-height: 1.1;
-            color: #fff;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
+            font-size: 1.7rem;
+            font-weight: 800;
         }
-        .stat-card.stat-all .stat-value { color: #7dd3fc; text-shadow: 0 0 18px rgba(56, 189, 248, 0.35); }
-        .stat-card.stat-urgent .stat-value { color: #fda4af; text-shadow: 0 0 18px rgba(239, 68, 68, 0.35); }
-        .stat-card.stat-nearest .stat-value { color: #fde68a; text-shadow: 0 0 18px rgba(245, 158, 11, 0.35); }
 
         .stat-sub {
-            margin-top: 10px;
-            color: rgba(248, 250, 252, 0.9);
-            font-size: 0.92rem;
-            font-weight: 600;
-            line-height: 1.45;
+            margin-top: 6px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
 
         .next-deadline {
             margin-bottom: 18px;
-            padding: 20px 18px;
-            border: 1px solid rgba(56, 189, 248, 0.35) !important;
-            background:
-                linear-gradient(145deg, rgba(56, 189, 248, 0.16), rgba(139, 92, 246, 0.1) 50%, rgba(15, 23, 42, 0.4)),
-                var(--glass) !important;
-            box-shadow: 0 14px 34px rgba(56, 189, 248, 0.12), var(--shadow) !important;
+            padding: 18px;
         }
 
         .next-deadline h2,
@@ -266,39 +219,24 @@
             margin: 0 0 14px;
             font-size: 1.25rem;
         }
-        .next-deadline h2 {
-            font-size: 1.15rem;
-            font-weight: 900;
-            letter-spacing: 0.02em;
-            color: #e0f2fe;
-        }
 
         .next-box {
-            background: rgba(2, 6, 23, 0.35);
-            border: 1px solid rgba(125, 211, 252, 0.28);
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--glass-border);
             border-radius: 18px;
-            padding: 16px 16px 16px 18px;
-            border-left: 5px solid #38bdf8;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            padding: 16px;
         }
 
         .next-title {
-            font-size: 1.12rem;
-            font-weight: 800;
-            margin-bottom: 10px;
-            line-height: 1.4;
-            color: #f8fafc;
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
 
         .next-meta {
-            color: rgba(248, 250, 252, 0.92);
-            line-height: 1.7;
-            font-size: 0.98rem;
-            font-weight: 600;
-        }
-        .next-meta strong {
-            color: #7dd3fc;
-            font-weight: 800;
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 0.95rem;
         }
 
         .tasks-panel {
@@ -361,35 +299,6 @@
             gap: 12px;
         }
 
-        .task-check-label {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.45rem;
-            flex: 1;
-            min-width: 0;
-            cursor: pointer;
-        }
-        .task-done-check {
-            margin-top: 0.2rem;
-            width: 1.05rem;
-            height: 1.05rem;
-            accent-color: #38bdf8;
-            flex: 0 0 auto;
-        }
-        .task-item.personal-done {
-            opacity: 0.72;
-            border-color: rgba(56, 189, 248, 0.35);
-        }
-        .task-item.personal-done .task-name {
-            text-decoration: line-through;
-            color: rgba(248, 250, 252, 0.75);
-        }
-        .personal-done-hint {
-            margin-top: 0.25rem;
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: rgba(125, 211, 252, 0.9);
-        }
         .task-item {
             padding: 14px;
             border-radius: 16px;
@@ -513,121 +422,6 @@
             font-size: 0.85rem;
         }
 
-        /* Editor controls — does not change theme of task cards */
-        .edit-toolbar {
-            display: none;
-            margin-top: 14px;
-            padding: 12px 14px;
-            border-radius: 16px;
-            border: 1px solid rgba(56, 189, 248, 0.28);
-            background: rgba(56, 189, 248, 0.1);
-            text-align: left;
-            font-size: 0.88rem;
-            line-height: 1.5;
-        }
-        body.can-edit .edit-toolbar { display: block; }
-        .edit-toolbar strong { color: var(--accent); }
-        .edit-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .edit-btn {
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.14);
-            color: var(--text);
-            padding: 8px 14px;
-            border-radius: 999px;
-            cursor: pointer;
-            font-size: 0.82rem;
-            font-weight: 700;
-        }
-        .edit-btn:hover { background: rgba(255, 255, 255, 0.22); }
-        .edit-btn.danger {
-            border-color: rgba(239, 68, 68, 0.4);
-            color: #fecaca;
-        }
-        .task-edit-row {
-            display: none;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        body.edit-mode .task-edit-row { display: flex; }
-        .task-edit-row .edit-btn { font-size: 0.75rem; padding: 6px 12px; }
-        .subject-add-row {
-            display: none;
-            margin-top: 12px;
-        }
-        body.edit-mode .subject-add-row { display: block; }
-        .edit-modal-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 1000;
-            background: rgba(2, 6, 23, 0.72);
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 16px;
-        }
-        @media (min-width: 640px) {
-            .edit-modal-overlay { align-items: center; }
-        }
-        .edit-modal {
-            width: min(520px, 100%);
-            max-height: 90vh;
-            overflow: auto;
-            border-radius: 20px;
-            padding: 18px;
-            background: rgba(15, 23, 42, 0.96);
-            border: 1px solid var(--glass-border);
-            box-shadow: var(--shadow);
-            color: var(--text);
-        }
-        .edit-modal h3 {
-            margin: 0 0 12px;
-            font-size: 1.05rem;
-        }
-        .edit-field {
-            margin-bottom: 10px;
-        }
-        .edit-field label {
-            display: block;
-            font-size: 0.78rem;
-            font-weight: 700;
-            color: var(--muted);
-            margin-bottom: 4px;
-        }
-        .edit-field input,
-        .edit-field textarea,
-        .edit-field select {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-            background: rgba(0, 0, 0, 0.28);
-            color: var(--text);
-            font: inherit;
-        }
-        .edit-field textarea { min-height: 72px; resize: vertical; }
-        .edit-modal-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .edit-status {
-            margin-top: 8px;
-            font-size: 0.8rem;
-            color: var(--accent);
-            font-weight: 700;
-        }
-        .hub-back {
-            display: inline-flex;
-            margin-top: 8px;
-        }
-
         @media (max-width: 760px) {
             .overview {
                 grid-template-columns: 1fr;
@@ -657,47 +451,36 @@
             <div id="greeting">Magandang Araw!</div>
             <div id="date">Loading date...</div>
             <div id="clock">00:00:00 AM</div>
-            <p class="subtitle">Updated schoolworks dashboard for BSCS 1-A students</p>
+            <p class="subtitle">Reminders · August 13, 2026 · active schoolworks only</p>
 
             <div class="hero-actions">
-                <button class="theme-btn" id="themeBtn" type="button">Switch Theme</button>
+                <button class="theme-btn" onclick="toggleTheme()">Switch Theme</button>
                 <a href="#tasks" class="jump-btn">View Tasks</a>
-                <a href="index.html" class="jump-btn hub-back">← Section Hub</a>
-            </div>
-            <div class="edit-toolbar" id="editToolbar">
-                <strong>Editor mode</strong> — RST Admin / P.I.O. only. Changes save to the cloud so the whole section sees updates.
-                <div class="edit-actions">
-                    <button type="button" class="edit-btn" id="toggleEditModeBtn">Enable editing</button>
-                    <button type="button" class="edit-btn" id="addTaskBtn">+ Add task</button>
-                    <button type="button" class="edit-btn" id="addSubjectBtn">+ Add subject</button>
-                    <button type="button" class="edit-btn" id="reloadCloudBtn">Reload from cloud</button>
-                </div>
-                <div class="edit-status" id="editStatus"></div>
             </div>
         </section>
 
         <section class="overview" id="overview">
-            <div class="stat-card stat-all">
-                <div class="stat-label">All Tasks</div>
+            <div class="stat-card">
+                <div class="stat-label">All Task</div>
                 <div class="stat-value" id="totalTasks">0</div>
-                <div class="stat-sub">Total active schoolworks na may deadline</div>
+                <div class="stat-sub">E update ko nalang to pag may bagong task;)</div>
             </div>
 
-            <div class="stat-card stat-urgent">
+            <div class="stat-card">
                 <div class="stat-label">Urgent Tasks</div>
                 <div class="stat-value" id="urgentTasks">0</div>
-                <div class="stat-sub">Due within the next 3 days — unahin muna</div>
+                <div class="stat-sub">Kung ilan yong malapit na deadline sa loob ng 3 days</div>
             </div>
 
-            <div class="stat-card stat-nearest">
-                <div class="stat-label">Nearest Deadline</div>
+            <div class="stat-card">
+                <div class="stat-label">The Nearest Deadline</div>
                 <div class="stat-value" id="nearestDate">--</div>
                 <div class="stat-sub" id="nearestLabel">Loading...</div>
             </div>
         </section>
 
         <section class="glass-panel next-deadline">
-            <h2>Next Deadline · Focus this first</h2>
+            <h2>Next Deadline</h2>
             <div class="next-box">
                 <div class="next-title" id="nextDeadlineTitle">Loading...</div>
                 <div class="next-meta" id="nextDeadlineMeta">Please wait...</div>
@@ -711,53 +494,14 @@
 
         <section class="glass-panel quote-panel">
             <h2>Motivation</h2>
-            <p class="quote-text" id="quoteText">"Believe you can and you're halfway there."</p>
-            <div class="quote-author" id="quoteAuthor">- Theodore Roosevelt</div>
-            <div class="footer-note" id="quoteFooter">"Stay focused, brilliant classmates." — Rome</div>
-            <div class="edit-actions" id="quoteEditActions" style="display:none;justify-content:center;margin-top:12px;">
-                <button type="button" class="edit-btn" id="editQuoteBtn">Edit quotes</button>
-            </div>
+            <p class="quote-text">"Doubt kills more dreams than failure ever will."</p>
+            <div class="quote-author">— Suzy Kassem</div>
+            <div class="footer-note">"Stay focused, brilliant classmates."- Rome</div>
         </section>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDOLgbNBg3-kIEC4rbO_Cgbrgo55fOQhTM",
-            authDomain: "bscs-reviewer-arena.firebaseapp.com",
-            databaseURL: "https://bscs-reviewer-arena-default-rtdb.firebaseio.com",
-            projectId: "bscs-reviewer-arena",
-            storageBucket: "bscs-reviewer-arena.firebasestorage.app",
-            messagingSenderId: "992707582654",
-            appId: "1:992707582654:web:6c578a8ff50e61eee69cef"
-        };
-
-        let db = null;
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getDatabase(app);
-        } catch (error) {
-            console.warn("[Dashboard] Firebase init failed:", error);
-        }
-
-        const AUTH_SESSION_KEY = "bscs1a_hub_session_v1";
-        const DASHBOARD_PATH = "hub_config/dashboard_tasks";
-        const DASHBOARD_LOCAL_KEY = "bscs1a_dashboard_tasks_v1";
-        const QUOTES_PATH = "hub_config/dashboard_quotes";
-        const QUOTES_LOCAL_KEY = "bscs1a_dashboard_quotes_v1";
-        const ADMIN_USERNAMES = new Set(["tabifranca"]);
-        const PIO_USERNAMES = new Set(["cainto"]); // P.I.O.
-
-        const DEFAULT_QUOTES = {
-            text: '"Believe you can and you\'re halfway there."',
-            author: "- Theodore Roosevelt",
-            footer: '"Stay focused, brilliant classmates." — Rome'
-        };
-        let quoteData = { ...DEFAULT_QUOTES };
-
-        const DEFAULT_SUBJECT_DATA = [
+    <script>
+        const subjectData = [
             {
                 subject: "GEC 102",
                 icon: "🇵🇭",
@@ -765,17 +509,23 @@
                 color: "#ffd166",
                 tasks: [
                     {
-                        title: "Quiz after discussion of Module 2",
-                        due: "2026-08-12T08:30:00",
-                        note: "Wednesday; tentative",
-                        tags: ["Quiz", "Tentative"]
-                    },
-                    {
                         title: "Start of Reporting: The First Mass Site in the Philippines",
                         due: "2026-08-17T07:00:00",
-                        note: "Monday; tentative",
-                        people: ["Ashley Calamba", "Matt Louis Gamayon"],
-                        tags: ["Reporting", "Tentative"]
+                        note: "Monday · reporters: Calamba, Gamayon — please be prepared",
+                        people: ["Calamba", "Gamayon"],
+                        tags: ["Reporting"]
+                    },
+                    {
+                        title: "20-item quiz (Module 1.1 and 1.2)",
+                        due: "2026-08-19T08:30:00",
+                        note: "Wednesday · Google Classroom",
+                        tags: ["Quiz", "Google Classroom"]
+                    },
+                    {
+                        title: "Performance Task — Philippine History source with historical significance (per Criteria on Assessing a Source)",
+                        due: "2026-08-19T23:59:00",
+                        note: "Wednesday · submit via Google Classroom",
+                        tags: ["Performance Task", "Google Classroom"]
                     }
                 ]
             },
@@ -786,22 +536,24 @@
                 color: "#34d399",
                 tasks: [
                     {
-                        title: "The book 'The Life and Works of Jose Rizal - Second Edition' should be on hand",
-                        due: "2026-08-12T07:00:00",
-                        note: "Wednesday",
-                        tags: ["Book Requirement"]
-                    },
+                        title: "Activity (Similarities and Differences) — Module 1.2 · The Philippines in the 19th century",
+                        due: "2026-08-14T23:59:00",
+                        note: "Friday · accomplish on time",
+                        tags: ["Activity"]
+                    }
+                ]
+            },
+            {
+                subject: "ITEC 102",
+                icon: "💻",
+                fullName: "Fundamentals of Programming",
+                color: "#60a5fa",
+                tasks: [
                     {
-                        title: "Mind Mapping Activity by next meeting",
-                        due: "2026-08-10T10:00:00",
-                        note: "Tentative: August 10 or August 12",
-                        tags: ["Activity", "Tentative"]
-                    },
-                    {
-                        title: "Activity (TBA)",
-                        due: "2026-08-06T13:00:00",
-                        note: "Submit via Google Drive",
-                        tags: ["Google Drive", "Urgent"]
+                        title: "Quiz — Logic Formulation and Introduction to C# Programming",
+                        due: "2026-08-18T08:30:00",
+                        note: "Tuesday",
+                        tags: ["Quiz", "C#"]
                     }
                 ]
             },
@@ -813,10 +565,16 @@
                 tasks: [
                     {
                         title: "Memorize the University's Quality Policy",
-                        due: "2026-08-12T13:00:00",
-                        note: "Wednesday",
-                        people: ["Rhylie Millarez", "Chraist Oclarino"],
-                        tags: ["Memorization"]
+                        due: "2026-08-26T07:00:00",
+                        note: "Wednesday (tentative) · assigned: Millarez, Oclinaro",
+                        people: ["Millarez", "Oclinaro"],
+                        tags: ["Memorize", "Tentative"]
+                    },
+                    {
+                        title: "Activity — Social Map of Your Life (A4 bond paper) + brief explanation on page 2",
+                        due: "2026-08-19T23:59:00",
+                        note: "Wednesday (tentative)",
+                        tags: ["Activity", "Tentative"]
                     }
                 ]
             },
@@ -824,31 +582,19 @@
                 subject: "PATHFIT",
                 icon: "⛹️‍♀️",
                 fullName: "PATHFit 1: Movement Competency Training",
-                color: "#f472b6",
+                color: "#c084fc",
                 tasks: [
                     {
-                        title: "PAR-Q Assessment should be printed by next meeting",
-                        due: "2026-08-12T07:00:00",
-                        note: "Ma'am Jhona will send it later this week",
-                        tags: ["Print", "Assessment"]
-                    },
-                    {
-                        title: "Prepare 1/2 index card with your 1x1 picture",
-                        due: "2026-08-12T07:00:00",
-                        note: "For next class meeting",
-                        tags: ["Index Card", "1x1 Picture"]
-                    },
-                    {
-                        title: "Warm up by partner every meeting (3-5 mins)",
-                        due: "2026-08-12T07:00:00",
-                        note: "Partner warm-up reminder",
-                        people: ["Mark Angelo Astrera", "Ian Guia"],
+                        title: "Warm up by partner every meeting (3–5 mins)",
+                        due: "2026-08-19T07:00:00",
+                        note: "Ongoing · partners: Astrera, Guia",
+                        people: ["Astrera", "Guia"],
                         tags: ["Partner Task"]
                     },
                     {
-                        title: "'Strava' step-counting activity within campus only",
-                        due: "2026-08-12T07:00:00",
-                        note: "Instruction is TBA",
+                        title: "Strava step-counting activity (campus only) — instruction TBA",
+                        due: "2026-08-19T23:59:00",
+                        note: "Wednesday · strictly within campus",
                         tags: ["Strava", "TBA"]
                     }
                 ]
@@ -861,250 +607,15 @@
                 tasks: [
                     {
                         title: "General Orientation",
-                        due: "2026-08-08T07:00:00",
-                        note: "Saturday at 7:00 AM",
+                        due: "2026-08-15T07:00:00",
+                        note: "Saturday · 7:00 AM",
                         tags: ["Orientation"]
                     }
                 ]
             }
         ];
 
-        let subjectData = JSON.parse(JSON.stringify(DEFAULT_SUBJECT_DATA));
-        let editMode = false;
-
-        function loadAuthSession() {
-            try {
-                const raw = localStorage.getItem(AUTH_SESSION_KEY);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                if (!parsed || !parsed.role) return null;
-                return parsed;
-            } catch {
-                return null;
-            }
-        }
-
-        const PERSONAL_DONE_KEY = "bscs1a_dashboard_personal_done_v1";
-
-        function loadPersonalDoneMap() {
-            try {
-                const session = JSON.parse(localStorage.getItem("bscs1a_hub_session_v1") || "null");
-                const user = (session && session.username) ? String(session.username).toLowerCase() : "anon";
-                const all = JSON.parse(localStorage.getItem(PERSONAL_DONE_KEY) || "{}");
-                return { user, map: all[user] || {} };
-            } catch (e) {
-                return { user: "anon", map: {} };
-            }
-        }
-
-        function isPersonalDone(taskKey) {
-            const { map } = loadPersonalDoneMap();
-            return !!map[taskKey];
-        }
-
-        function setPersonalDone(taskKey, done) {
-            try {
-                const session = JSON.parse(localStorage.getItem("bscs1a_hub_session_v1") || "null");
-                const user = (session && session.username) ? String(session.username).toLowerCase() : "anon";
-                const all = JSON.parse(localStorage.getItem(PERSONAL_DONE_KEY) || "{}");
-                if (!all[user]) all[user] = {};
-                if (done) all[user][taskKey] = Date.now();
-                else delete all[user][taskKey];
-                localStorage.setItem(PERSONAL_DONE_KEY, JSON.stringify(all));
-            } catch (e) { /* ignore */ }
-        }
-
-        function canEditDashboard() {
-
-            const session = loadAuthSession();
-            if (!session) return false;
-            const user = String(session.username || "").toLowerCase();
-            if (session.isAdmin || session.role === "admin") return true;
-            if (ADMIN_USERNAMES.has(user)) return true;
-            if (PIO_USERNAMES.has(user)) return true;
-            return false;
-        }
-
-        function setEditStatus(msg) {
-            const el = document.getElementById("editStatus");
-            if (el) el.textContent = msg || "";
-        }
-
-        function applyEditorAccess() {
-            const allowed = canEditDashboard();
-            document.body.classList.toggle("can-edit", allowed);
-            if (!allowed) {
-                editMode = false;
-                document.body.classList.remove("edit-mode");
-            }
-            const btn = document.getElementById("toggleEditModeBtn");
-            if (btn) btn.textContent = editMode ? "Disable editing" : "Enable editing";
-            const quoteActions = document.getElementById("quoteEditActions");
-            if (quoteActions) quoteActions.style.display = allowed ? "flex" : "none";
-        }
-
-        function renderQuotes() {
-            const t = document.getElementById("quoteText");
-            const a = document.getElementById("quoteAuthor");
-            const f = document.getElementById("quoteFooter");
-            if (t) t.textContent = quoteData.text || DEFAULT_QUOTES.text;
-            if (a) a.textContent = quoteData.author || DEFAULT_QUOTES.author;
-            if (f) f.textContent = quoteData.footer || DEFAULT_QUOTES.footer;
-        }
-
-        async function loadQuotes() {
-            if (db) {
-                try {
-                    const snap = await get(ref(db, QUOTES_PATH));
-                    if (snap.exists()) {
-                        const val = snap.val();
-                        if (val && typeof val === "object") {
-                            quoteData = {
-                                text: val.text || DEFAULT_QUOTES.text,
-                                author: val.author || DEFAULT_QUOTES.author,
-                                footer: val.footer || DEFAULT_QUOTES.footer
-                            };
-                            try {
-                                localStorage.setItem(QUOTES_LOCAL_KEY, JSON.stringify(quoteData));
-                            } catch (e) { /* ignore */ }
-                            renderQuotes();
-                            return;
-                        }
-                    }
-                } catch (error) {
-                    console.warn("[Dashboard] quotes load failed:", error);
-                }
-            }
-            try {
-                const local = JSON.parse(localStorage.getItem(QUOTES_LOCAL_KEY) || "null");
-                if (local && local.text) quoteData = local;
-            } catch (e) { /* ignore */ }
-            renderQuotes();
-        }
-
-        async function saveQuotes(next) {
-            if (!canEditDashboard()) throw new Error("Not allowed");
-            quoteData = {
-                text: String(next.text || "").trim() || DEFAULT_QUOTES.text,
-                author: String(next.author || "").trim() || DEFAULT_QUOTES.author,
-                footer: String(next.footer || "").trim() || DEFAULT_QUOTES.footer
-            };
-            try {
-                localStorage.setItem(QUOTES_LOCAL_KEY, JSON.stringify(quoteData));
-            } catch (e) { /* ignore */ }
-            if (db) {
-                await set(ref(db, QUOTES_PATH), {
-                    ...quoteData,
-                    updatedAt: Date.now(),
-                    updatedBy: (loadAuthSession() || {}).username || "editor"
-                });
-            }
-            renderQuotes();
-        }
-
-        function openQuoteModal() {
-            if (!canEditDashboard()) return;
-            document.querySelectorAll(".edit-modal-overlay").forEach((el) => el.remove());
-            const overlay = document.createElement("div");
-            overlay.className = "edit-modal-overlay";
-            overlay.innerHTML = `
-                <div class="edit-modal" role="dialog" aria-modal="true">
-                    <h3>Edit motivation quotes</h3>
-                    <div class="edit-field">
-                        <label>Main quote</label>
-                        <textarea id="eqText" maxlength="240">${escapeHtml(quoteData.text || "")}</textarea>
-                    </div>
-                    <div class="edit-field">
-                        <label>Author line</label>
-                        <input id="eqAuthor" type="text" maxlength="80" value="${escapeHtml(quoteData.author || "")}" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Footer note</label>
-                        <input id="eqFooter" type="text" maxlength="120" value="${escapeHtml(quoteData.footer || "")}" />
-                    </div>
-                    <div class="edit-modal-actions">
-                        <button type="button" class="edit-btn" id="eqSave">Save quotes</button>
-                        <button type="button" class="edit-btn" id="eqCancel">Cancel</button>
-                    </div>
-                    <div class="edit-status" id="eqStatus"></div>
-                </div>`;
-            document.body.appendChild(overlay);
-            overlay.addEventListener("click", (e) => {
-                if (e.target === overlay) overlay.remove();
-            });
-            overlay.querySelector("#eqCancel").addEventListener("click", () => overlay.remove());
-            overlay.querySelector("#eqSave").addEventListener("click", async () => {
-                const status = overlay.querySelector("#eqStatus");
-                try {
-                    status.textContent = "Saving…";
-                    await saveQuotes({
-                        text: overlay.querySelector("#eqText").value,
-                        author: overlay.querySelector("#eqAuthor").value,
-                        footer: overlay.querySelector("#eqFooter").value
-                    });
-                    overlay.remove();
-                    setEditStatus("Quotes updated for the section.");
-                } catch (error) {
-                    status.textContent = "Saved on this device only (cloud write failed).";
-                    console.warn(error);
-                }
-            });
-        }
-
-        async function loadDashboardData() {
-            // Prefer cloud
-            if (db) {
-                try {
-                    const snap = await get(ref(db, DASHBOARD_PATH));
-                    if (snap.exists()) {
-                        const val = snap.val();
-                        if (Array.isArray(val) && val.length) {
-                            subjectData = val;
-                            try {
-                                localStorage.setItem(DASHBOARD_LOCAL_KEY, JSON.stringify(val));
-                            } catch (e) { /* ignore */ }
-                            return "cloud";
-                        }
-                        if (val && Array.isArray(val.subjects) && val.subjects.length) {
-                            subjectData = val.subjects;
-                            try {
-                                localStorage.setItem(DASHBOARD_LOCAL_KEY, JSON.stringify(val.subjects));
-                            } catch (e) { /* ignore */ }
-                            return "cloud";
-                        }
-                    }
-                } catch (error) {
-                    console.warn("[Dashboard] cloud load failed:", error);
-                }
-            }
-            // Local cache
-            try {
-                const local = JSON.parse(localStorage.getItem(DASHBOARD_LOCAL_KEY) || "null");
-                if (Array.isArray(local) && local.length) {
-                    subjectData = local;
-                    return "local";
-                }
-            } catch (e) { /* ignore */ }
-            subjectData = JSON.parse(JSON.stringify(DEFAULT_SUBJECT_DATA));
-            return "default";
-        }
-
-        async function saveDashboardData() {
-            if (!canEditDashboard()) throw new Error("Not allowed");
-            const payload = subjectData;
-            try {
-                localStorage.setItem(DASHBOARD_LOCAL_KEY, JSON.stringify(payload));
-            } catch (e) { /* ignore */ }
-            if (db) {
-                await set(ref(db, DASHBOARD_PATH), {
-                    subjects: payload,
-                    updatedAt: Date.now(),
-                    updatedBy: (loadAuthSession() || {}).username || "editor"
-                });
-            }
-        }
-
-        function updateClock() {
+        function updateClockfunction updateClock() {
             const now = new Date();
             const hour = now.getHours();
             let greeting = "Magandang Araw!";
@@ -1164,7 +675,11 @@
             const diff = target - now;
 
             if (diff <= 0) {
-                return { isDone: true, text: "Tapos na", diff: 0 };
+                return {
+                    isDone: true,
+                    text: "Tapos na",
+                    diff: 0
+                };
             }
 
             const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -1172,39 +687,61 @@
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
             let text = "";
-            if (days > 0) text = `${days}d ${hours}h left`;
-            else if (hours > 0) text = `${hours}h ${minutes}m left`;
-            else text = `${minutes}m left`;
+            if (days > 0) {
+                text = `${days}d ${hours}h left`;
+            } else if (hours > 0) {
+                text = `${hours}h ${minutes}m left`;
+            } else {
+                text = `${minutes}m left`;
+            }
 
-            return { isDone: false, text, diff };
+            return {
+                isDone: false,
+                text,
+                diff
+            };
         }
 
         function getProgressPercent(targetDate) {
             const now = new Date().getTime();
             const target = new Date(targetDate).getTime();
             const baseStart = new Date("2026-08-05T00:00:00").getTime();
+
             const total = target - baseStart;
             const remaining = target - now;
-            if (remaining <= 0) return 0;
-            if (total <= 0) return 100;
+
+            if (remaining <= 0) {
+                return 0;
+            }
+
+            if (total <= 0) {
+                return 100;
+            }
+
             return Math.max(0, Math.min(100, (remaining / total) * 100));
         }
 
         function getProgressColor(diff) {
             const oneDay = 24 * 60 * 60 * 1000;
             const threeDays = 3 * oneDay;
-            if (diff <= oneDay) return "linear-gradient(90deg, #fb7185, #ef4444)";
-            if (diff <= threeDays) return "linear-gradient(90deg, #fbbf24, #f59e0b)";
+
+            if (diff <= oneDay) {
+                return "linear-gradient(90deg, #fb7185, #ef4444)";
+            }
+
+            if (diff <= threeDays) {
+                return "linear-gradient(90deg, #fbbf24, #f59e0b)";
+            }
+
             return "linear-gradient(90deg, #34d399, #10b981)";
         }
 
         function flattenTasks() {
             const all = [];
-            subjectData.forEach((subject, si) => {
-                (subject.tasks || []).forEach((task, ti) => {
+
+            subjectData.forEach(subject => {
+                subject.tasks.forEach(task => {
                     all.push({
-                        subjectIndex: si,
-                        taskIndex: ti,
                         subject: subject.subject,
                         fullName: subject.fullName,
                         color: subject.color,
@@ -1213,6 +750,7 @@
                     });
                 });
             });
+
             return all.sort((a, b) => new Date(a.due) - new Date(b.due));
         }
 
@@ -1220,6 +758,7 @@
             const allTasks = flattenTasks();
             const now = new Date().getTime();
             const urgentLimit = 3 * 24 * 60 * 60 * 1000;
+
             const activeTasks = allTasks.filter(task => new Date(task.due).getTime() > now);
             const urgentTasks = activeTasks.filter(task => new Date(task.due).getTime() - now <= urgentLimit);
 
@@ -1229,16 +768,18 @@
             if (activeTasks.length > 0) {
                 const nearest = activeTasks[0];
                 const nearestDate = new Date(nearest.due);
+
                 document.getElementById("nearestDate").innerText = nearestDate.toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric"
                 });
-                document.getElementById("nearestLabel").innerText = `${nearest.subject} · ${nearest.title}`;
-                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon || "📌"} ${nearest.subject} — ${nearest.title}`;
+
+                document.getElementById("nearestLabel").innerText = `${nearest.subject} - ${nearest.title}`;
+                document.getElementById("nextDeadlineTitle").innerText = `${nearest.icon} ${nearest.subject} - ${nearest.title}`;
                 document.getElementById("nextDeadlineMeta").innerHTML = `
-                    <strong>Due:</strong> ${escapeHtml(formatDue(nearest.due))}<br>
-                    <strong>Course:</strong> ${escapeHtml(nearest.fullName || nearest.subject)}<br>
-                    <strong>Details:</strong> ${escapeHtml(nearest.note || "No additional note")}
+                    Due: ${formatDue(nearest.due)}<br>
+                    Course: ${nearest.fullName}<br>
+                    Details: ${nearest.note || "No additional note"}
                 `;
             } else {
                 document.getElementById("nearestDate").innerText = "Done";
@@ -1248,38 +789,22 @@
             }
         }
 
-        function escapeHtml(str) {
-            return String(str || "")
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;");
-        }
-
         function renderSubjects() {
             const subjectGrid = document.getElementById("subjectGrid");
             const now = new Date().getTime();
 
-            const indexed = subjectData.map((s, si) => ({ ...s, _si: si }));
-            const sortedSubjects = [...indexed].sort((a, b) => {
-                const aTasks = a.tasks || [];
-                const bTasks = b.tasks || [];
-                if (!aTasks.length) return 1;
-                if (!bTasks.length) return -1;
-                const aNearest = Math.min(...aTasks.map(task => new Date(task.due).getTime()));
-                const bNearest = Math.min(...bTasks.map(task => new Date(task.due).getTime()));
+            const sortedSubjects = [...subjectData].sort((a, b) => {
+                const aNearest = Math.min(...a.tasks.map(task => new Date(task.due).getTime()));
+                const bNearest = Math.min(...b.tasks.map(task => new Date(task.due).getTime()));
                 return aNearest - bNearest;
             });
 
             subjectGrid.innerHTML = sortedSubjects.map(subject => {
-                const si = subject._si;
-                const tasks = subject.tasks || [];
-                const pendingCount = tasks.filter(task => new Date(task.due).getTime() > now).length;
+                const pendingCount = subject.tasks.filter(task => new Date(task.due).getTime() > now).length;
 
-                const taskList = tasks
-                    .map((task, ti) => ({ task, ti }))
-                    .sort((a, b) => new Date(a.task.due) - new Date(b.task.due))
-                    .map(({ task, ti }) => {
+                const taskList = subject.tasks
+                    .sort((a, b) => new Date(a.due) - new Date(b.due))
+                    .map(task => {
                         const timeInfo = getTimeParts(task.due);
                         const progress = getProgressPercent(task.due);
                         const isUrgent = !timeInfo.isDone && timeInfo.diff <= 3 * 24 * 60 * 60 * 1000;
@@ -1290,32 +815,30 @@
                         ].join(" ").trim();
 
                         const peopleLine = task.people && task.people.length
-                            ? `<div>Assigned / Mentioned: ${escapeHtml(task.people.join(", "))}</div>`
+                            ? `<div>Assigned / Mentioned: ${task.people.join(", ")}</div>`
                             : "";
 
                         const badges = (task.tags || [])
-                            .map(tag => `<span class="mini-badge">${escapeHtml(tag)}</span>`)
+                            .map(tag => `<span class="mini-badge">${tag}</span>`)
                             .join("");
 
-                        const taskKey = `${subject.subject || "S"}::${task.title || "T"}::${task.due || ""}`;
-                        const mineDone = isPersonalDone(taskKey);
-                        const personalClass = mineDone ? " personal-done" : "";
                         return `
-                            <div class="${taskClasses}${personalClass}" data-task-key="${escapeHtml(taskKey)}">
+                            <div class="${taskClasses}">
                                 <div class="task-top">
-                                    <label class="task-check-label">
-                                        <input type="checkbox" class="task-done-check" data-task-key="${escapeHtml(taskKey)}" ${mineDone ? "checked" : ""} />
-                                        <span class="task-name">${escapeHtml(task.title)}</span>
-                                    </label>
-                                    <div class="task-timer">${escapeHtml(timeInfo.text)}</div>
+                                    <div class="task-name">${task.title}</div>
+                                    <div class="task-timer">${timeInfo.text}</div>
                                 </div>
+
                                 <div class="task-meta">
-                                    <div>Due: ${escapeHtml(formatDue(task.due))}</div>
-                                    <div>Note: ${escapeHtml(task.note || "No extra note")}</div>
+                                    <div>Due: ${formatDue(task.due)}</div>
+                                    <div>Note: ${task.note || "No extra note"}</div>
                                     ${peopleLine}
-                                    <div class="personal-done-hint">${mineDone ? "✓ Marked done on this device" : "Tap checkbox when finished"}</div>
                                 </div>
-                                <div class="task-badges">${badges}</div>
+
+                                <div class="task-badges">
+                                    ${badges}
+                                </div>
+
                                 <div class="progress-wrap">
                                     <div class="progress-label">
                                         <span>Countdown Progress</span>
@@ -1325,330 +848,90 @@
                                         <div class="progress-fill" style="width: ${progress}%; background: ${getProgressColor(timeInfo.diff)};"></div>
                                     </div>
                                 </div>
-                                <div class="task-edit-row">
-                                    <button type="button" class="edit-btn" data-edit-task data-si="${si}" data-ti="${ti}">Edit</button>
-                                    <button type="button" class="edit-btn danger" data-del-task data-si="${si}" data-ti="${ti}">Delete</button>
-                                </div>
-                            </div>`;
+                            </div>
+                            `;
                     })
                     .join("");
 
                 return `
-                    <article class="subject-card" style="border-left-color: ${escapeHtml(subject.color || "#38bdf8")};">
+                    <article class="subject-card" style="border-left-color: ${subject.color};">
                         <div class="subject-header">
                             <div>
-                                <div class="subject-title">${escapeHtml(subject.icon || "")} ${escapeHtml(subject.subject)} - ${escapeHtml(subject.fullName || "")}</div>
+                                <div class="subject-title">${subject.icon} ${subject.subject} - ${subject.fullName}</div>
                                 <div class="subject-sub">Updated reminders and schoolworks</div>
                             </div>
                             <div class="subject-count">${pendingCount} active</div>
                         </div>
-                        <div class="task-list">${taskList || '<div class="task-meta">No tasks yet.</div>'}</div>
-                        <div class="subject-add-row">
-                            <button type="button" class="edit-btn" data-add-task-subject data-si="${si}">+ Task here</button>
-                            <button type="button" class="edit-btn danger" data-del-subject data-si="${si}">Delete subject</button>
+
+                        <div class="task-list">
+                            ${taskList}
                         </div>
-                    </article>`;
+                    </article>
+                `;
             }).join("");
-
-            bindEditorButtons();
         }
 
-        function toDatetimeLocalValue(iso) {
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return "";
-            const pad = (n) => String(n).padStart(2, "0");
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
 
-        function fromDatetimeLocalValue(val) {
-            if (!val) return new Date().toISOString().slice(0, 19);
-            const d = new Date(val);
-            if (Number.isNaN(d.getTime())) return val;
-            const pad = (n) => String(n).padStart(2, "0");
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-        }
-
-        function closeModal() {
-            document.querySelectorAll(".edit-modal-overlay").forEach((el) => el.remove());
-        }
-
-        function openTaskModal({ subjectIndex, taskIndex, isNew }) {
-            if (!canEditDashboard()) return;
-            closeModal();
-            const subject = subjectData[subjectIndex];
-            if (!subject) return;
-            const task = isNew
-                ? { title: "", due: new Date().toISOString().slice(0, 19), note: "", tags: [], people: [] }
-                : { ...(subject.tasks[taskIndex] || {}) };
-
-            const overlay = document.createElement("div");
-            overlay.className = "edit-modal-overlay";
-            overlay.innerHTML = `
-                <div class="edit-modal" role="dialog" aria-modal="true">
-                    <h3>${isNew ? "Add task" : "Edit task"} · ${escapeHtml(subject.subject)}</h3>
-                    <div class="edit-field">
-                        <label>Title</label>
-                        <input id="emTitle" type="text" maxlength="160" value="${escapeHtml(task.title || "")}" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Due date & time</label>
-                        <input id="emDue" type="datetime-local" value="${escapeHtml(toDatetimeLocalValue(task.due))}" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Note</label>
-                        <textarea id="emNote" maxlength="300">${escapeHtml(task.note || "")}</textarea>
-                    </div>
-                    <div class="edit-field">
-                        <label>Tags (comma-separated)</label>
-                        <input id="emTags" type="text" value="${escapeHtml((task.tags || []).join(", "))}" />
-                    </div>
-                    <div class="edit-field">
-                        <label>People (comma-separated)</label>
-                        <input id="emPeople" type="text" value="${escapeHtml((task.people || []).join(", "))}" />
-                    </div>
-                    <div class="edit-modal-actions">
-                        <button type="button" class="edit-btn" id="emSave">Save</button>
-                        <button type="button" class="edit-btn" id="emCancel">Cancel</button>
-                    </div>
-                    <div class="edit-status" id="emStatus"></div>
-                </div>`;
-            document.body.appendChild(overlay);
-
-            overlay.addEventListener("click", (e) => {
-                if (e.target === overlay) closeModal();
-            });
-            overlay.querySelector("#emCancel").addEventListener("click", closeModal);
-            overlay.querySelector("#emSave").addEventListener("click", async () => {
-                const title = overlay.querySelector("#emTitle").value.trim();
-                const due = fromDatetimeLocalValue(overlay.querySelector("#emDue").value);
-                const note = overlay.querySelector("#emNote").value.trim();
-                const tags = overlay.querySelector("#emTags").value.split(",").map((s) => s.trim()).filter(Boolean);
-                const people = overlay.querySelector("#emPeople").value.split(",").map((s) => s.trim()).filter(Boolean);
-                const status = overlay.querySelector("#emStatus");
-                if (!title) {
-                    status.textContent = "Title is required.";
-                    return;
-                }
-                const next = { title, due, note, tags, people };
-                if (isNew) {
-                    if (!Array.isArray(subjectData[subjectIndex].tasks)) subjectData[subjectIndex].tasks = [];
-                    subjectData[subjectIndex].tasks.push(next);
-                } else {
-                    subjectData[subjectIndex].tasks[taskIndex] = next;
-                }
-                try {
-                    status.textContent = "Saving…";
-                    await saveDashboardData();
-                    closeModal();
-                    refreshDashboard();
-                    setEditStatus("Saved to cloud.");
-                } catch (error) {
-                    status.textContent = "Saved on this device only (cloud write failed).";
-                    console.warn(error);
-                    refreshDashboard();
-                }
-            });
-        }
-
-        function openSubjectModal() {
-            if (!canEditDashboard()) return;
-            closeModal();
-            const overlay = document.createElement("div");
-            overlay.className = "edit-modal-overlay";
-            overlay.innerHTML = `
-                <div class="edit-modal" role="dialog" aria-modal="true">
-                    <h3>Add subject</h3>
-                    <div class="edit-field">
-                        <label>Code (e.g. ITEC 101)</label>
-                        <input id="esCode" type="text" maxlength="24" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Full name</label>
-                        <input id="esName" type="text" maxlength="80" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Icon (emoji)</label>
-                        <input id="esIcon" type="text" maxlength="4" value="📚" />
-                    </div>
-                    <div class="edit-field">
-                        <label>Accent color</label>
-                        <input id="esColor" type="color" value="#38bdf8" />
-                    </div>
-                    <div class="edit-modal-actions">
-                        <button type="button" class="edit-btn" id="esSave">Save</button>
-                        <button type="button" class="edit-btn" id="esCancel">Cancel</button>
-                    </div>
-                    <div class="edit-status" id="esStatus"></div>
-                </div>`;
-            document.body.appendChild(overlay);
-            overlay.addEventListener("click", (e) => {
-                if (e.target === overlay) closeModal();
-            });
-            overlay.querySelector("#esCancel").addEventListener("click", closeModal);
-            overlay.querySelector("#esSave").addEventListener("click", async () => {
-                const subject = overlay.querySelector("#esCode").value.trim();
-                const fullName = overlay.querySelector("#esName").value.trim();
-                const icon = overlay.querySelector("#esIcon").value.trim() || "📚";
-                const color = overlay.querySelector("#esColor").value || "#38bdf8";
-                const status = overlay.querySelector("#esStatus");
-                if (!subject || !fullName) {
-                    status.textContent = "Code and full name are required.";
-                    return;
-                }
-                subjectData.push({ subject, fullName, icon, color, tasks: [] });
-                try {
-                    status.textContent = "Saving…";
-                    await saveDashboardData();
-                    closeModal();
-                    refreshDashboard();
-                    setEditStatus("Subject added.");
-                } catch (error) {
-                    status.textContent = "Saved locally (cloud write failed).";
-                    refreshDashboard();
-                }
-            });
-        }
-
-        function bindEditorButtons() {
-            document.querySelectorAll(".task-done-check").forEach((box) => {
-                box.onchange = () => {
-                    const key = box.getAttribute("data-task-key");
-                    setPersonalDone(key, box.checked);
-                    const card = box.closest(".task-item");
-                    if (card) card.classList.toggle("personal-done", box.checked);
-                    const hint = card && card.querySelector(".personal-done-hint");
-                    if (hint) {
-                        hint.textContent = box.checked
-                            ? "✓ Marked done on this device"
-                            : "Tap checkbox when finished";
-                    }
+        function persistDashboardPending() {
+            try {
+                const allTasks = flattenTasks();
+                const now = Date.now();
+                const urgentLimit = 3 * 24 * 60 * 60 * 1000;
+                const activeTasks = allTasks.filter(task => new Date(task.due).getTime() > now);
+                const urgentTasks = activeTasks.filter(task => new Date(task.due).getTime() - now <= urgentLimit);
+                const payload = {
+                    activeCount: activeTasks.length,
+                    urgentCount: urgentTasks.length,
+                    nextTitles: activeTasks.slice(0, 4).map(t => (t.subject ? t.subject + " · " : "") + t.title),
+                    ts: now,
+                    source: "dashboard"
                 };
-            });
-            document.querySelectorAll("[data-edit-task]").forEach((btn) => {
-                btn.onclick = () => {
-                    openTaskModal({
-                        subjectIndex: Number(btn.getAttribute("data-si")),
-                        taskIndex: Number(btn.getAttribute("data-ti")),
-                        isNew: false
+                localStorage.setItem("bscs1a_dashboard_pending_v1", JSON.stringify(payload));
+                return payload;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function notifyPendingDashboardTasks() {
+            const pending = persistDashboardPending();
+            if (!pending || !pending.activeCount) return;
+            if (!("Notification" in window)) return;
+            try {
+                const day = new Date().toISOString().slice(0, 10);
+                const last = localStorage.getItem("bscs1a_dash_page_notify_day") || "";
+                if (last === day) return;
+                const run = () => {
+                    if (Notification.permission !== "granted") return;
+                    localStorage.setItem("bscs1a_dash_page_notify_day", day);
+                    const body = pending.urgentCount
+                        ? (pending.activeCount + " active · " + pending.urgentCount + " urgent. " + (pending.nextTitles || []).slice(0, 2).join(" · "))
+                        : (pending.activeCount + " active task(s). " + (pending.nextTitles || []).slice(0, 2).join(" · "));
+                    new Notification("Class Dashboard · pending tasks", {
+                        body: body,
+                        tag: "dashboard-pending-page"
                     });
                 };
-            });
-            document.querySelectorAll("[data-del-task]").forEach((btn) => {
-                btn.onclick = async () => {
-                    if (!canEditDashboard()) return;
-                    const si = Number(btn.getAttribute("data-si"));
-                    const ti = Number(btn.getAttribute("data-ti"));
-                    const title = subjectData[si]?.tasks?.[ti]?.title || "this task";
-                    if (!window.confirm(`Delete task: ${title}?`)) return;
-                    subjectData[si].tasks.splice(ti, 1);
-                    try {
-                        await saveDashboardData();
-                        setEditStatus("Task deleted.");
-                    } catch (error) {
-                        setEditStatus("Deleted locally (cloud write failed).");
-                    }
-                    refreshDashboard();
-                };
-            });
-            document.querySelectorAll("[data-add-task-subject]").forEach((btn) => {
-                btn.onclick = () => {
-                    openTaskModal({
-                        subjectIndex: Number(btn.getAttribute("data-si")),
-                        taskIndex: -1,
-                        isNew: true
+                if (Notification.permission === "granted") run();
+                else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then((perm) => {
+                        if (perm === "granted") run();
                     });
-                };
-            });
-            document.querySelectorAll("[data-del-subject]").forEach((btn) => {
-                btn.onclick = async () => {
-                    if (!canEditDashboard()) return;
-                    const si = Number(btn.getAttribute("data-si"));
-                    const name = subjectData[si]?.subject || "subject";
-                    if (!window.confirm(`Delete entire subject ${name} and all its tasks?`)) return;
-                    subjectData.splice(si, 1);
-                    try {
-                        await saveDashboardData();
-                        setEditStatus("Subject deleted.");
-                    } catch (error) {
-                        setEditStatus("Deleted locally (cloud write failed).");
-                    }
-                    refreshDashboard();
-                };
-            });
+                }
+            } catch (e) { /* ignore */ }
         }
 
         function refreshDashboard() {
             updateClock();
             updateOverview();
             renderSubjects();
-            applyEditorAccess();
-        }
-
-        function initEditorControls() {
-            const themeBtn = document.getElementById("themeBtn");
-            if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
-
-            const toggleBtn = document.getElementById("toggleEditModeBtn");
-            if (toggleBtn) {
-                toggleBtn.addEventListener("click", () => {
-                    if (!canEditDashboard()) {
-                        setEditStatus("Login as RST Admin or P.I.O. on the Section Hub first.");
-                        return;
-                    }
-                    editMode = !editMode;
-                    document.body.classList.toggle("edit-mode", editMode);
-                    toggleBtn.textContent = editMode ? "Disable editing" : "Enable editing";
-                    setEditStatus(editMode ? "Editing on — use Edit / Delete on each task." : "Editing off.");
-                    renderSubjects();
-                });
-            }
-            const addTaskBtn = document.getElementById("addTaskBtn");
-            if (addTaskBtn) {
-                addTaskBtn.addEventListener("click", () => {
-                    if (!subjectData.length) {
-                        openSubjectModal();
-                        return;
-                    }
-                    openTaskModal({ subjectIndex: 0, taskIndex: -1, isNew: true });
-                });
-            }
-            const addSubjectBtn = document.getElementById("addSubjectBtn");
-            if (addSubjectBtn) addSubjectBtn.addEventListener("click", openSubjectModal);
-
-            const reloadBtn = document.getElementById("reloadCloudBtn");
-            if (reloadBtn) {
-                reloadBtn.addEventListener("click", async () => {
-                    setEditStatus("Reloading…");
-                    const source = await loadDashboardData();
-                    await loadQuotes();
-                    refreshDashboard();
-                    setEditStatus(`Loaded from ${source}.`);
-                });
-            }
-            const editQuoteBtn = document.getElementById("editQuoteBtn");
-            if (editQuoteBtn) {
-                editQuoteBtn.addEventListener("click", openQuoteModal);
-            }
+            persistDashboardPending();
         }
 
         loadTheme();
-        initEditorControls();
-        applyEditorAccess();
-        renderQuotes();
-        Promise.all([loadDashboardData(), loadQuotes()]).then(([source]) => {
-            refreshDashboard();
-            if (canEditDashboard()) {
-                setEditStatus(`Editor available · data from ${source}.`);
-            }
-        });
-        setInterval(() => {
-            updateClock();
-            updateOverview();
-            // Re-render only timers without killing open modals
-            if (!document.querySelector(".edit-modal-overlay")) {
-                renderSubjects();
-            }
-        }, 1000);
+        refreshDashboard();
+        setTimeout(notifyPendingDashboardTasks, 800);
+        setInterval(refreshDashboard, 1000);
     </script>
 </body>
 </html>
