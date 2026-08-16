@@ -790,13 +790,14 @@
                     <button type="button" class="edit-btn" id="addTaskBtn">+ Add task</button>
                     <button type="button" class="edit-btn" id="addSubjectBtn">+ Add subject</button>
                     <button type="button" class="edit-btn" id="reloadCloudBtn">Reload from cloud</button>
-                    <button type="button" class="edit-btn primary-ai" id="openAiImportBtn">✨ AI Import</button>
+                    <button type="button" class="edit-btn primary-ai" id="openAiImportBtn">✨ RST AI</button>
                 </div>
                 <div class="edit-status" id="editStatus"></div>
             </div>
             <div class="ai-import-panel" id="aiImportPanel">
-                <strong>✨ AI Reminder Import</strong>
-                <p class="ai-hint">Paste the full PIO announcement below. AI will extract subjects, tasks, deadlines, and assignees. Review everything before importing to the dashboard.</p>
+                <strong>✨ RST AI</strong>
+                <p class="ai-hint" style="margin-bottom:0.2rem;"><strong>Reminder Structuring &amp; Tracking AI</strong></p>
+                <p class="ai-hint">Paste the P.I.O. announcement below and let RST AI organize it into dashboard reminders. Review everything before importing.</p>
                 <textarea id="aiPioText" maxlength="12000" placeholder="Paste the entire PIO reminder message here…" aria-label="PIO announcement text"></textarea>
                 <div class="edit-actions">
                     <button type="button" class="edit-btn primary-ai" id="aiGenerateBtn">✨ Generate Reminders</button>
@@ -1266,16 +1267,12 @@
         }
 
         /* =====================================================================
-           AI REMINDER IMPORT — PIO paragraph → structured tasks
-           Calls secure Vercel Serverless Function (API key stays server-side).
+           RST AI — Reminder Structuring & Tracking AI
+           Live Vercel endpoint (xAI key stays server-side only).
            Review UI before merge into existing subjectData / Firebase.
         ===================================================================== */
-        const AI_ENDPOINT_KEY = "bscs1a_ai_import_endpoint_v1";
-        /* After Vercel deploy, set once if default differs:
-           localStorage.setItem("bscs1a_ai_import_endpoint_v1",
-             "https://YOUR_PROJECT.vercel.app/api/parse-pio-reminders"); */
-        const DEFAULT_AI_ENDPOINT =
-            "https://bscs-ai-import.vercel.app/api/parse-pio-reminders";
+        const RST_AI_ENDPOINT =
+            "https://reminders-dashboard-eosin.vercel.app/api/parse-pio-reminders";
 
         const SUBJECT_META = {
             "GEC 102": { icon: "🇵🇭", fullName: "Readings in Philippine History", color: "#ffd166" },
@@ -1295,11 +1292,7 @@
         let aiPreviewItems = []; // [{ ...task fields, _remove: false, _dup: false }]
 
         function getAiEndpoint() {
-            try {
-                const stored = localStorage.getItem(AI_ENDPOINT_KEY);
-                if (stored && /^https:\/\//i.test(stored)) return stored.trim();
-            } catch (e) { /* ignore */ }
-            return DEFAULT_AI_ENDPOINT;
+            return RST_AI_ENDPOINT;
         }
 
         function setAiStatus(msg) {
@@ -1664,35 +1657,48 @@
 
         async function callAiImportApi(pioText) {
             const endpoint = getAiEndpoint();
-            const idToken = await getEditorIdToken();
-            const session = loadAuthSession() || {};
-            const res = await fetch(endpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + idToken
-                },
-                body: JSON.stringify({
-                    text: pioText,
-                    username: session.username || "",
-                    role: session.role || "",
-                    company: "RST"
-                })
-            });
+            let res;
+            try {
+                res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        text: pioText
+                    })
+                });
+            } catch (networkErr) {
+                throw new Error("Network error. Check your connection and try again.");
+            }
             if (!res.ok) {
                 let detail = "";
                 try {
                     const errBody = await res.json();
                     detail = errBody.error || errBody.message || "";
                 } catch (e) { /* ignore */ }
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error(detail || "Not authorized for AI Import. Sign in with the Admin/P.I.O. Firebase account.");
+                if (res.status === 400) {
+                    throw new Error(detail || "RST AI could not read that announcement. Check the text and try again.");
                 }
-                throw new Error(detail || ("AI service error (" + res.status + ")"));
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error(detail || "RST AI is not available for this account right now.");
+                }
+                if (res.status === 429) {
+                    throw new Error("RST AI is busy. Please wait a moment and try again.");
+                }
+                if (res.status >= 500) {
+                    throw new Error("RST AI could not process the announcement right now. Please try again.");
+                }
+                throw new Error(detail || ("RST AI request failed (" + res.status + ")."));
             }
-            const data = await res.json();
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                throw new Error("RST AI returned an invalid response. Please try again.");
+            }
             if (!data || !Array.isArray(data.items)) {
-                throw new Error("Malformed AI response — missing items array.");
+                throw new Error("RST AI returned no reminder list. Please try again.");
             }
             return data;
         }
@@ -1714,27 +1720,26 @@
             }
             const btn = document.getElementById("aiGenerateBtn");
             if (btn) btn.disabled = true;
-            setAiStatus("Checking editor authorization…");
+            setAiStatus("RST AI is analyzing the announcement...");
             setAiImportStatus("");
             aiPreviewItems = [];
             renderAiResults();
             try {
-                setAiStatus("Analyzing PIO announcement…");
                 const data = await callAiImportApi(text);
                 aiPreviewItems = normalizeAiResponse(data);
                 if (!aiPreviewItems.length) {
-                    setAiStatus("AI returned no tasks. Try pasting a clearer reminder list.");
+                    setAiStatus("RST AI found no tasks. Try pasting a clearer reminder list.");
                 } else {
-                    const keep = aiPreviewItems.filter((x) => !x._dup).length;
                     const dups = aiPreviewItems.filter((x) => x._dup).length;
-                    setAiStatus(`Found ${aiPreviewItems.length} task(s)${dups ? ` · ${dups} possible duplicate(s)` : ""}. Review, then Import.`);
+                    setAiStatus(`RST AI found ${aiPreviewItems.length} task(s)${dups ? ` · ${dups} possible duplicate(s)` : ""}. Review, then Import.`);
                 }
                 renderAiResults();
             } catch (error) {
-                console.warn("[AI Import]", error);
+                console.warn("[RST AI]", error);
                 setAiStatus(
-                    "AI request failed: " + (error && error.message ? error.message : "network/error") +
-                    ". Check Vercel function deploy + env vars + endpoint: " + getAiEndpoint()
+                    (error && error.message)
+                        ? error.message
+                        : "RST AI could not process the announcement right now. Please try again."
                 );
             } finally {
                 if (btn) btn.disabled = false;
