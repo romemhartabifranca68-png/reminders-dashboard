@@ -3,9 +3,10 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
+ * Backend: Google Gemini 1.5 Flash (free tier)
  *
  * Required Vercel Environment Variable:
- *   XAI_API_KEY
+ *   GEMINI_API_KEY
  *
  * Optional (Firebase Auth verification):
  *   FIREBASE_PROJECT_ID
@@ -23,8 +24,7 @@ const ALLOWED_EDITORS = {
 /** Set true to reject requests without a valid Admin/P.I.O. Firebase ID token */
 const REQUIRE_FIREBASE_AUTH = false;
 
-/** Exact xAI model — no other model fallbacks */
-const XAI_MODEL = "grok-2-latest";
+const GEMINI_MODEL = "gemini-1.5-flash";
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
@@ -77,8 +77,8 @@ function json(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function getXaiApiKey() {
-  const raw = process.env.XAI_API_KEY;
+function getGeminiApiKey() {
+  const raw = process.env.GEMINI_API_KEY;
   if (raw == null) return "";
   return String(raw).trim();
 }
@@ -211,88 +211,89 @@ function readBody(req) {
 }
 
 /**
- * Call xAI chat completions with model "grok-2-latest" only.
- * Retries once without response_format if the API returns 400 for that field.
+ * Call Google Gemini generateContent API.
  */
-async function callXai(apiKey, userText) {
-  let lastStatus = 0;
-  let lastBody = "";
+async function callGemini(apiKey, userText) {
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    GEMINI_MODEL +
+    ":generateContent?key=" +
+    encodeURIComponent(apiKey);
 
-  for (const useJsonFormat of [true, false]) {
-    const payload = {
-      model: XAI_MODEL,
-      temperature: 0.1,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content:
-            "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
-            userText
-        }
-      ]
-    };
-    if (useJsonFormat) {
-      payload.response_format = { type: "json_object" };
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000);
-
-    let xaiRes;
-    try {
-      xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + apiKey
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    lastStatus = xaiRes.status;
-    lastBody = await xaiRes.text();
-
-    if (xaiRes.ok) {
-      let parsed;
-      try {
-        parsed = JSON.parse(lastBody);
-      } catch (e) {
-        const err = new Error("xAI returned non-JSON body.");
-        err.status = 502;
-        throw err;
+  const payload = {
+    systemInstruction: {
+      parts: [{ text: SYSTEM_PROMPT }]
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
+              userText
+          }
+        ]
       }
-      return { model: XAI_MODEL, data: parsed };
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: "application/json"
     }
+  };
 
-    if (xaiRes.status === 401 || xaiRes.status === 403) {
-      break;
-    }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000);
 
-    // Retry without response_format only on 400
-    if (xaiRes.status === 400 && useJsonFormat) {
-      continue;
-    }
-
-    break;
+  let geminiRes;
+  try {
+    geminiRes = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 
-  const safeDetail = String(lastBody || "")
-    .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted]")
-    .replace(/xai-[a-zA-Z0-9_-]+/g, "[redacted]")
-    .slice(0, 280);
+  const rawBody = await geminiRes.text();
 
-  const err = new Error(
-    "xAI API error (" + lastStatus + ")" +
-      (safeDetail ? ": " + safeDetail : ". Check XAI_API_KEY and model access.")
-  );
-  err.status = 502;
-  err.xaiStatus = lastStatus;
-  throw err;
+  if (!geminiRes.ok) {
+    const safeDetail = String(rawBody || "")
+      .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
+      .slice(0, 280);
+
+    const err = new Error(
+      "Gemini API error (" + geminiRes.status + ")" +
+        (safeDetail ? ": " + safeDetail : ". Check GEMINI_API_KEY and model access.")
+    );
+    err.status = 502;
+    err.geminiStatus = geminiRes.status;
+    throw err;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawBody);
+  } catch (e) {
+    const err = new Error("Gemini returned non-JSON body.");
+    err.status = 502;
+    throw err;
+  }
+
+  const text =
+    data &&
+    data.candidates &&
+    data.candidates[0] &&
+    data.candidates[0].content &&
+    data.candidates[0].content.parts &&
+    data.candidates[0].content.parts[0] &&
+    data.candidates[0].content.parts[0].text;
+
+  return { model: GEMINI_MODEL, content: text || null };
 }
 
 module.exports = async function handler(req, res) {
@@ -324,20 +325,13 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const apiKey = getXaiApiKey();
+    const apiKey = getGeminiApiKey();
     if (!apiKey) {
-      json(res, 500, { error: "Server misconfigured: missing XAI_API_KEY." });
+      json(res, 500, { error: "Server misconfigured: missing GEMINI_API_KEY." });
       return;
     }
 
-    const { model, data: xaiJson } = await callXai(apiKey, text);
-
-    const content =
-      xaiJson &&
-      xaiJson.choices &&
-      xaiJson.choices[0] &&
-      xaiJson.choices[0].message &&
-      xaiJson.choices[0].message.content;
+    const { model, content } = await callGemini(apiKey, text);
 
     const parsed = extractJson(content);
     if (!parsed || !Array.isArray(parsed.items)) {
@@ -367,7 +361,7 @@ module.exports = async function handler(req, res) {
     json(res, 200, {
       announcementDate: parsed.announcementDate || null,
       items,
-      source: "xai-grok",
+      source: "google-gemini",
       model,
       editor: editor ? editor.username : null
     });
@@ -382,7 +376,7 @@ module.exports = async function handler(req, res) {
       return;
     }
     if (status === 502) {
-      json(res, 502, { error: error.message || "xAI request failed." });
+      json(res, 502, { error: error.message || "Gemini request failed." });
       return;
     }
     console.error("[parse-pio-reminders]", error);
