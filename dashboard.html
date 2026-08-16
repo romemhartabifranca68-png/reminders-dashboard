@@ -1271,8 +1271,9 @@
            Live Vercel endpoint (xAI key stays server-side only).
            Review UI before merge into existing subjectData / Firebase.
         ===================================================================== */
-        const RST_AI_ENDPOINT =
+        const RST_API_ENDPOINT =
             "https://reminders-dashboard-eosin.vercel.app/api/parse-pio-reminders";
+        const RST_AI_ENDPOINT = RST_API_ENDPOINT;
 
         const SUBJECT_META = {
             "GEC 102": { icon: "🇵🇭", fullName: "Readings in Philippine History", color: "#ffd166" },
@@ -1292,7 +1293,7 @@
         let aiPreviewItems = []; // [{ ...task fields, _remove: false, _dup: false }]
 
         function getAiEndpoint() {
-            return RST_AI_ENDPOINT;
+            return RST_API_ENDPOINT;
         }
 
         function setAiStatus(msg) {
@@ -1657,46 +1658,84 @@
 
         async function callAiImportApi(pioText) {
             const endpoint = getAiEndpoint();
+            console.log("[RST] Endpoint:", endpoint);
+            console.log("[RST] Input length:", String(pioText || "").length);
+            console.log("[RST] Preparing request...");
+            console.log("[RST] Sending request...");
+
             let res;
             try {
                 res = await fetch(endpoint, {
                     method: "POST",
+                    mode: "cors",
+                    cache: "no-store",
+                    credentials: "omit",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        Accept: "application/json"
                     },
                     body: JSON.stringify({
                         text: pioText
                     })
                 });
             } catch (networkErr) {
-                throw new Error("Network error. Check your connection and try again.");
+                console.error("[RST] Fetch failed (no HTTP response / CORS / offline):", networkErr);
+                // Verified: this URL currently returns Vercel CDN 404 without CORS headers,
+                // which the browser surfaces as a network/CORS failure and leaves Function logs empty.
+                throw new Error(
+                    "RST could not connect to the AI server. " +
+                    "The browser blocked the response (often CORS or a missing /api route). " +
+                    "Confirm Vercel has /api/parse-pio-reminders deployed and returns Access-Control-Allow-Origin."
+                );
             }
+
+            console.log("[RST] Response received:", res.status);
+            try {
+                console.log("[RST] Response content-type:", res.headers.get("content-type"));
+            } catch (e) { /* ignore */ }
+
             if (!res.ok) {
                 let detail = "";
                 try {
                     const errBody = await res.json();
                     detail = errBody.error || errBody.message || "";
-                } catch (e) { /* ignore */ }
-                if (res.status === 400) {
-                    throw new Error(detail || "RST AI could not read that announcement. Check the text and try again.");
+                    console.warn("[RST] Error body:", errBody);
+                } catch (e) {
+                    try {
+                        detail = (await res.text()).slice(0, 200);
+                    } catch (e2) { /* ignore */ }
                 }
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error(detail || "RST AI is not available for this account right now.");
+                if (res.status === 404) {
+                    throw new Error(
+                        "RST server error: 404 Not Found — the Vercel route /api/parse-pio-reminders is missing on this project."
+                    );
+                }
+                if (res.status === 400) {
+                    throw new Error(detail || "RST server error: 400 — announcement text was rejected.");
+                }
+                if (res.status === 401) {
+                    throw new Error(detail || "RST server error: 401 Unauthorized");
+                }
+                if (res.status === 403) {
+                    throw new Error(detail || "RST server error: 403 Forbidden");
                 }
                 if (res.status === 429) {
-                    throw new Error("RST AI is busy. Please wait a moment and try again.");
+                    throw new Error(detail || "RST server error: 429 — too many requests. Wait and try again.");
                 }
                 if (res.status >= 500) {
-                    throw new Error("RST AI could not process the announcement right now. Please try again.");
+                    throw new Error(detail || ("RST server error: " + res.status + " Internal Server Error"));
                 }
-                throw new Error(detail || ("RST AI request failed (" + res.status + ")."));
+                throw new Error(detail || ("RST server error: " + res.status));
             }
+
             let data;
             try {
                 data = await res.json();
             } catch (e) {
+                console.error("[RST] Invalid JSON response", e);
                 throw new Error("RST AI returned an invalid response. Please try again.");
             }
+            console.log("[RST] Parsed response:", data);
             if (!data || !Array.isArray(data.items)) {
                 throw new Error("RST AI returned no reminder list. Please try again.");
             }
@@ -1704,6 +1743,7 @@
         }
 
         async function handleAiGenerate() {
+            console.log("[RST] Generate button clicked");
             if (!canEditDashboard()) {
                 setAiStatus("Login as RST Admin or P.I.O. first.");
                 return;
@@ -1720,7 +1760,7 @@
             }
             const btn = document.getElementById("aiGenerateBtn");
             if (btn) btn.disabled = true;
-            setAiStatus("RST AI is analyzing the announcement...");
+            setAiStatus("RST is analyzing the PIO announcement...");
             setAiImportStatus("");
             aiPreviewItems = [];
             renderAiResults();
@@ -1735,7 +1775,7 @@
                 }
                 renderAiResults();
             } catch (error) {
-                console.warn("[RST AI]", error);
+                console.error("[RST] Generate error:", error);
                 setAiStatus(
                     (error && error.message)
                         ? error.message
@@ -1803,7 +1843,16 @@
 
         function initAiImportControls() {
             const gen = document.getElementById("aiGenerateBtn");
-            if (gen) gen.addEventListener("click", handleAiGenerate);
+            if (gen) {
+                gen.addEventListener("click", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    handleAiGenerate();
+                });
+                console.log("[RST] Generate button listener attached");
+            } else {
+                console.warn("[RST] Generate button not found in DOM");
+            }
             const clearBtn = document.getElementById("aiClearBtn");
             if (clearBtn) {
                 clearBtn.addEventListener("click", () => {
