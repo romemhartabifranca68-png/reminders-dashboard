@@ -4,11 +4,13 @@
  *
  * RST — Reminder Structuring & Tracking AI
  *
- * Required Vercel Environment Variables:
- *   XAI_API_KEY              (required)
- *   FIREBASE_PROJECT_ID      (optional unless REQUIRE_FIREBASE_AUTH = true)
- *   FIREBASE_CLIENT_EMAIL    (optional unless REQUIRE_FIREBASE_AUTH = true)
- *   FIREBASE_PRIVATE_KEY     (optional; paste PEM with \n for newlines)
+ * Required Vercel Environment Variable:
+ *   XAI_API_KEY
+ *
+ * Optional (Firebase Auth verification):
+ *   FIREBASE_PROJECT_ID
+ *   FIREBASE_CLIENT_EMAIL
+ *   FIREBASE_PRIVATE_KEY
  */
 
 const admin = require("firebase-admin");
@@ -20,6 +22,9 @@ const ALLOWED_EDITORS = {
 
 /** Set true to reject requests without a valid Admin/P.I.O. Firebase ID token */
 const REQUIRE_FIREBASE_AUTH = false;
+
+/** Preferred xAI models (first available wins on retry) */
+const XAI_MODELS = ["grok-2-latest", "grok-2-1212"];
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
@@ -72,13 +77,19 @@ function json(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function getXaiApiKey() {
+  const raw = process.env.XAI_API_KEY;
+  if (raw == null) return "";
+  return String(raw).trim();
+}
+
 function initFirebaseAdmin() {
   if (admin.apps.length) return admin.app();
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY || "";
-  privateKey = privateKey.replace(/\\n/g, "\n");
+  privateKey = privateKey.replace(/\\n/g, "\n").trim();
 
   if (!projectId || !clientEmail || !privateKey) {
     return null;
@@ -86,8 +97,8 @@ function initFirebaseAdmin() {
 
   return admin.initializeApp({
     credential: admin.credential.cert({
-      projectId,
-      clientEmail,
+      projectId: String(projectId).trim(),
+      clientEmail: String(clientEmail).trim(),
       privateKey
     })
   });
@@ -199,6 +210,99 @@ function readBody(req) {
   return {};
 }
 
+/**
+ * Call xAI chat completions.
+ * Tries preferred models; retries without response_format if the API rejects it (400).
+ */
+async function callXai(apiKey, userText) {
+  let lastStatus = 0;
+  let lastBody = "";
+
+  for (const model of XAI_MODELS) {
+    // Attempt 1: with json_object response_format
+    // Attempt 2: without response_format (some accounts/models reject it)
+    for (const useJsonFormat of [true, false]) {
+      const payload = {
+        model,
+        temperature: 0.1,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content:
+              "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
+              userText
+          }
+        ]
+      };
+      if (useJsonFormat) {
+        payload.response_format = { type: "json_object" };
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 55000);
+
+      let xaiRes;
+      try {
+        xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + apiKey
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      lastStatus = xaiRes.status;
+      lastBody = await xaiRes.text();
+
+      if (xaiRes.ok) {
+        let parsed;
+        try {
+          parsed = JSON.parse(lastBody);
+        } catch (e) {
+          const err = new Error("xAI returned non-JSON body.");
+          err.status = 502;
+          throw err;
+        }
+        return { model, data: parsed };
+      }
+
+      // 401/403 = bad key — do not retry other models
+      if (xaiRes.status === 401 || xaiRes.status === 403) {
+        break;
+      }
+
+      // On 400, try next variant (no response_format / next model)
+      if (xaiRes.status === 400) {
+        continue;
+      }
+
+      // Other errors: stop early
+      break;
+    }
+
+    if (lastStatus === 401 || lastStatus === 403) break;
+  }
+
+  const safeDetail = String(lastBody || "")
+    .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted]")
+    .replace(/xai-[a-zA-Z0-9_-]+/g, "[redacted]")
+    .slice(0, 280);
+
+  const err = new Error(
+    "xAI API error (" + lastStatus + ")" +
+      (safeDetail ? ": " + safeDetail : ". Check XAI_API_KEY and model access.")
+  );
+  err.status = 502;
+  err.xaiStatus = lastStatus;
+  throw err;
+}
+
 module.exports = async function handler(req, res) {
   applyCors(res);
 
@@ -228,51 +332,14 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const apiKey = process.env.XAI_API_KEY;
+    const apiKey = getXaiApiKey();
     if (!apiKey) {
       json(res, 500, { error: "Server misconfigured: missing XAI_API_KEY." });
       return;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000);
+    const { model, data: xaiJson } = await callXai(apiKey, text);
 
-    let xaiRes;
-    try {
-      xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + apiKey
-        },
-        body: JSON.stringify({
-          model: "grok-2-latest",
-          temperature: 0.1,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content:
-                "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
-                text
-            }
-          ]
-        }),
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!xaiRes.ok) {
-      json(res, 502, {
-        error: "xAI API error (" + xaiRes.status + "). Check XAI_API_KEY and model access."
-      });
-      return;
-    }
-
-    const xaiJson = await xaiRes.json();
     const content =
       xaiJson &&
       xaiJson.choices &&
@@ -309,6 +376,7 @@ module.exports = async function handler(req, res) {
       announcementDate: parsed.announcementDate || null,
       items,
       source: "xai-grok",
+      model,
       editor: editor ? editor.username : null
     });
   } catch (error) {
@@ -319,6 +387,10 @@ module.exports = async function handler(req, res) {
     const status = error && error.status ? error.status : 500;
     if (status === 401 || status === 403) {
       json(res, status, { error: error.message || "Unauthorized" });
+      return;
+    }
+    if (status === 502) {
+      json(res, 502, { error: error.message || "xAI request failed." });
       return;
     }
     console.error("[parse-pio-reminders]", error);
