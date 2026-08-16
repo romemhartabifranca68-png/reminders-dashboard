@@ -1,9 +1,14 @@
 {
-  "version": 2,
   "functions": {
-    "api/parse-pio-reminders.js": {
-      "maxDuration": 60,
-      "memory": 256
+    "api/*.js": {
+      "memory": 1024,
+      "maxDuration": 10
     }
-  }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    }
+  ]
 }
