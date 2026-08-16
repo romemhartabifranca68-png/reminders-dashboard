@@ -3,7 +3,7 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Backend: Google Gemini 1.5 Flash (free tier)
+ * Backend: Google Gemini 2.0 Flash (free tier)
  *
  * Required Vercel Environment Variable:
  *   GEMINI_API_KEY
@@ -24,7 +24,7 @@ const ALLOWED_EDITORS = {
 /** Set true to reject requests without a valid Admin/P.I.O. Firebase ID token */
 const REQUIRE_FIREBASE_AUTH = false;
 
-const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_MODEL = "gemini-2.0-flash";
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
