@@ -23,8 +23,8 @@ const ALLOWED_EDITORS = {
 /** Set true to reject requests without a valid Admin/P.I.O. Firebase ID token */
 const REQUIRE_FIREBASE_AUTH = false;
 
-/** xAI models only — do not use grok-2-1212 (not available on this account) */
-const XAI_MODELS = ["grok-2-latest", "grok-beta"];
+/** Exact xAI model — no other model fallbacks */
+const XAI_MODEL = "grok-2-latest";
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
@@ -211,77 +211,74 @@ function readBody(req) {
 }
 
 /**
- * Call xAI chat completions.
- * Tries preferred models; retries without response_format if the API rejects it (400).
+ * Call xAI chat completions with model "grok-2-latest" only.
+ * Retries once without response_format if the API returns 400 for that field.
  */
 async function callXai(apiKey, userText) {
   let lastStatus = 0;
   let lastBody = "";
 
-  for (const model of XAI_MODELS) {
-    for (const useJsonFormat of [true, false]) {
-      const payload = {
-        model,
-        temperature: 0.1,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content:
-              "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
-              userText
-          }
-        ]
-      };
-      if (useJsonFormat) {
-        payload.response_format = { type: "json_object" };
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 55000);
-
-      let xaiRes;
-      try {
-        xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + apiKey
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      lastStatus = xaiRes.status;
-      lastBody = await xaiRes.text();
-
-      if (xaiRes.ok) {
-        let parsed;
-        try {
-          parsed = JSON.parse(lastBody);
-        } catch (e) {
-          const err = new Error("xAI returned non-JSON body.");
-          err.status = 502;
-          throw err;
+  for (const useJsonFormat of [true, false]) {
+    const payload = {
+      model: XAI_MODEL,
+      temperature: 0.1,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content:
+            "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
+            userText
         }
-        return { model, data: parsed };
-      }
+      ]
+    };
+    if (useJsonFormat) {
+      payload.response_format = { type: "json_object" };
+    }
 
-      if (xaiRes.status === 401 || xaiRes.status === 403) {
-        break;
-      }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55000);
 
-      if (xaiRes.status === 400) {
-        continue;
-      }
+    let xaiRes;
+    try {
+      xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + apiKey
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
+    lastStatus = xaiRes.status;
+    lastBody = await xaiRes.text();
+
+    if (xaiRes.ok) {
+      let parsed;
+      try {
+        parsed = JSON.parse(lastBody);
+      } catch (e) {
+        const err = new Error("xAI returned non-JSON body.");
+        err.status = 502;
+        throw err;
+      }
+      return { model: XAI_MODEL, data: parsed };
+    }
+
+    if (xaiRes.status === 401 || xaiRes.status === 403) {
       break;
     }
 
-    if (lastStatus === 401 || lastStatus === 403) break;
+    // Retry without response_format only on 400
+    if (xaiRes.status === 400 && useJsonFormat) {
+      continue;
+    }
+
+    break;
   }
 
   const safeDetail = String(lastBody || "")
