@@ -23,8 +23,8 @@ const ALLOWED_EDITORS = {
 /** Set true to reject requests without a valid Admin/P.I.O. Firebase ID token */
 const REQUIRE_FIREBASE_AUTH = false;
 
-/** Preferred xAI models (first available wins on retry) */
-const XAI_MODELS = ["grok-2-latest", "grok-2-1212"];
+/** xAI models only — do not use grok-2-1212 (not available on this account) */
+const XAI_MODELS = ["grok-2-latest", "grok-beta"];
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
@@ -219,8 +219,6 @@ async function callXai(apiKey, userText) {
   let lastBody = "";
 
   for (const model of XAI_MODELS) {
-    // Attempt 1: with json_object response_format
-    // Attempt 2: without response_format (some accounts/models reject it)
     for (const useJsonFormat of [true, false]) {
       const payload = {
         model,
@@ -272,17 +270,14 @@ async function callXai(apiKey, userText) {
         return { model, data: parsed };
       }
 
-      // 401/403 = bad key — do not retry other models
       if (xaiRes.status === 401 || xaiRes.status === 403) {
         break;
       }
 
-      // On 400, try next variant (no response_format / next model)
       if (xaiRes.status === 400) {
         continue;
       }
 
-      // Other errors: stop early
       break;
     }
 
