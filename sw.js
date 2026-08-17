@@ -1,6 +1,25 @@
 /* BSCS 1-A RST Hub — lightweight service worker */
-const CACHE = "bscs1a-rst-hub-v2";
+const CACHE = "bscs1a-rst-hub-v3";
 const PRECACHE = ["./", "./index.html", "./game.js", "./logo.png", "./manifest.webmanifest"];
+
+/** Never intercept / cache these (AI API, Firebase, Google APIs) */
+function shouldBypass(urlString) {
+  try {
+    const u = new URL(urlString);
+    const host = u.hostname.toLowerCase();
+    if (host.endsWith(".vercel.app")) return true;
+    if (host === "reminders-dashboard-eosin.vercel.app") return true;
+    if (host.includes("googleapis.com")) return true;
+    if (host.includes("gstatic.com")) return true;
+    if (host.includes("firebaseio.com")) return true;
+    if (host.includes("firebase.com")) return true;
+    if (host.includes("firebasestorage.googleapis.com")) return true;
+    if (u.pathname.startsWith("/api/")) return true;
+  } catch (e) {
+    /* ignore */
+  }
+  return false;
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -18,7 +37,11 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+
+  // Bypass: non-GET (POST/PUT/OPTIONS) and external AI/API hosts
   if (req.method !== "GET") return;
+  if (shouldBypass(req.url)) return;
+
   event.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req)
