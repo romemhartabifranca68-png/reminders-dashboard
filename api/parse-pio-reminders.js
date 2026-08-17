@@ -3,7 +3,7 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Backend: Google Gemini (v1beta)
+ * Backend: Google Gemini 2.0 Flash (v1beta)
  *
  * Required Vercel Environment Variable:
  *   GEMINI_API_KEY
@@ -42,12 +42,7 @@ HARD RULES:
 8. deadline = YYYY-MM-DD when clear; else null and keep deadlineText.
 9. Ignore quotes, greetings, and @everyone.`;
 
-/** Models to try in order (first success wins) */
-const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash"
-];
+const GEMINI_MODEL = "gemini-2.0-flash";
 
 function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -85,44 +80,6 @@ function extractJson(text) {
   return null;
 }
 
-async function callGeminiModel(apiKey, model, userText) {
-  const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/" +
-    encodeURIComponent(model) +
-    ":generateContent?key=" +
-    encodeURIComponent(apiKey);
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text: SYSTEM_PROMPT + "\n\nPIO Announcement to parse:\n" + userText
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.1
-      }
-    })
-  });
-
-  const raw = await response.text();
-  let data = null;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    data = { raw: raw.slice(0, 300) };
-  }
-
-  return { ok: response.ok, status: response.status, data, model };
-}
-
 module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") {
     applyCors(res);
@@ -152,81 +109,92 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let last = null;
+    const url =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
+      encodeURIComponent(apiKey);
 
-    for (const model of GEMINI_MODELS) {
-      last = await callGeminiModel(apiKey, model, text);
-
-      if (last.ok) {
-        const rawText =
-          last.data &&
-          last.data.candidates &&
-          last.data.candidates[0] &&
-          last.data.candidates[0].content &&
-          last.data.candidates[0].content.parts &&
-          last.data.candidates[0].content.parts[0] &&
-          last.data.candidates[0].content.parts[0].text;
-
-        const parsed = extractJson(rawText);
-        if (!parsed || !Array.isArray(parsed.items)) {
-          return json(res, 502, {
-            error: "AI returned malformed JSON.",
-            model: last.model
-          });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: SYSTEM_PROMPT + "\n\nPIO Announcement to parse:\n" + text
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.1
         }
+      })
+    });
 
-        // Normalize items for dashboard
-        const items = parsed.items
-          .filter((it) => it && (it.title || it.subjectCode))
-          .map((it) => ({
-            subjectCode: it.subjectCode || it.subject || null,
-            subjectName: it.subjectName || it.fullName || null,
-            title: String(it.title || "Untitled").slice(0, 160),
-            description: it.description ? String(it.description).slice(0, 500) : null,
-            deadline: it.deadline || null,
-            deadlineText: it.deadlineText || null,
-            tentative: !!it.tentative,
-            submissionLocation: it.submissionLocation || null,
-            assignedStudents: Array.isArray(it.assignedStudents)
-              ? it.assignedStudents.map((n) => String(n).slice(0, 60)).slice(0, 20)
-              : [],
-            tags: Array.isArray(it.tags)
-              ? it.tags.map((t) => String(t).slice(0, 40)).slice(0, 8)
-              : []
-          }));
-
-        return json(res, 200, {
-          announcementDate: parsed.announcementDate || null,
-          items,
-          source: "google-gemini",
-          model: last.model
-        });
-      }
-
-      // Model not found → try next model
-      const msg = JSON.stringify(last.data || {});
-      if (last.status === 404 && /not found|NOT_FOUND/i.test(msg)) {
-        continue;
-      }
-
-      // Auth / quota errors → stop
-      if (last.status === 401 || last.status === 403 || last.status === 429) {
-        break;
-      }
+    const raw = await response.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return json(res, 502, {
+        error: "Gemini returned non-JSON body.",
+        detail: String(raw).slice(0, 300)
+      });
     }
 
-    const detail = last
-      ? JSON.stringify(last.data).replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]").slice(0, 400)
-      : "no response";
+    if (!response.ok) {
+      const detail = JSON.stringify(data)
+        .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
+        .slice(0, 400);
+      // Always 502 for upstream AI errors (not 404) so UI is clear
+      return json(res, 502, {
+        error: "Gemini API error (" + response.status + ", model=" + GEMINI_MODEL + "): " + detail
+      });
+    }
 
-    // Always 502 for upstream Gemini failures (NOT 404) so the dashboard
-    // does not show "Vercel route missing".
-    return json(res, 502, {
-      error:
-        "Gemini API error" +
-        (last ? " (" + last.status + ", model=" + last.model + ")" : "") +
-        ": " +
-        detail
+    const rawText =
+      data &&
+      data.candidates &&
+      data.candidates[0] &&
+      data.candidates[0].content &&
+      data.candidates[0].content.parts &&
+      data.candidates[0].content.parts[0] &&
+      data.candidates[0].content.parts[0].text;
+
+    const parsed = extractJson(rawText);
+    if (!parsed || !Array.isArray(parsed.items)) {
+      return json(res, 502, {
+        error: "AI returned malformed JSON.",
+        model: GEMINI_MODEL
+      });
+    }
+
+    const items = parsed.items
+      .filter((it) => it && (it.title || it.subjectCode))
+      .map((it) => ({
+        subjectCode: it.subjectCode || it.subject || null,
+        subjectName: it.subjectName || it.fullName || null,
+        title: String(it.title || "Untitled").slice(0, 160),
+        description: it.description ? String(it.description).slice(0, 500) : null,
+        deadline: it.deadline || null,
+        deadlineText: it.deadlineText || null,
+        tentative: !!it.tentative,
+        submissionLocation: it.submissionLocation || null,
+        assignedStudents: Array.isArray(it.assignedStudents)
+          ? it.assignedStudents.map((n) => String(n).slice(0, 60)).slice(0, 20)
+          : [],
+        tags: Array.isArray(it.tags)
+          ? it.tags.map((t) => String(t).slice(0, 40)).slice(0, 8)
+          : []
+      }));
+
+    return json(res, 200, {
+      announcementDate: parsed.announcementDate || null,
+      items,
+      source: "google-gemini",
+      model: GEMINI_MODEL
     });
   } catch (err) {
     return json(res, 500, {
