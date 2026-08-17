@@ -3,7 +3,8 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Backend: Google Gemini 2.5 Flash (v1beta)
+ * Backend: Google Gemini generateContent (v1beta)
+ * Model: gemini-3.6-flash (current GA Flash per Google AI docs, Aug 2026)
  *
  * Required Vercel Environment Variable:
  *   GEMINI_API_KEY
@@ -42,7 +43,8 @@ HARD RULES:
 8. deadline = YYYY-MM-DD when clear; else null and keep deadlineText.
 9. Ignore quotes, greetings, and @everyone.`;
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+/** Current Google AI Flash model (GA). Do not use gemini-2.5-flash for new keys. */
+const GEMINI_MODEL = "gemini-3.6-flash";
 
 function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -91,7 +93,10 @@ module.exports = async function handler(req, res) {
     return json(res, 405, { error: "Method not allowed. Use POST." });
   }
 
+  console.log("[RST] Request received");
+
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+  console.log("[RST] Gemini API key present:", Boolean(apiKey));
   if (!apiKey) {
     return json(res, 500, {
       error: "Missing GEMINI_API_KEY in Vercel environment variables."
@@ -100,6 +105,9 @@ module.exports = async function handler(req, res) {
 
   const body = req.body || {};
   const text = typeof body.text === "string" ? body.text.trim() : "";
+
+  console.log("[RST] Input length:", text.length);
+  console.log("[RST] Gemini model:", GEMINI_MODEL);
 
   if (!text || text.length < 10) {
     return json(res, 400, { error: "Missing or too-short 'text' in body." });
@@ -110,8 +118,12 @@ module.exports = async function handler(req, res) {
 
   try {
     const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
+      "https://generativelanguage.googleapis.com/v1beta/models/" +
+      encodeURIComponent(GEMINI_MODEL) +
+      ":generateContent?key=" +
       encodeURIComponent(apiKey);
+
+    console.log("[RST] Sending request to Gemini...");
 
     const response = await fetch(url, {
       method: "POST",
@@ -138,6 +150,8 @@ module.exports = async function handler(req, res) {
     try {
       data = JSON.parse(raw);
     } catch (e) {
+      console.error("[RST] Gemini HTTP status:", response.status);
+      console.error("[RST] Gemini non-JSON body:", String(raw).slice(0, 300));
       return json(res, 502, {
         error: "Gemini returned non-JSON body.",
         detail: String(raw).slice(0, 300)
@@ -147,10 +161,17 @@ module.exports = async function handler(req, res) {
     if (!response.ok) {
       const detail = JSON.stringify(data)
         .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
-        .slice(0, 400);
-      // Always 502 for upstream AI errors (not 404) so UI is clear
+        .slice(0, 500);
+      console.error("[RST] Gemini HTTP status:", response.status);
+      console.error("[RST] Gemini error:", detail);
       return json(res, 502, {
-        error: "Gemini API error (" + response.status + ", model=" + GEMINI_MODEL + "): " + detail
+        error:
+          "Gemini API error (" +
+          response.status +
+          ", model=" +
+          GEMINI_MODEL +
+          "): " +
+          detail
       });
     }
 
@@ -165,6 +186,7 @@ module.exports = async function handler(req, res) {
 
     const parsed = extractJson(rawText);
     if (!parsed || !Array.isArray(parsed.items)) {
+      console.error("[RST] Malformed model JSON:", String(rawText || "").slice(0, 300));
       return json(res, 502, {
         error: "AI returned malformed JSON.",
         model: GEMINI_MODEL
@@ -190,6 +212,8 @@ module.exports = async function handler(req, res) {
           : []
       }));
 
+    console.log("[RST] Success. items=", items.length, "model=", GEMINI_MODEL);
+
     return json(res, 200, {
       announcementDate: parsed.announcementDate || null,
       items,
@@ -197,6 +221,7 @@ module.exports = async function handler(req, res) {
       model: GEMINI_MODEL
     });
   } catch (err) {
+    console.error("[RST] Internal error:", err && err.message ? err.message : err);
     return json(res, 500, {
       error: "Internal Server Error",
       details: err && err.message ? err.message : String(err)
