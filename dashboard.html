@@ -1659,10 +1659,9 @@
         async function callAiImportApi(pioText) {
             // ALWAYS absolute Vercel URL — never relative /api/...
             const endpoint = "https://reminders-dashboard-eosin.vercel.app/api/parse-pio-reminders";
-            console.log("[RST] Endpoint:", endpoint);
-            console.log("[RST] Input length:", String(pioText || "").length);
-            console.log("[RST] Preparing request...");
-            console.log("[RST] Sending request...");
+            console.log("[RST AI] Request start");
+            console.log("[RST AI] Endpoint:", endpoint);
+            console.log("[RST AI] Input length:", String(pioText || "").length);
 
             let res;
             try {
@@ -1680,64 +1679,53 @@
                     })
                 });
             } catch (networkErr) {
-                console.error("[RST] Fetch failed (no HTTP response / CORS / offline):", networkErr);
+                console.error("[RST AI] Request failed:", networkErr);
+                console.error("[RST AI] Endpoint:", endpoint);
                 throw new Error(
-                    "RST could not connect to the AI server. " +
-                    "Check internet connection, or clear site cache / service worker, then try again."
+                    "RST could not reach the Vercel backend (network/CORS). " +
+                    "If this persists, the function may be timing out without CORS headers — set maxDuration to 60s on Vercel."
                 );
             }
 
-            console.log("[RST] Response received:", res.status);
+            const status = res.status;
+            const contentType = res.headers.get("content-type") || "";
+            const rawText = await res.text();
+            console.log("[RST AI] HTTP status:", status);
+            console.log("[RST AI] Content-Type:", contentType);
+            console.log("[RST AI] Response text:", String(rawText).slice(0, 500));
+
+            let data = null;
             try {
-                console.log("[RST] Response content-type:", res.headers.get("content-type"));
-            } catch (e) { /* ignore */ }
+                data = rawText ? JSON.parse(rawText) : null;
+            } catch (parseErr) {
+                console.error("[RST AI] JSON parse failed:", parseErr);
+                if (status === 504 || /FUNCTION_INVOCATION_TIMEOUT/i.test(rawText)) {
+                    throw new Error("RST backend timed out (HTTP 504). Increase Vercel maxDuration to 60s and redeploy.");
+                }
+                throw new Error(
+                    "RST returned non-JSON (HTTP " + status + "): " +
+                    String(rawText).replace(/<[^>]+>/g, " ").slice(0, 180)
+                );
+            }
 
             if (!res.ok) {
-                let detail = "";
-                try {
-                    const errBody = await res.json();
-                    detail = errBody.error || errBody.message || "";
-                    console.warn("[RST] Error body:", errBody);
-                } catch (e) {
-                    try {
-                        detail = (await res.text()).slice(0, 200);
-                    } catch (e2) { /* ignore */ }
-                }
-                if (res.status === 404) {
-                    throw new Error(
-                        detail ||
-                        "RST server error: 404 — endpoint or AI model not found. Check Vercel logs / GEMINI model."
-                    );
-                }
-                if (res.status === 400) {
-                    throw new Error(detail || "RST server error: 400 — announcement text was rejected.");
-                }
-                if (res.status === 401) {
-                    throw new Error(detail || "RST server error: 401 Unauthorized");
-                }
-                if (res.status === 403) {
-                    throw new Error(detail || "RST server error: 403 Forbidden");
-                }
-                if (res.status === 429) {
-                    throw new Error(detail || "RST server error: 429 — too many requests. Wait and try again.");
-                }
-                if (res.status >= 500) {
-                    throw new Error(detail || ("RST server error: " + res.status + " Internal Server Error"));
-                }
-                throw new Error(detail || ("RST server error: " + res.status));
+                const detail = (data && (data.error || data.message || data.details)) || "";
+                console.error("[RST AI] Error payload:", data);
+                if (status === 404) throw new Error(detail || "RST API endpoint not found.");
+                if (status === 401) throw new Error(detail || "RST authorization failed.");
+                if (status === 403) throw new Error(detail || "RST access denied.");
+                if (status === 405) throw new Error(detail || "RST endpoint does not allow this request method.");
+                if (status === 429) throw new Error(detail || "RST rate limited. Wait and try again.");
+                if (status === 502) throw new Error(detail || "RST AI provider error.");
+                if (status === 504) throw new Error(detail || "RST backend timed out.");
+                if (status >= 500) throw new Error(detail || "RST backend error.");
+                throw new Error(detail || ("RST request failed (HTTP " + status + ")."));
             }
 
-            let data;
-            try {
-                data = await res.json();
-            } catch (e) {
-                console.error("[RST] Invalid JSON response", e);
-                throw new Error("RST AI returned an invalid response. Please try again.");
-            }
-            console.log("[RST] Parsed response:", data);
             if (!data || !Array.isArray(data.items)) {
                 throw new Error("RST AI returned no reminder list. Please try again.");
             }
+            console.log("[RST AI] Request end. items=", data.items.length);
             return data;
         }
 
