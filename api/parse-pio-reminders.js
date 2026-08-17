@@ -3,11 +3,10 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Backend: Google Gemini generateContent (v1beta)
- * Model: gemini-3.6-flash (current GA Flash per Google AI docs, Aug 2026)
+ * Provider: xAI Grok (NOT Gemini)
  *
  * Required Vercel Environment Variable:
- *   GEMINI_API_KEY
+ *   XAI_API_KEY
  */
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
@@ -43,12 +42,12 @@ HARD RULES:
 8. deadline = YYYY-MM-DD when clear; else null and keep deadlineText.
 9. Ignore quotes, greetings, and @everyone.`;
 
-/** Current Google AI Flash model (GA). Do not use gemini-2.5-flash for new keys. */
-const GEMINI_MODEL = "gemini-3.6-flash";
+/** xAI model id for Chat Completions API (docs.x.ai, Aug 2026) */
+const XAI_MODEL = "grok-4.5";
 
 function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
@@ -82,11 +81,38 @@ function extractJson(text) {
   return null;
 }
 
+function readBody(req) {
+  if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) {
+    return req.body;
+  }
+  if (typeof req.body === "string") {
+    try {
+      return JSON.parse(req.body);
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
+
 module.exports = async function handler(req, res) {
+  applyCors(res);
+
   if (req.method === "OPTIONS") {
-    applyCors(res);
     res.statusCode = 204;
-    return res.end();
+    return res.end("");
+  }
+
+  // Health check — never exposes secrets
+  if (req.method === "GET") {
+    const configured = Boolean(String(process.env.XAI_API_KEY || "").trim());
+    return json(res, 200, {
+      ok: true,
+      service: "RST AI",
+      provider: "xAI",
+      model: XAI_MODEL,
+      configured
+    });
   }
 
   if (req.method !== "POST") {
@@ -94,20 +120,19 @@ module.exports = async function handler(req, res) {
   }
 
   console.log("[RST] Request received");
+  console.log("[RST] Method:", req.method);
 
-  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
-  console.log("[RST] Gemini API key present:", Boolean(apiKey));
+  const apiKey = String(process.env.XAI_API_KEY || "").trim();
+  console.log("[RST] XAI_API_KEY configured:", Boolean(apiKey));
   if (!apiKey) {
     return json(res, 500, {
-      error: "Missing GEMINI_API_KEY in Vercel environment variables."
+      error: "Missing XAI_API_KEY in Vercel environment variables."
     });
   }
 
-  const body = req.body || {};
+  const body = readBody(req);
   const text = typeof body.text === "string" ? body.text.trim() : "";
-
-  console.log("[RST] Input length:", text.length);
-  console.log("[RST] Gemini model:", GEMINI_MODEL);
+  console.log("[RST] Text length:", text.length);
 
   if (!text || text.length < 10) {
     return json(res, 400, { error: "Missing or too-short 'text' in body." });
@@ -117,80 +142,71 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/" +
-      encodeURIComponent(GEMINI_MODEL) +
-      ":generateContent?key=" +
-      encodeURIComponent(apiKey);
+    console.log("[RST] Calling xAI... model=", XAI_MODEL);
 
-    console.log("[RST] Sending request to Gemini...");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 50000);
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: SYSTEM_PROMPT + "\n\nPIO Announcement to parse:\n" + text
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1
-        }
-      })
-    });
-
-    const raw = await response.text();
-    let data;
+    let xaiRes;
     try {
-      data = JSON.parse(raw);
+      xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + apiKey
+        },
+        body: JSON.stringify({
+          model: XAI_MODEL,
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            {
+              role: "user",
+              content:
+                "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
+                text
+            }
+          ]
+        }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const raw = await xaiRes.text();
+    console.log("[RST] xAI response status:", xaiRes.status);
+
+    if (!xaiRes.ok) {
+      const safe = String(raw)
+        .replace(/xai-[a-zA-Z0-9_-]+/g, "[redacted]")
+        .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted]")
+        .slice(0, 400);
+      console.error("[RST] xAI error body:", safe);
+      return json(res, 502, {
+        error: "RST AI provider error (" + xaiRes.status + "): " + safe
+      });
+    }
+
+    let xaiJson;
+    try {
+      xaiJson = JSON.parse(raw);
     } catch (e) {
-      console.error("[RST] Gemini HTTP status:", response.status);
-      console.error("[RST] Gemini non-JSON body:", String(raw).slice(0, 300));
-      return json(res, 502, {
-        error: "Gemini returned non-JSON body.",
-        detail: String(raw).slice(0, 300)
-      });
+      return json(res, 502, { error: "xAI returned non-JSON body." });
     }
 
-    if (!response.ok) {
-      const detail = JSON.stringify(data)
-        .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
-        .slice(0, 500);
-      console.error("[RST] Gemini HTTP status:", response.status);
-      console.error("[RST] Gemini error:", detail);
-      return json(res, 502, {
-        error:
-          "Gemini API error (" +
-          response.status +
-          ", model=" +
-          GEMINI_MODEL +
-          "): " +
-          detail
-      });
-    }
+    const content =
+      xaiJson &&
+      xaiJson.choices &&
+      xaiJson.choices[0] &&
+      xaiJson.choices[0].message &&
+      xaiJson.choices[0].message.content;
 
-    const rawText =
-      data &&
-      data.candidates &&
-      data.candidates[0] &&
-      data.candidates[0].content &&
-      data.candidates[0].content.parts &&
-      data.candidates[0].content.parts[0] &&
-      data.candidates[0].content.parts[0].text;
-
-    const parsed = extractJson(rawText);
+    const parsed = extractJson(content);
     if (!parsed || !Array.isArray(parsed.items)) {
-      console.error("[RST] Malformed model JSON:", String(rawText || "").slice(0, 300));
-      return json(res, 502, {
-        error: "AI returned malformed JSON.",
-        model: GEMINI_MODEL
-      });
+      console.error("[RST] Malformed model output:", String(content || "").slice(0, 300));
+      return json(res, 502, { error: "AI returned malformed JSON." });
     }
 
     const items = parsed.items
@@ -212,18 +228,21 @@ module.exports = async function handler(req, res) {
           : []
       }));
 
-    console.log("[RST] Success. items=", items.length, "model=", GEMINI_MODEL);
+    console.log("[RST] Request completed. items=", items.length);
 
     return json(res, 200, {
       announcementDate: parsed.announcementDate || null,
       items,
-      source: "google-gemini",
-      model: GEMINI_MODEL
+      source: "xai-grok",
+      model: XAI_MODEL
     });
   } catch (err) {
+    if (err && err.name === "AbortError") {
+      return json(res, 504, { error: "RST AI request timed out." });
+    }
     console.error("[RST] Internal error:", err && err.message ? err.message : err);
     return json(res, 500, {
-      error: "Internal Server Error",
+      error: "RST backend error",
       details: err && err.message ? err.message : String(err)
     });
   }
