@@ -1657,7 +1657,8 @@
         }
 
         async function callAiImportApi(pioText) {
-            const endpoint = getAiEndpoint();
+            // ALWAYS absolute Vercel URL — never relative /api/...
+            const endpoint = "https://reminders-dashboard-eosin.vercel.app/api/parse-pio-reminders";
             console.log("[RST] Endpoint:", endpoint);
             console.log("[RST] Input length:", String(pioText || "").length);
             console.log("[RST] Preparing request...");
@@ -1680,12 +1681,9 @@
                 });
             } catch (networkErr) {
                 console.error("[RST] Fetch failed (no HTTP response / CORS / offline):", networkErr);
-                // Verified: this URL currently returns Vercel CDN 404 without CORS headers,
-                // which the browser surfaces as a network/CORS failure and leaves Function logs empty.
                 throw new Error(
                     "RST could not connect to the AI server. " +
-                    "The browser blocked the response (often CORS or a missing /api route). " +
-                    "Confirm Vercel has /api/parse-pio-reminders deployed and returns Access-Control-Allow-Origin."
+                    "Check internet connection, or clear site cache / service worker, then try again."
                 );
             }
 
