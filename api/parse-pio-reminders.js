@@ -3,7 +3,7 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Backend: Google Gemini 2.0 Flash (v1beta)
+ * Backend: Google Gemini 2.5 Flash (v1beta)
  *
  * Required Vercel Environment Variable:
  *   GEMINI_API_KEY
@@ -42,7 +42,7 @@ HARD RULES:
 8. deadline = YYYY-MM-DD when clear; else null and keep deadlineText.
 9. Ignore quotes, greetings, and @everyone.`;
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -110,7 +110,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const url =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
       encodeURIComponent(apiKey);
 
     const response = await fetch(url, {
