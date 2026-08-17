@@ -1705,7 +1705,8 @@
                 }
                 if (res.status === 404) {
                     throw new Error(
-                        "RST server error: 404 Not Found — the Vercel route /api/parse-pio-reminders is missing on this project."
+                        detail ||
+                        "RST server error: 404 — endpoint or AI model not found. Check Vercel logs / GEMINI model."
                     );
                 }
                 if (res.status === 400) {
