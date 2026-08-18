@@ -3103,6 +3103,85 @@ body.role-visitor .ou-react-btn {
   background: rgba(93, 255, 224, 0.1) !important;
 }
 
+
+    /* HUB AI floating assistant */
+    .hub-ai-fab {
+      position: fixed;
+      right: 14px;
+      bottom: 18px;
+      z-index: 900;
+      border: 1px solid rgba(167,139,250,0.45);
+      background: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(56,189,248,0.85));
+      color: #fff;
+      font-weight: 800;
+      font-size: 0.82rem;
+      padding: 12px 14px;
+      border-radius: 999px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+      cursor: pointer;
+    }
+    .hub-ai-panel {
+      display: none;
+      position: fixed;
+      right: 12px;
+      bottom: 70px;
+      width: min(360px, calc(100vw - 24px));
+      max-height: min(70vh, 520px);
+      z-index: 901;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(15, 23, 42, 0.96);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      overflow: hidden;
+      flex-direction: column;
+    }
+    .hub-ai-panel.open { display: flex; }
+    .hub-ai-head {
+      padding: 12px 14px;
+      font-weight: 800;
+      color: #c4b5fd;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .hub-ai-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: #e2e8f0;
+    }
+    .hub-ai-msg { margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); }
+    .hub-ai-msg.user { background: rgba(56,189,248,0.15); }
+    .hub-ai-foot {
+      display: flex;
+      gap: 8px;
+      padding: 10px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .hub-ai-foot input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.35);
+      color: #f8fafc;
+      font: inherit;
+    }
+    .hub-ai-foot button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #38bdf8);
+      color: #fff;
+      cursor: pointer;
+    }
+
 </style>
 </head>
 <body>
@@ -4055,5 +4134,79 @@ body.role-visitor .ou-react-btn {
   <button type="button" id="muteToggleBtn" class="mute-toggle-btn" aria-label="Toggle sound effects" aria-pressed="false">🔊</button>
 
   <script type="module" src="game.js"></script>
+
+  <button type="button" class="hub-ai-fab" id="hubAiFab" aria-label="Open Hub AI">✨ Hub AI</button>
+  <div class="hub-ai-panel" id="hubAiPanel" role="dialog" aria-label="RST Hub AI">
+    <div class="hub-ai-head">
+      <span>✨ RST Hub AI</span>
+      <button type="button" id="hubAiClose" style="background:transparent;border:0;color:#94a3b8;font-size:1.1rem;cursor:pointer;">✕</button>
+    </div>
+    <div class="hub-ai-messages" id="hubAiMessages">
+      <div class="hub-ai-msg">Ask about the Section Hub, reviewer, dashboard, or RST AI. Secrets and passwords are never shared.</div>
+    </div>
+    <div class="hub-ai-foot">
+      <input id="hubAiInput" type="text" maxlength="2000" placeholder="Ask a question…" />
+      <button type="button" id="hubAiSend">Send</button>
+    </div>
+  </div>
+  <script type="module">
+    const HUB_ENDPOINT = "https://reminders-dashboard-eosin.vercel.app/api/hub-chat";
+    const panel = document.getElementById("hubAiPanel");
+    const fab = document.getElementById("hubAiFab");
+    const closeBtn = document.getElementById("hubAiClose");
+    const msgs = document.getElementById("hubAiMessages");
+    const input = document.getElementById("hubAiInput");
+    const sendBtn = document.getElementById("hubAiSend");
+
+    function addMsg(text, who) {
+      const div = document.createElement("div");
+      div.className = "hub-ai-msg" + (who === "user" ? " user" : "");
+      div.textContent = text;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    async function sendHub() {
+      const message = (input.value || "").trim();
+      if (!message) return;
+      input.value = "";
+      addMsg(message, "user");
+      sendBtn.disabled = true;
+      try {
+        const res = await fetch(HUB_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ message })
+        });
+        const raw = await res.text();
+        let data;
+        try { data = JSON.parse(raw); } catch (e) {
+          addMsg("Hub AI returned a non-JSON response.", "bot");
+          return;
+        }
+        if (!res.ok) {
+          addMsg(data.error || ("Error " + res.status), "bot");
+          return;
+        }
+        addMsg(data.reply || "No reply.", "bot");
+      } catch (err) {
+        console.error("[HUB AI]", err);
+        addMsg("Could not reach Hub AI. Check connection.", "bot");
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    fab?.addEventListener("click", () => panel.classList.toggle("open"));
+    closeBtn?.addEventListener("click", () => panel.classList.remove("open"));
+    sendBtn?.addEventListener("click", sendHub);
+    input?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        sendHub();
+      }
+    });
+  </script>
+
 </body>
 </html>
