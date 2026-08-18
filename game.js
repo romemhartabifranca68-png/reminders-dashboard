@@ -581,7 +581,7 @@ import { getDatabase, ref, get, set, remove, onValue, push } from "https://www.g
   }
 
   async function tryClassmateLogin(usernameRaw, passwordRaw, adminCodeRaw) {
-    const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    const username = String(usernameRaw || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
     const password = String(passwordRaw || "");
     const adminCode = String(adminCodeRaw || "");
     if (!username || !password) {
