@@ -1869,15 +1869,21 @@
             if (!res.ok) {
                 const detail = (data && (data.error || data.message || data.details)) || "";
                 console.error("[RST AI] Error payload:", data);
-                if (status === 404) throw new Error(detail || "RST API endpoint not found.");
-                if (status === 401) throw new Error(detail || "RST authorization failed.");
-                if (status === 403) throw new Error(detail || "RST access denied.");
-                if (status === 405) throw new Error(detail || "RST endpoint does not allow this request method.");
-                if (status === 429) throw new Error(detail || "RST rate limited. Wait and try again.");
-                if (status === 502) throw new Error(detail || "RST AI provider error.");
-                if (status === 504) throw new Error(detail || "RST backend timed out.");
-                if (status >= 500) throw new Error(detail || "RST backend error.");
-                throw new Error(detail || ("RST request failed (HTTP " + status + ")."));
+                if (status === 429 || status === 503) {
+                    throw new Error("RST AI is currently busy. Please try again later.");
+                }
+                if (status === 504) {
+                    throw new Error("RST AI is temporarily unavailable. Please try again in a moment.");
+                }
+                if (status >= 500) {
+                    throw new Error("RST AI is temporarily unavailable. Your website is still working normally.");
+                }
+                if (status === 400) {
+                    throw new Error(detail && !/gemini|xai|api key|quota|billing/i.test(detail)
+                        ? detail
+                        : "That PIO text could not be processed. Try a clearer announcement.");
+                }
+                throw new Error("RST AI is temporarily unavailable. Please try again in a moment.");
             }
 
             if (!data || !Array.isArray(data.items)) {
