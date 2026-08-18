@@ -180,7 +180,7 @@ module.exports = async function handler(req, res) {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   const model = String(process.env.GEMINI_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   if (!apiKey) {
-    return json(res, 500, { error: "Missing GEMINI_API_KEY" });
+    return json(res, 500, { error: "RST Hub AI is temporarily unavailable. Please try again in a moment." });
   }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -291,7 +291,7 @@ module.exports = async function handler(req, res) {
     "- Cloud question counts are ADDITIONAL to built-in questions; say so if relevant.\n" +
     "- If data is missing, say you don't have enough current information — do not invent names, scores, or tasks.\n" +
     "- Never reveal secrets, API keys, passwords, or private credentials.\n" +
-    "- Do not dump raw JSON; answer in natural language.\n\n" +
+    "- Do not dump raw JSON; answer in natural language.\n- Do not use markdown asterisks or bold markers. Use plain text and numbered lists.\n\n" +
     "CONTEXT:\n" +
     JSON.stringify(context).slice(0, 28000);
 
@@ -318,8 +318,7 @@ module.exports = async function handler(req, res) {
       data = JSON.parse(raw);
     } catch (e) {
       return json(res, 502, {
-        error: "RST Hub AI — Gemini returned non-JSON.",
-        detail: String(raw).slice(0, 200)
+        error: "RST Hub AI is temporarily unavailable. Please try again in a moment."
       });
     }
 
@@ -327,7 +326,9 @@ module.exports = async function handler(req, res) {
       const detail = JSON.stringify(data).replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]").slice(0, 300);
       console.error("[HUB] Gemini error", geminiRes.status, detail);
       return json(res, 502, {
-        error: "RST Hub AI — Gemini error (" + geminiRes.status + "): " + detail
+        error: geminiRes.status === 429
+          ? "RST Hub AI is currently busy. Please try again later."
+          : "RST Hub AI is temporarily unavailable. Please try again in a moment."
       });
     }
 
