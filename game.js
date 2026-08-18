@@ -2795,7 +2795,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   // Preserves first-appearance order from questionBank (e.g. ITEC 101, ITEC
   // 102, GEC 101, GEC 102, P.I. 100, KOMFIL). A subject with zero questions
   // simply never appears in this Map, so it can never produce a mode.
-  const AVAILABLE_SUBJECTS = Array.from(subjectPoolMap.keys());
+  let AVAILABLE_SUBJECTS = Array.from(subjectPoolMap.keys());
 
   const RANDOM_MODE_ID = "RANDOM";
 
@@ -2815,7 +2815,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   // Everything downstream (mode selector cards, pool filtering, HUD stream
   // chip, dynamic Game Protocol, Boss Question subject) reads from this
   // single array instead of duplicating the subject list anywhere else.
-  const GAME_MODES = [
+  let GAME_MODES = [
     {
       id: RANDOM_MODE_ID,
       label: "RANDOM / ALL SUBJECTS",
@@ -2837,6 +2837,108 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   function getModeConfig(modeId) {
     return GAME_MODES.find((m) => m.id === modeId) || GAME_MODES[0];
   }
+
+  /* ============ PHASE 2: Cloud question bank (additive) ============
+     Built-in questionBank is NEVER deleted. Cloud questions from Firebase
+     path reviewer_questions/{subjectKey}/{id} are merged for gameplay. */
+  let cloudQuestionBank = [];
+
+  function subjectToFirebaseKey(subject) {
+    return String(subject || "")
+      .trim()
+      .replace(/\./g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Za-z0-9_]/g, "")
+      .slice(0, 40) || "UNKNOWN";
+  }
+
+  function normalizeQuestionRecord(raw, fallbackSubject) {
+    if (!raw || typeof raw !== "object") return null;
+    const s = String(raw.s || fallbackSubject || "").trim();
+    const q = String(raw.q || "").trim();
+    let choices = Array.isArray(raw.choices) ? raw.choices.map((c) => String(c)) : [];
+    if (choices.length < 2 || !q || !s) return null;
+    while (choices.length < 4) choices.push("N/A");
+    choices = choices.slice(0, 4);
+    let answer = raw.answer;
+    if (typeof answer === "number" && choices[answer] != null) {
+      answer = choices[answer];
+    }
+    answer = String(answer || "").trim();
+    if (!choices.includes(answer)) {
+      const hit = choices.find((c) => c.toLowerCase() === answer.toLowerCase());
+      answer = hit || choices[0];
+    }
+    return { s, q, choices, answer };
+  }
+
+  function rebuildSubjectPools() {
+    subjectPoolMap.clear();
+    const combined = questionBank.concat(cloudQuestionBank);
+    combined.forEach((item) => {
+      if (!item || !item.s) return;
+      if (!subjectPoolMap.has(item.s)) subjectPoolMap.set(item.s, []);
+      subjectPoolMap.get(item.s).push(item);
+    });
+    AVAILABLE_SUBJECTS = Array.from(subjectPoolMap.keys());
+    GAME_MODES = [
+      {
+        id: RANDOM_MODE_ID,
+        label: "RANDOM / ALL SUBJECTS",
+        icon: "\u{1F3B2}",
+        description: "Mixed questions from all available subjects.",
+        streamLabel: "RANDOM_ALL_SUBJECTS",
+        subjects: AVAILABLE_SUBJECTS.slice()
+      },
+      ...AVAILABLE_SUBJECTS.map((subject) => ({
+        id: subject,
+        label: subject,
+        icon: "\u{1F4D8}",
+        description: SUBJECT_DESCRIPTIONS[subject] || ("Questions from " + subject + " only."),
+        streamLabel: subject.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase(),
+        subjects: [subject]
+      }))
+    ];
+  }
+
+  async function loadCloudQuestionBank() {
+    if (!db) return;
+    try {
+      const snap = await get(ref(db, "reviewer_questions"));
+      if (!snap.exists()) {
+        cloudQuestionBank = [];
+        return;
+      }
+      const root = snap.val() || {};
+      const loaded = [];
+      const seen = new Set();
+      // also index builtins to avoid exact dupes in cloud load
+      questionBank.forEach((item) => {
+        seen.add(String(item.s).toLowerCase() + "||" + String(item.q).toLowerCase().replace(/\s+/g, " ").trim());
+      });
+      Object.keys(root).forEach((subjectKey) => {
+        const bucket = root[subjectKey] || {};
+        Object.keys(bucket).forEach((qid) => {
+          const norm = normalizeQuestionRecord(bucket[qid], subjectKey.replace(/_/g, " "));
+          if (!norm) return;
+          const key = norm.s.toLowerCase() + "||" + norm.q.toLowerCase().replace(/\s+/g, " ").trim();
+          if (seen.has(key)) return;
+          seen.add(key);
+          loaded.push(norm);
+        });
+      });
+      cloudQuestionBank = loaded;
+      rebuildSubjectPools();
+      try {
+        if (typeof initModeSelector === "function") initModeSelector();
+      } catch (e) { /* UI may not be ready */ }
+      console.log("[Arena] Cloud questions loaded:", cloudQuestionBank.length);
+    } catch (error) {
+      console.warn("[Arena] Cloud question load failed — using built-in bank only.", error);
+      cloudQuestionBank = [];
+    }
+  }
+
 
   /* ---------------- Per-mode leaderboard board keys ----------------
      Firebase path segment under arena_scores/{boardKey}/{usernameKey}.
@@ -7477,6 +7579,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     initNav();
     initAvatarGrid();
     initModeSelector();
+    loadCloudQuestionBank().then(() => {
+      try { initModeSelector(); } catch (e) { /* ignore */ }
+    }).catch(() => {});
     initRunTypeSelector();
     initLifelineButtons();
     initAdminTrigger();
@@ -9124,7 +9229,7 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       const key = `${m.subject}||${m.q}`;
       if (seen.has(key)) return;
       seen.add(key);
-      const found = questionBank.find((q) => q.s === m.subject && q.q === m.q);
+      const found = questionBank.concat(cloudQuestionBank).find((q) => q.s === m.subject && q.q === m.q);
       if (found) pool.push(found);
     });
     return pool;
