@@ -3104,83 +3104,190 @@ body.role-visitor .ou-react-btn {
 }
 
 
-    /* HUB AI floating assistant */
+
+    /* ========== RST Hub AI (premium) ========== */
     .hub-ai-fab {
       position: fixed;
-      right: 14px;
-      bottom: 18px;
-      z-index: 900;
-      border: 1px solid rgba(167,139,250,0.45);
-      background: linear-gradient(135deg, rgba(99,102,241,0.9), rgba(56,189,248,0.85));
+      right: max(12px, env(safe-area-inset-right));
+      bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 920;
+      border: 1px solid rgba(167, 139, 250, 0.55);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(56, 189, 248, 0.9));
       color: #fff;
       font-weight: 800;
-      font-size: 0.82rem;
-      padding: 12px 14px;
+      font-size: 0.84rem;
+      letter-spacing: 0.02em;
+      padding: 13px 16px;
       border-radius: 999px;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+      box-shadow: 0 12px 32px rgba(99, 102, 241, 0.35), 0 0 0 1px rgba(255,255,255,0.08) inset;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
     }
+    .hub-ai-fab:active { transform: scale(0.96); }
     .hub-ai-panel {
       display: none;
       position: fixed;
-      right: 12px;
-      bottom: 70px;
-      width: min(360px, calc(100vw - 24px));
-      max-height: min(70vh, 520px);
-      z-index: 901;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(15, 23, 42, 0.96);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+      right: max(10px, env(safe-area-inset-right));
+      bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+      width: min(400px, calc(100vw - 20px));
+      max-height: min(78vh, 580px);
+      z-index: 921;
+      border-radius: 22px;
+      border: 1px solid rgba(167, 139, 250, 0.35);
+      background:
+        radial-gradient(ellipse at top right, rgba(99,102,241,0.22), transparent 55%),
+        radial-gradient(ellipse at bottom left, rgba(56,189,248,0.12), transparent 50%),
+        rgba(10, 14, 28, 0.97);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.12);
       overflow: hidden;
       flex-direction: column;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      animation: hubAiIn 0.28s ease;
+    }
+    @keyframes hubAiIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .hub-ai-panel { animation: none; }
+      .hub-ai-msg { animation: none !important; }
     }
     .hub-ai-panel.open { display: flex; }
     .hub-ai-head {
-      padding: 12px 14px;
-      font-weight: 800;
-      color: #c4b5fd;
+      padding: 14px 14px 12px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .hub-ai-brand { min-width: 0; }
+    .hub-ai-title {
+      font-weight: 800;
+      font-size: 1rem;
+      color: #e9d5ff;
+      display: flex;
       align-items: center;
       gap: 8px;
     }
+    .hub-ai-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 10px #34d399;
+      flex-shrink: 0;
+    }
+    .hub-ai-sub {
+      margin-top: 4px;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+    .hub-ai-close {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #cbd5e1;
+      width: 36px; height: 36px;
+      border-radius: 12px;
+      font-size: 1.05rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .hub-ai-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 10px 12px 4px;
+    }
+    .hub-ai-chip {
+      border: 1px solid rgba(167,139,250,0.35);
+      background: rgba(99,102,241,0.12);
+      color: #e2e8f0;
+      font-size: 0.72rem;
+      font-weight: 650;
+      padding: 8px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hub-ai-chip:active { background: rgba(99,102,241,0.28); }
     .hub-ai-messages {
       flex: 1;
       overflow-y: auto;
-      padding: 12px;
+      padding: 10px 12px 12px;
       font-size: 0.88rem;
-      line-height: 1.45;
+      line-height: 1.5;
       color: #e2e8f0;
+      -webkit-overflow-scrolling: touch;
     }
-    .hub-ai-msg { margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.06); }
-    .hub-ai-msg.user { background: rgba(56,189,248,0.15); }
+    .hub-ai-msg {
+      margin-bottom: 10px;
+      padding: 11px 13px;
+      border-radius: 16px;
+      max-width: 95%;
+      animation: hubMsgIn 0.22s ease;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    @keyframes hubMsgIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    .hub-ai-msg.bot {
+      background: linear-gradient(145deg, rgba(99,102,241,0.18), rgba(56,189,248,0.08));
+      border: 1px solid rgba(167,139,250,0.28);
+      border-bottom-left-radius: 6px;
+      margin-right: 18px;
+    }
+    .hub-ai-msg.user {
+      background: linear-gradient(145deg, rgba(56,189,248,0.22), rgba(14,165,233,0.12));
+      border: 1px solid rgba(56,189,248,0.3);
+      border-bottom-right-radius: 6px;
+      margin-left: 18px;
+      margin-left: auto;
+    }
+    .hub-ai-msg.typing {
+      opacity: 0.85;
+      font-size: 0.8rem;
+      color: #a5b4fc;
+    }
     .hub-ai-foot {
       display: flex;
       gap: 8px;
-      padding: 10px;
+      padding: 10px 12px max(12px, env(safe-area-inset-bottom));
       border-top: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.2);
     }
     .hub-ai-foot input {
       flex: 1;
       min-width: 0;
-      padding: 10px 12px;
-      border-radius: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
       border: 1px solid rgba(255,255,255,0.12);
       background: rgba(0,0,0,0.35);
       color: #f8fafc;
       font: inherit;
+      font-size: 0.9rem;
+    }
+    .hub-ai-foot input:focus {
+      outline: none;
+      border-color: rgba(167,139,250,0.55);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
     }
     .hub-ai-foot button {
       border: 0;
-      border-radius: 12px;
-      padding: 10px 14px;
+      border-radius: 14px;
+      padding: 12px 16px;
       font-weight: 800;
+      font-size: 0.85rem;
       background: linear-gradient(135deg, #6366f1, #38bdf8);
       color: #fff;
       cursor: pointer;
+      flex-shrink: 0;
+      min-width: 64px;
     }
+    .hub-ai-foot button:disabled { opacity: 0.55; }
 
 </style>
 </head>
@@ -4135,17 +4242,28 @@ body.role-visitor .ou-react-btn {
 
   <script type="module" src="game.js"></script>
 
-  <button type="button" class="hub-ai-fab" id="hubAiFab" aria-label="Open Hub AI">✨ Hub AI</button>
+  <button type="button" class="hub-ai-fab" id="hubAiFab" aria-label="Open RST Hub AI">✨ Hub AI</button>
   <div class="hub-ai-panel" id="hubAiPanel" role="dialog" aria-label="RST Hub AI">
     <div class="hub-ai-head">
-      <span>✨ RST Hub AI</span>
-      <button type="button" id="hubAiClose" style="background:transparent;border:0;color:#94a3b8;font-size:1.1rem;cursor:pointer;">✕</button>
+      <div class="hub-ai-brand">
+        <div class="hub-ai-title"><span class="hub-ai-dot" aria-hidden="true"></span> ✨ RST Hub AI</div>
+        <div class="hub-ai-sub">Your intelligent BSCS 1-A Section Hub assistant</div>
+      </div>
+      <button type="button" class="hub-ai-close" id="hubAiClose" aria-label="Close">✕</button>
+    </div>
+    <div class="hub-ai-suggestions" id="hubAiSuggestions">
+      <button type="button" class="hub-ai-chip" data-hub-q="Who made this website?">Who made this?</button>
+      <button type="button" class="hub-ai-chip" data-hub-q="What subjects are available in the reviewer?">Subjects</button>
+      <button type="button" class="hub-ai-chip" data-hub-q="What can this website do?">Features</button>
+      <button type="button" class="hub-ai-chip" data-hub-q="What's on the dashboard reminders right now?">Dashboard</button>
+      <button type="button" class="hub-ai-chip" data-hub-q="How does the reviewer and RANDOM mode work?">Reviewer</button>
+      <button type="button" class="hub-ai-chip" data-hub-q="What are RST AI and RQA AI?">AI features</button>
     </div>
     <div class="hub-ai-messages" id="hubAiMessages">
-      <div class="hub-ai-msg">Ask about the Section Hub, reviewer, dashboard, or RST AI. Secrets and passwords are never shared.</div>
+      <div class="hub-ai-msg bot">Hi! I'm <strong>RST Hub AI</strong> — I can explain this Section Hub, live dashboard reminders, reviewer subjects, and the AI tools. Ask me anything public about the site.</div>
     </div>
     <div class="hub-ai-foot">
-      <input id="hubAiInput" type="text" maxlength="2000" placeholder="Ask a question…" />
+      <input id="hubAiInput" type="text" maxlength="2000" placeholder="Ask about the Section Hub…" autocomplete="off" />
       <button type="button" id="hubAiSend">Send</button>
     </div>
   </div>
@@ -4160,51 +4278,67 @@ body.role-visitor .ou-react-btn {
 
     function addMsg(text, who) {
       const div = document.createElement("div");
-      div.className = "hub-ai-msg" + (who === "user" ? " user" : "");
+      div.className = "hub-ai-msg " + (who === "user" ? "user" : "bot");
       div.textContent = text;
       msgs.appendChild(div);
       msgs.scrollTop = msgs.scrollHeight;
+      return div;
     }
 
-    async function sendHub() {
-      const message = (input.value || "").trim();
+    async function sendHub(preset) {
+      const message = (preset != null ? preset : (input.value || "")).trim();
       if (!message) return;
-      input.value = "";
+      if (!preset) input.value = "";
       addMsg(message, "user");
+      const typing = addMsg("Thinking…", "bot");
+      typing.classList.add("typing");
       sendBtn.disabled = true;
       try {
+        console.log("[RST Hub AI] Sending:", message.slice(0, 80));
         const res = await fetch(HUB_ENDPOINT, {
           method: "POST",
+          mode: "cors",
+          cache: "no-store",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ message })
         });
         const raw = await res.text();
+        console.log("[RST Hub AI] status:", res.status);
         let data;
         try { data = JSON.parse(raw); } catch (e) {
-          addMsg("Hub AI returned a non-JSON response.", "bot");
+          typing.classList.remove("typing");
+          typing.textContent = "RST Hub AI returned a non-JSON response (HTTP " + res.status + ").";
           return;
         }
+        typing.classList.remove("typing");
         if (!res.ok) {
-          addMsg(data.error || ("Error " + res.status), "bot");
+          typing.textContent = data.error || ("RST Hub AI error (HTTP " + res.status + ")");
           return;
         }
-        addMsg(data.reply || "No reply.", "bot");
+        typing.textContent = data.reply || "No reply.";
       } catch (err) {
-        console.error("[HUB AI]", err);
-        addMsg("Could not reach Hub AI. Check connection.", "bot");
+        console.error("[RST Hub AI]", err);
+        typing.classList.remove("typing");
+        typing.textContent = "Could not reach RST Hub AI (network/CORS). Try again in a moment.";
       } finally {
         sendBtn.disabled = false;
+        msgs.scrollTop = msgs.scrollHeight;
       }
     }
 
     fab?.addEventListener("click", () => panel.classList.toggle("open"));
     closeBtn?.addEventListener("click", () => panel.classList.remove("open"));
-    sendBtn?.addEventListener("click", sendHub);
+    sendBtn?.addEventListener("click", () => sendHub());
     input?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         sendHub();
       }
+    });
+    document.getElementById("hubAiSuggestions")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-hub-q]");
+      if (!btn) return;
+      sendHub(btn.getAttribute("data-hub-q"));
     });
   </script>
 
