@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAnalytics, isSupported as isAnalyticsSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-analytics.js";
-import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+import { getDatabase, ref, get, set, remove, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
 
 (function () {
   const firebaseConfig = {
@@ -197,9 +197,15 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       const parsed = JSON.parse(raw);
       if (!parsed || !parsed.role) return null;
       if (parsed.role !== "classmate" && parsed.role !== "guest" && parsed.role !== "admin" && parsed.role !== "visitor") return null;
-      // Optional: expire after 120 days of inactivity marker
-      const maxAge = 120 * 24 * 60 * 60 * 1000;
+      // Visitors: hard 2-hour session. Others: 120-day inactivity marker.
+      const maxAge = parsed.role === "visitor"
+        ? (2 * 60 * 60 * 1000)
+        : (120 * 24 * 60 * 60 * 1000);
       if (parsed.ts && Date.now() - Number(parsed.ts) > maxAge) {
+        clearAuthSession();
+        return null;
+      }
+      if (parsed.role === "visitor" && parsed.expiresAt && Date.now() >= Number(parsed.expiresAt)) {
         clearAuthSession();
         return null;
       }
@@ -609,6 +615,22 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       authState.officerTitle = "";
       authState.officerChannels = [];
       const sessionId = await claimAuthSession(entry.username);
+      const visitorExpiresAt = Date.now() + (2 * 60 * 60 * 1000);
+      try {
+        // Ensure timed window exists (Admin can still override via visitor control)
+        const ctrlAll = await loadVisitorControl();
+        const cur = ctrlAll[entry.username] || {};
+        if (!cur.expiresAt || Number(cur.expiresAt) < Date.now()) {
+          await saveVisitorControlEntry(entry.username, {
+            enabled: cur.enabled !== false,
+            durationHours: Number(cur.durationHours) || 2,
+            expiresAt: visitorExpiresAt,
+            forceLogout: false
+          });
+        }
+      } catch (e) {
+        console.warn("[Visitor] could not set timed window:", e);
+      }
       saveAuthSession({
         role: "visitor",
         isAdmin: false,
@@ -618,7 +640,8 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
         officerTitle: "",
         officerChannels: [],
         sessionId: sessionId || localSessionId,
-        ts: Date.now()
+        ts: Date.now(),
+        expiresAt: visitorExpiresAt
       });
       startSessionWatch(entry.username);
       startVisitorExpiryWatch();
@@ -1744,6 +1767,321 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
     });
   }
 
+
+  /* ============ RQA AI — Reviewer Question Studio (Admin only) ============ */
+  const RQA_API = "https://reminders-dashboard-eosin.vercel.app/api/rqa-generate";
+  let rqaStudioItems = [];
+
+  function rqaSubjectKey(subject) {
+    return String(subject || "")
+      .trim()
+      .replace(/\./g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Za-z0-9_]/g, "")
+      .slice(0, 40) || "UNKNOWN";
+  }
+
+  function rqaNormKey(s, q) {
+    return String(s || "").toLowerCase().trim() + "||" + String(q || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  async function extractTextFromFile(file) {
+    const name = (file.name || "").toLowerCase();
+    const sizeMb = file.size / (1024 * 1024);
+    if (sizeMb > 12) {
+      throw new Error("File too large (max ~12 MB for mobile extraction).");
+    }
+    if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".csv")) {
+      return await file.text();
+    }
+    if (name.endsWith(".docx")) {
+      if (typeof mammoth === "undefined") {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js";
+          s.onload = resolve;
+          s.onerror = () => reject(new Error("Failed to load DOCX parser"));
+          document.head.appendChild(s);
+        });
+      }
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer: buf });
+      return String(result.value || "");
+    }
+    if (name.endsWith(".pdf")) {
+      if (typeof pdfjsLib === "undefined") {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js";
+          s.onload = resolve;
+          s.onerror = () => reject(new Error("Failed to load PDF parser"));
+          document.head.appendChild(s);
+        });
+        // eslint-disable-next-line no-undef
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+      }
+      const buf = await file.arrayBuffer();
+      // eslint-disable-next-line no-undef
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      const maxPages = Math.min(pdf.numPages, 40);
+      let text = "";
+      for (let i = 1; i <= maxPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map((it) => it.str).join(" ") + "\n";
+      }
+      if (pdf.numPages > maxPages) {
+        text += "\n[Truncated: only first " + maxPages + " pages extracted on mobile.]\n";
+      }
+      return text;
+    }
+    if (name.endsWith(".pptx") || name.endsWith(".ppt")) {
+      throw new Error("PPTX is not supported yet. Export to PDF or TXT, then upload.");
+    }
+    throw new Error("Unsupported file type. Use PDF, DOCX, or TXT.");
+  }
+
+  function openRqaQuestionStudio() {
+    if (!isAdmin()) {
+      if (typeof showShareToast === "function") showShareToast("Admin only");
+      return;
+    }
+    const existing = document.querySelector(".admin-overlay.rqa-studio");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "admin-overlay rqa-studio";
+    const panel = document.createElement("div");
+    panel.className = "admin-panel";
+    panel.style.maxWidth = "560px";
+    panel.style.width = "min(560px, 100%)";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 4px;font-size:1.05rem;">✨ RQA AI</h3>
+      <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);line-height:1.4;">
+        <strong>Reviewer Question Architect</strong> · Upload module → generate MCQs → review → import to Firebase.
+        Built-in question bank stays until migration is verified.
+      </p>
+      <label style="font-size:0.75rem;font-weight:800;color:#7ee7d4;">Module file (PDF / DOCX / TXT)
+        <input type="file" id="rqaFile" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" style="display:block;margin-top:6px;width:100%;font-size:0.8rem;" />
+      </label>
+      <p id="rqaFileMeta" style="margin:6px 0 8px;font-size:0.72rem;color:var(--muted);">No file selected</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <label style="font-size:0.75rem;font-weight:700;">Subject
+          <select id="rqaSubj" style="display:block;margin-top:4px;padding:8px;border-radius:10px;background:rgba(0,0,0,0.3);color:var(--text);border:1px solid rgba(255,255,255,0.14);">
+            <option>ITEC 101</option><option>ITEC 102</option><option>GEC 101</option>
+            <option>GEC 102</option><option>P.I. 100</option><option>KOMFIL</option>
+          </select>
+        </label>
+        <label style="font-size:0.75rem;font-weight:700;">Count
+          <select id="rqaCnt" style="display:block;margin-top:4px;padding:8px;border-radius:10px;background:rgba(0,0,0,0.3);color:var(--text);border:1px solid rgba(255,255,255,0.14);">
+            <option>10</option><option>20</option><option>30</option><option>50</option>
+          </select>
+        </label>
+        <label style="font-size:0.75rem;font-weight:700;">Difficulty
+          <select id="rqaDiff" style="display:block;margin-top:4px;padding:8px;border-radius:10px;background:rgba(0,0,0,0.3);color:var(--text);border:1px solid rgba(255,255,255,0.14);">
+            <option value="mixed">Mixed</option><option value="easy">Easy</option>
+            <option value="medium">Medium</option><option value="hard">Hard</option>
+          </select>
+        </label>
+      </div>
+      <details style="margin-bottom:8px;">
+        <summary style="font-size:0.78rem;cursor:pointer;color:var(--accent);">Or paste text instead</summary>
+        <textarea id="rqaPaste" maxlength="100000" placeholder="Paste module notes…" style="width:100%;min-height:90px;margin-top:6px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;"></textarea>
+      </details>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <button type="button" class="lifeline-btn" id="rqaGenBtn">✨ Generate Questions</button>
+        <button type="button" class="lifeline-btn" id="rqaCloseBtn">Close</button>
+      </div>
+      <p id="rqaStatus" style="margin:0 0 8px;font-size:0.78rem;color:var(--accent);"></p>
+      <div id="rqaCards" style="max-height:min(42vh,360px);overflow:auto;-webkit-overflow-scrolling:touch;"></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button type="button" class="lifeline-btn" id="rqaImportBtn" hidden>Import Approved</button>
+      </div>
+      <p id="rqaImportStatus" style="margin:8px 0 0;font-size:0.75rem;color:var(--muted);"></p>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    let extractedText = "";
+    let fileLabel = "";
+    const status = panel.querySelector("#rqaStatus");
+    const cards = panel.querySelector("#rqaCards");
+    const importBtn = panel.querySelector("#rqaImportBtn");
+    const importStatus = panel.querySelector("#rqaImportStatus");
+
+    panel.querySelector("#rqaFile").addEventListener("change", async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      const meta = panel.querySelector("#rqaFileMeta");
+      if (!file) {
+        meta.textContent = "No file selected";
+        extractedText = "";
+        return;
+      }
+      meta.textContent = file.name + " · " + (file.size / 1024).toFixed(1) + " KB · extracting…";
+      status.textContent = "Extracting text from file…";
+      try {
+        extractedText = await extractTextFromFile(file);
+        fileLabel = file.name;
+        meta.textContent = file.name + " · " + (file.size / 1024).toFixed(1) + " KB · " + extractedText.length + " chars";
+        status.textContent = extractedText.length > 40 ? "Extraction OK. Ready to generate." : "Extraction produced too little text.";
+      } catch (err) {
+        extractedText = "";
+        meta.textContent = file.name + " · failed";
+        status.textContent = err && err.message ? err.message : "Extraction failed";
+      }
+    });
+
+    function renderCards() {
+      if (!rqaStudioItems.length) {
+        cards.innerHTML = "";
+        importBtn.hidden = true;
+        return;
+      }
+      importBtn.hidden = false;
+      cards.innerHTML = rqaStudioItems.map((it, i) => {
+        const ch = (it.choices || []).map((c, ci) =>
+          `<div style="font-size:0.78rem;margin:2px 0;">${"ABCD"[ci] || ci}. ${escapeHtml(c)}</div>`
+        ).join("");
+        return `<div style="margin:0 0 10px;padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.22);opacity:${it._remove ? "0.45" : "1"};">
+          <div style="font-weight:800;font-size:0.8rem;margin-bottom:4px;">${escapeHtml(it.s)} · ${escapeHtml(it.difficulty || "medium")}${it._dup ? ' · <span style="color:#fecaca">duplicate</span>' : ""}</div>
+          <div style="font-size:0.84rem;margin-bottom:6px;">${escapeHtml(it.q)}</div>
+          ${ch}
+          <div style="font-size:0.75rem;color:#7ee7d4;margin-top:4px;">Answer: ${escapeHtml(it.answer)}</div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${escapeHtml(it.explanation || "")}</div>
+          <button type="button" class="lifeline-btn" data-rqa-rm="${i}" style="margin-top:6px;font-size:0.72rem;">${it._remove ? "Restore" : "Remove"}</button>
+        </div>`;
+      }).join("");
+      cards.querySelectorAll("[data-rqa-rm]").forEach((btn) => {
+        btn.onclick = () => {
+          const i = Number(btn.getAttribute("data-rqa-rm"));
+          rqaStudioItems[i]._remove = !rqaStudioItems[i]._remove;
+          renderCards();
+        };
+      });
+    }
+
+    bindTap(panel.querySelector("#rqaCloseBtn"), (e) => {
+      e.preventDefault();
+      overlay.remove();
+    });
+
+    bindTap(panel.querySelector("#rqaGenBtn"), async (e) => {
+      e.preventDefault();
+      if (!isAdmin()) return;
+      const subject = panel.querySelector("#rqaSubj").value;
+      const count = Number(panel.querySelector("#rqaCnt").value || 10);
+      const difficulty = panel.querySelector("#rqaDiff").value;
+      const paste = (panel.querySelector("#rqaPaste").value || "").trim();
+      const text = (extractedText || paste || "").trim();
+      if (text.length < 40) {
+        status.textContent = "Need more source text (upload a module or paste notes).";
+        return;
+      }
+      status.textContent = "RQA AI generating questions…";
+      rqaStudioItems = [];
+      renderCards();
+      try {
+        const res = await fetch(RQA_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            text: text.slice(0, 100000),
+            subject,
+            count,
+            difficulty,
+            sourceName: fileLabel || "pasted-text"
+          })
+        });
+        const raw = await res.text();
+        let data;
+        try { data = JSON.parse(raw); } catch (err) {
+          throw new Error("Non-JSON from RQA API: " + raw.slice(0, 120));
+        }
+        if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+        if (!Array.isArray(data.items)) throw new Error("No items returned");
+
+        let existing = new Set();
+        if (db) {
+          try {
+            const snap = await get(ref(db, "reviewer_questions/" + rqaSubjectKey(subject)));
+            if (snap.exists()) {
+              Object.values(snap.val() || {}).forEach((row) => {
+                if (row && row.q) existing.add(rqaNormKey(row.s || subject, row.q));
+              });
+            }
+          } catch (err) { /* ignore */ }
+        }
+        rqaStudioItems = data.items.map((it) => {
+          let answer = it.answer;
+          const choices = Array.isArray(it.choices) ? it.choices.slice(0, 4) : [];
+          if (typeof answer === "number" && choices[answer] != null) answer = choices[answer];
+          answer = String(answer || "");
+          if (choices.length && !choices.includes(answer)) {
+            const hit = choices.find((c) => c.toLowerCase() === answer.toLowerCase());
+            answer = hit || choices[0];
+          }
+          return {
+            s: it.s || subject,
+            q: it.q,
+            choices,
+            answer,
+            explanation: it.explanation || "",
+            difficulty: it.difficulty || difficulty,
+            source: fileLabel || "module",
+            _remove: false,
+            _dup: existing.has(rqaNormKey(it.s || subject, it.q))
+          };
+        });
+        status.textContent = "Generated " + rqaStudioItems.length + " · review then Import Approved.";
+        renderCards();
+      } catch (err) {
+        console.error("[RQA]", err);
+        status.textContent = err && err.message ? err.message : "Generate failed";
+      }
+    });
+
+    bindTap(importBtn, async (e) => {
+      e.preventDefault();
+      if (!isAdmin() || !db) {
+        importStatus.textContent = "Admin + Firebase required.";
+        return;
+      }
+      const toSave = rqaStudioItems.filter((x) => !x._remove && !x._dup && x.q);
+      if (!toSave.length) {
+        importStatus.textContent = "Nothing to import.";
+        return;
+      }
+      importStatus.textContent = "Saving…";
+      try {
+        let n = 0;
+        for (const item of toSave) {
+          const pathRef = ref(db, "reviewer_questions/" + rqaSubjectKey(item.s));
+          const newRef = push(pathRef);
+          await set(newRef, {
+            s: item.s,
+            q: item.q,
+            choices: item.choices,
+            answer: item.answer,
+            explanation: item.explanation || "",
+            difficulty: item.difficulty || "medium",
+            source: item.source || null,
+            createdAt: Date.now(),
+            createdBy: authState.displayName || authState.username || "admin"
+          });
+          item._dup = true;
+          n += 1;
+        }
+        importStatus.textContent = "Imported " + n + " question(s). Reload arena / wait for cloud merge.";
+        renderCards();
+        try { await loadCloudQuestionBank(); } catch (e) { /* ignore */ }
+      } catch (err) {
+        importStatus.textContent = "Import failed (Firebase rules?): " + (err.message || err);
+      }
+    });
+  }
+
+
   /* ---------------- RST Admin Panel: guest play control ---------------- */
   function openRstAdminPanel() {
     if (!isAdmin()) {
@@ -1762,6 +2100,9 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       <p style="margin:0 0 10px;font-size:0.78rem;color:var(--muted);">
         ${COMPANY_NAME} Admin · Pin, deadlines, guests, live PWA opens.
       </p>
+      <button type="button" class="lifeline-btn" id="adminOpenRqa" style="width:100%;margin-bottom:0.85rem;background:linear-gradient(135deg,rgba(16,185,129,0.35),rgba(56,189,248,0.25));border-color:rgba(52,211,153,0.45);">
+        ✨ Open RQA AI · Question Studio
+      </button>
       <h4 style="margin:0 0 6px;font-size:0.82rem;color:#ffd27d;letter-spacing:0.04em;">SECTION PIN (home announcement)</h4>
       <textarea id="adminPinInput" maxlength="240" placeholder="Short announcement visible on home…" style="width:100%;min-height:72px;border-radius:12px;border:1px solid rgba(255,255,255,0.14);background:rgba(0,0,0,0.28);color:var(--text);padding:0.65rem;margin-bottom:0.45rem;"></textarea>
       <button type="button" class="lifeline-btn" id="adminSavePin" style="margin-bottom:0.75rem;">Publish pin</button>
@@ -1889,6 +2230,15 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
       }
       await renderAdminLoginLog();
     })();
+
+    const openRqaBtn = panel.querySelector("#adminOpenRqa");
+    if (openRqaBtn) {
+      bindTap(openRqaBtn, (e) => {
+        e.preventDefault();
+        overlay.remove();
+        openRqaQuestionStudio();
+      });
+    }
 
     bindTap(panel.querySelector("#adminRefreshLog"), async (e) => {
       e.preventDefault();
@@ -4685,6 +5035,18 @@ import { getDatabase, ref, get, set, remove, onValue } from "https://www.gstatic
   async function assertVisitorAccessAllowed(username) {
     const all = await loadVisitorControl();
     const ctrl = all[String(username || "").toLowerCase()];
+    // Local session hard cap (2 hours from login)
+    try {
+      const sess = loadAuthSession();
+      if (sess && sess.role === "visitor" && sess.username === String(username || "").toLowerCase()) {
+        if (sess.expiresAt && Date.now() >= Number(sess.expiresAt)) {
+          return { ok: false, message: "Visitor session expired (2-hour limit). Please log in again." };
+        }
+        if (sess.ts && Date.now() - Number(sess.ts) > (2 * 60 * 60 * 1000)) {
+          return { ok: false, message: "Visitor session expired (2-hour limit). Please log in again." };
+        }
+      }
+    } catch (e) { /* ignore */ }
     if (!ctrl) return { ok: true };
     if (ctrl.forceLogout) {
       return { ok: false, message: "Visitor access revoked by P.O. / Admin. Ask them to re-enable." };
