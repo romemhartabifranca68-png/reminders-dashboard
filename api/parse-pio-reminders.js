@@ -107,41 +107,23 @@ function readBody(req) {
 }
 
 function classifyGeminiError(status, bodyObj, raw) {
+  // Log full detail server-side only; never return provider names to clients.
   const msg = JSON.stringify(bodyObj || raw || "")
     .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
     .slice(0, 500);
-
-  if (status === 400) {
-    return { http: 502, error: "RST AI — Gemini bad request (400): " + msg };
+  console.error("[RST] upstream status=", status, "detail=", msg);
+  if (status === 429) {
+    return { http: 503, error: "RST AI is currently busy. Please try again later." };
   }
-  if (status === 401) {
-    return { http: 502, error: "RST AI — Gemini authentication error (401). Check GEMINI_API_KEY." };
-  }
-  if (status === 403) {
-    return {
-      http: 502,
-      error:
-        "RST AI — Gemini access restricted (403). Key may lack free-tier access or API not enabled. " +
-        msg
-    };
+  if (status === 401 || status === 403) {
+    return { http: 503, error: "RST AI is temporarily unavailable. Please try again in a moment." };
   }
   if (status === 404) {
-    return {
-      http: 502,
-      error:
-        "RST AI — Gemini model unavailable (404). Set GEMINI_MODEL in Vercel to a model your free key supports. " +
-        msg
-    };
-  }
-  if (status === 429) {
-    return {
-      http: 502,
-      error: "RST AI — Gemini quota/rate limit (429). Wait and try again. " + msg
-    };
+    return { http: 503, error: "RST AI is temporarily unavailable. Please try again in a moment." };
   }
   return {
-    http: 502,
-    error: "RST AI — Gemini error (" + status + "): " + msg
+    http: 503,
+    error: "RST AI is temporarily unavailable. Your website is still working normally."
   };
 }
 
@@ -177,7 +159,7 @@ module.exports = async function handler(req, res) {
 
   if (!apiKey) {
     return json(res, 500, {
-      error: "Missing GEMINI_API_KEY in Vercel environment variables."
+      error: "RST AI is temporarily unavailable. Please try again in a moment."
     });
   }
 
@@ -239,7 +221,7 @@ module.exports = async function handler(req, res) {
     } catch (e) {
       console.error("[RST] Gemini non-JSON:", String(raw).slice(0, 300));
       return json(res, 502, {
-        error: "RST AI — Gemini returned non-JSON body.",
+        error: "RST AI is temporarily unavailable. Please try again in a moment.",
         detail: String(raw).slice(0, 300)
       });
     }
