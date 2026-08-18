@@ -3,11 +3,16 @@
  * POST /api/parse-pio-reminders
  *
  * RST — Reminder Structuring & Tracking AI
- * Provider: xAI Grok (NOT Gemini)
+ * Provider: Google Gemini (FREE API key via AI Studio)
  *
- * Required Vercel Environment Variable:
- *   XAI_API_KEY
+ * Env (Vercel):
+ *   GEMINI_API_KEY  (required)
+ *   GEMINI_MODEL    (optional; default gemini-3.6-flash)
+ *
+ * Does NOT use XAI_API_KEY / xAI / Grok.
  */
+
+const DEFAULT_MODEL = "gemini-3.6-flash";
 
 const SYSTEM_PROMPT = `You are an expert academic assistant for a Filipino university section (BSCS 1-A, LSPU Siniloan).
 Your ONLY job is to extract schoolwork / reminders from PIO (Public Information Officer) announcements.
@@ -42,9 +47,6 @@ HARD RULES:
 8. deadline = YYYY-MM-DD when clear; else null and keep deadlineText.
 9. Ignore quotes, greetings, and @everyone.`;
 
-/** xAI model id for Chat Completions API (docs.x.ai, Aug 2026) */
-const XAI_MODEL = "grok-4.5";
-
 function applyCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -57,6 +59,15 @@ function json(res, status, payload) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(payload));
+}
+
+function getApiKey() {
+  return String(process.env.GEMINI_API_KEY || "").trim();
+}
+
+function getModel() {
+  const m = String(process.env.GEMINI_MODEL || "").trim();
+  return m || DEFAULT_MODEL;
 }
 
 function extractJson(text) {
@@ -95,6 +106,45 @@ function readBody(req) {
   return {};
 }
 
+function classifyGeminiError(status, bodyObj, raw) {
+  const msg = JSON.stringify(bodyObj || raw || "")
+    .replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]")
+    .slice(0, 500);
+
+  if (status === 400) {
+    return { http: 502, error: "RST AI — Gemini bad request (400): " + msg };
+  }
+  if (status === 401) {
+    return { http: 502, error: "RST AI — Gemini authentication error (401). Check GEMINI_API_KEY." };
+  }
+  if (status === 403) {
+    return {
+      http: 502,
+      error:
+        "RST AI — Gemini access restricted (403). Key may lack free-tier access or API not enabled. " +
+        msg
+    };
+  }
+  if (status === 404) {
+    return {
+      http: 502,
+      error:
+        "RST AI — Gemini model unavailable (404). Set GEMINI_MODEL in Vercel to a model your free key supports. " +
+        msg
+    };
+  }
+  if (status === 429) {
+    return {
+      http: 502,
+      error: "RST AI — Gemini quota/rate limit (429). Wait and try again. " + msg
+    };
+  }
+  return {
+    http: 502,
+    error: "RST AI — Gemini error (" + status + "): " + msg
+  };
+}
+
 module.exports = async function handler(req, res) {
   applyCors(res);
 
@@ -103,15 +153,17 @@ module.exports = async function handler(req, res) {
     return res.end("");
   }
 
-  // Health check — never exposes secrets
+  const apiKey = getApiKey();
+  const model = getModel();
+
+  // Health / diagnostics (no secrets)
   if (req.method === "GET") {
-    const configured = Boolean(String(process.env.XAI_API_KEY || "").trim());
     return json(res, 200, {
       ok: true,
       service: "RST AI",
-      provider: "xAI",
-      model: XAI_MODEL,
-      configured
+      provider: "google-gemini",
+      model,
+      configured: Boolean(apiKey)
     });
   }
 
@@ -120,13 +172,12 @@ module.exports = async function handler(req, res) {
   }
 
   console.log("[RST] Request received");
-  console.log("[RST] Method:", req.method);
+  console.log("[RST] GEMINI_API_KEY configured:", Boolean(apiKey));
+  console.log("[RST] GEMINI_MODEL:", model);
 
-  const apiKey = String(process.env.XAI_API_KEY || "").trim();
-  console.log("[RST] XAI_API_KEY configured:", Boolean(apiKey));
   if (!apiKey) {
     return json(res, 500, {
-      error: "Missing XAI_API_KEY in Vercel environment variables."
+      error: "Missing GEMINI_API_KEY in Vercel environment variables."
     });
   }
 
@@ -142,32 +193,36 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    console.log("[RST] Calling xAI... model=", XAI_MODEL);
+    const url =
+      "https://generativelanguage.googleapis.com/v1beta/models/" +
+      encodeURIComponent(model) +
+      ":generateContent?key=" +
+      encodeURIComponent(apiKey);
+
+    console.log("[RST] Calling Gemini...");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 50000);
 
-    let xaiRes;
+    let geminiRes;
     try {
-      xaiRes = await fetch("https://api.x.ai/v1/chat/completions", {
+      geminiRes = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + apiKey
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: XAI_MODEL,
-          temperature: 0.1,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+          contents: [
             {
-              role: "user",
-              content:
-                "Extract all schoolwork reminders from this PIO announcement. Return JSON only.\n\n" +
-                text
+              parts: [
+                {
+                  text: SYSTEM_PROMPT + "\n\nPIO Announcement to parse:\n" + text
+                }
+              ]
             }
-          ]
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json"
+          }
         }),
         signal: controller.signal
       });
@@ -175,38 +230,42 @@ module.exports = async function handler(req, res) {
       clearTimeout(timeout);
     }
 
-    const raw = await xaiRes.text();
-    console.log("[RST] xAI response status:", xaiRes.status);
+    const raw = await geminiRes.text();
+    console.log("[RST] Gemini HTTP status:", geminiRes.status);
 
-    if (!xaiRes.ok) {
-      const safe = String(raw)
-        .replace(/xai-[a-zA-Z0-9_-]+/g, "[redacted]")
-        .replace(/sk-[a-zA-Z0-9_-]+/g, "[redacted]")
-        .slice(0, 400);
-      console.error("[RST] xAI error body:", safe);
+    let data = null;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      console.error("[RST] Gemini non-JSON:", String(raw).slice(0, 300));
       return json(res, 502, {
-        error: "RST AI provider error (" + xaiRes.status + "): " + safe
+        error: "RST AI — Gemini returned non-JSON body.",
+        detail: String(raw).slice(0, 300)
       });
     }
 
-    let xaiJson;
-    try {
-      xaiJson = JSON.parse(raw);
-    } catch (e) {
-      return json(res, 502, { error: "xAI returned non-JSON body." });
+    if (!geminiRes.ok) {
+      const classified = classifyGeminiError(geminiRes.status, data, raw);
+      console.error("[RST] Gemini error:", classified.error);
+      return json(res, classified.http, { error: classified.error });
     }
 
-    const content =
-      xaiJson &&
-      xaiJson.choices &&
-      xaiJson.choices[0] &&
-      xaiJson.choices[0].message &&
-      xaiJson.choices[0].message.content;
+    const rawText =
+      data &&
+      data.candidates &&
+      data.candidates[0] &&
+      data.candidates[0].content &&
+      data.candidates[0].content.parts &&
+      data.candidates[0].content.parts[0] &&
+      data.candidates[0].content.parts[0].text;
 
-    const parsed = extractJson(content);
+    const parsed = extractJson(rawText);
     if (!parsed || !Array.isArray(parsed.items)) {
-      console.error("[RST] Malformed model output:", String(content || "").slice(0, 300));
-      return json(res, 502, { error: "AI returned malformed JSON." });
+      console.error("[RST] Malformed JSON:", String(rawText || "").slice(0, 300));
+      return json(res, 502, {
+        error: "RST AI — AI returned malformed JSON.",
+        model
+      });
     }
 
     const items = parsed.items
@@ -228,13 +287,13 @@ module.exports = async function handler(req, res) {
           : []
       }));
 
-    console.log("[RST] Request completed. items=", items.length);
+    console.log("[RST] Success. items=", items.length);
 
     return json(res, 200, {
       announcementDate: parsed.announcementDate || null,
       items,
-      source: "xai-grok",
-      model: XAI_MODEL
+      source: "google-gemini",
+      model
     });
   } catch (err) {
     if (err && err.name === "AbortError") {
