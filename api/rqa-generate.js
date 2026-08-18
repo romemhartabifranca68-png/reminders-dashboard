@@ -88,7 +88,7 @@ module.exports = async function handler(req, res) {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   const model = String(process.env.GEMINI_MODEL || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
   if (!apiKey) {
-    return json(res, 500, { error: "Missing GEMINI_API_KEY" });
+    return json(res, 500, { error: "RQA AI is temporarily unavailable. Please try again in a moment." });
   }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
@@ -144,18 +144,18 @@ module.exports = async function handler(req, res) {
     try {
       data = JSON.parse(raw);
     } catch (e) {
-      return json(res, 502, { error: "Gemini non-JSON response", detail: raw.slice(0, 200) });
+      console.error("[RQA] non-JSON", String(raw).slice(0, 200)); return json(res, 503, { error: "RQA AI is temporarily unavailable. Please try again in a moment." });
     }
     if (!geminiRes.ok) {
       const detail = JSON.stringify(data).replace(/AIza[0-9A-Za-z_-]+/g, "[redacted]").slice(0, 400);
-      return json(res, 502, { error: "Gemini error (" + geminiRes.status + "): " + detail });
+      console.error("[RQA] upstream", geminiRes.status, detail); return json(res, 503, { error: geminiRes.status === 429 ? "RQA AI is currently busy. Please try again later." : "RQA AI is temporarily unavailable. Please try again in a moment." });
     }
 
     const content =
       data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const parsed = extractJson(content);
     if (!parsed || !Array.isArray(parsed.items)) {
-      return json(res, 502, { error: "Malformed AI JSON (missing items)" });
+      return json(res, 502, { error: "RQA AI could not build valid questions from that material. Try a clearer module or fewer questions." });
     }
 
     const items = parsed.items
