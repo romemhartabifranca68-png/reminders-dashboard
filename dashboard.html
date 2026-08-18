@@ -557,6 +557,68 @@
             opacity: 0.55;
             cursor: not-allowed;
         }
+
+        /* RQA AI panel */
+        .rqa-panel {
+            display: none;
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 16px;
+            border: 1px solid rgba(52, 211, 153, 0.35);
+            background: linear-gradient(160deg, rgba(16, 185, 129, 0.12), rgba(56, 189, 248, 0.08));
+            text-align: left;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+        body.can-edit .rqa-panel { display: block; }
+        .rqa-panel strong { color: #6ee7b7; font-size: 0.95rem; }
+        #rqaSourceText {
+            width: 100%;
+            min-height: 120px;
+            max-height: 240px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.28);
+            color: var(--text);
+            font: inherit;
+            resize: vertical;
+        }
+        .rqa-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+            align-items: center;
+        }
+        .rqa-row label { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+        .rqa-row select, .rqa-row input {
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.28);
+            color: var(--text);
+            font: inherit;
+        }
+        .rqa-q-card {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.22);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .rqa-q-card.removed { opacity: 0.4; text-decoration: line-through; }
+        .rqa-q-card input, .rqa-q-card textarea {
+            width: 100%;
+            margin: 4px 0;
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0,0,0,0.25);
+            color: var(--text);
+            font: inherit;
+        }
+
         /* AI Reminder Import panel */
         .ai-import-panel {
             display: none;
@@ -791,6 +853,7 @@
                     <button type="button" class="edit-btn" id="addSubjectBtn">+ Add subject</button>
                     <button type="button" class="edit-btn" id="reloadCloudBtn">Reload from cloud</button>
                     <button type="button" class="edit-btn primary-ai" id="openAiImportBtn">✨ RST AI</button>
+                    <button type="button" class="edit-btn primary-ai" id="openRqaBtn">✨ RQA AI</button>
                 </div>
                 <div class="edit-status" id="editStatus"></div>
             </div>
@@ -808,6 +871,52 @@
                 <div class="ai-import-footer" id="aiImportFooter" hidden>
                     <button type="button" class="edit-btn primary-ai" id="aiImportBtn">Import to Dashboard</button>
                     <span class="edit-status" id="aiImportStatus"></span>
+                </div>
+            </div>
+
+            <div class="rqa-panel" id="rqaPanel">
+                <strong>✨ RQA AI</strong>
+                <p class="ai-hint" style="margin-bottom:0.2rem;"><strong>Reviewer Question Architect AI</strong></p>
+                <p class="ai-hint">Paste module notes → generate MCQs → review → import to Firebase (built-in bank stays).</p>
+                <div class="rqa-row">
+                    <label>Subject
+                        <select id="rqaSubject">
+                            <option>ITEC 101</option>
+                            <option>ITEC 102</option>
+                            <option>GEC 101</option>
+                            <option>GEC 102</option>
+                            <option>P.I. 100</option>
+                            <option>KOMFIL</option>
+                        </select>
+                    </label>
+                    <label>Count
+                        <select id="rqaCount">
+                            <option>5</option>
+                            <option selected>10</option>
+                            <option>20</option>
+                            <option>30</option>
+                            <option>50</option>
+                        </select>
+                    </label>
+                    <label>Difficulty
+                        <select id="rqaDifficulty">
+                            <option value="mixed">Mixed</option>
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </label>
+                </div>
+                <textarea id="rqaSourceText" maxlength="100000" placeholder="Paste teacher module / reviewer notes here…"></textarea>
+                <div class="edit-actions">
+                    <button type="button" class="edit-btn primary-ai" id="rqaGenerateBtn">✨ Generate Questions</button>
+                    <button type="button" class="edit-btn" id="rqaClearBtn">Clear</button>
+                </div>
+                <div class="edit-status" id="rqaStatus"></div>
+                <div id="rqaResults"></div>
+                <div class="ai-import-footer" id="rqaImportFooter" hidden>
+                    <button type="button" class="edit-btn primary-ai" id="rqaImportBtn">Import Approved Questions</button>
+                    <span class="edit-status" id="rqaImportStatus"></span>
                 </div>
             </div>
         </section>
@@ -858,7 +967,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-        import { getDatabase, ref, get, set } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
+        import { getDatabase, ref, get, set, push } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js";
         import {
             getAuth,
             signInWithEmailAndPassword,
@@ -1828,6 +1937,217 @@
             }
         }
 
+
+        /* ===================== RQA AI (Reviewer Question Architect) ===================== */
+        const RQA_ENDPOINT = "https://reminders-dashboard-eosin.vercel.app/api/rqa-generate";
+        let rqaPreview = [];
+
+        function subjectToFbKey(subject) {
+            return String(subject || "").trim().replace(/\./g, "").replace(/\s+/g, "_").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) || "UNKNOWN";
+        }
+        function normQKey(s, q) {
+            return String(s || "").toLowerCase().trim() + "||" + String(q || "").toLowerCase().replace(/\s+/g, " ").trim();
+        }
+        function setRqaStatus(msg) {
+            const el = document.getElementById("rqaStatus");
+            if (el) el.textContent = msg || "";
+        }
+        function renderRqaResults() {
+            const box = document.getElementById("rqaResults");
+            const foot = document.getElementById("rqaImportFooter");
+            if (!box) return;
+            if (!rqaPreview.length) {
+                box.innerHTML = "";
+                if (foot) foot.hidden = true;
+                return;
+            }
+            if (foot) foot.hidden = false;
+            box.innerHTML = rqaPreview.map((item, i) => {
+                const ch = (item.choices || []).map((c, ci) =>
+                    `<label style="display:block;font-size:0.8rem;">${ci === 0 ? "A" : ci === 1 ? "B" : ci === 2 ? "C" : "D"}.
+                    <input data-rqa-choice="${i},${ci}" value="${escapeHtml(c)}" /></label>`
+                ).join("");
+                return `<div class="rqa-q-card ${item._remove ? "removed" : ""}" data-rqa-i="${i}">
+                    <div style="font-weight:800;margin-bottom:6px;">${escapeHtml(item.s)} · ${escapeHtml(item.difficulty || "medium")}${item._dup ? ' · <span style="color:#fecaca">Already exists</span>' : ""}</div>
+                    <label>Question<textarea data-rqa-q="${i}" rows="2">${escapeHtml(item.q)}</textarea></label>
+                    ${ch}
+                    <label>Correct answer<input data-rqa-ans="${i}" value="${escapeHtml(item.answer)}" /></label>
+                    <label>Explanation<textarea data-rqa-exp="${i}" rows="2">${escapeHtml(item.explanation || "")}</textarea></label>
+                    <div class="ai-task-actions">
+                        <button type="button" class="edit-btn" data-rqa-toggle="${i}">${item._remove ? "Restore" : "Remove"}</button>
+                    </div>
+                </div>`;
+            }).join("");
+            box.querySelectorAll("[data-rqa-toggle]").forEach((btn) => {
+                btn.onclick = () => {
+                    const i = Number(btn.getAttribute("data-rqa-toggle"));
+                    rqaPreview[i]._remove = !rqaPreview[i]._remove;
+                    renderRqaResults();
+                };
+            });
+            box.querySelectorAll("[data-rqa-q]").forEach((el) => {
+                el.oninput = () => { rqaPreview[Number(el.getAttribute("data-rqa-q"))].q = el.value; };
+            });
+            box.querySelectorAll("[data-rqa-ans]").forEach((el) => {
+                el.oninput = () => { rqaPreview[Number(el.getAttribute("data-rqa-ans"))].answer = el.value; };
+            });
+            box.querySelectorAll("[data-rqa-exp]").forEach((el) => {
+                el.oninput = () => { rqaPreview[Number(el.getAttribute("data-rqa-exp"))].explanation = el.value; };
+            });
+            box.querySelectorAll("[data-rqa-choice]").forEach((el) => {
+                el.oninput = () => {
+                    const [i, ci] = el.getAttribute("data-rqa-choice").split(",").map(Number);
+                    if (!rqaPreview[i].choices) rqaPreview[i].choices = ["", "", "", ""];
+                    rqaPreview[i].choices[ci] = el.value;
+                };
+            });
+        }
+
+        async function fetchExistingQuestionKeys(subject) {
+            const keys = new Set();
+            if (!db) return keys;
+            try {
+                const snap = await get(ref(db, "reviewer_questions/" + subjectToFbKey(subject)));
+                if (!snap.exists()) return keys;
+                const bucket = snap.val() || {};
+                Object.values(bucket).forEach((row) => {
+                    if (row && row.q) keys.add(normQKey(row.s || subject, row.q));
+                });
+            } catch (e) {
+                console.warn("[RQA] existing keys load failed", e);
+            }
+            return keys;
+        }
+
+        async function handleRqaGenerate() {
+            if (!canEditDashboard()) {
+                setRqaStatus("Login as Admin / P.I.O. first.");
+                return;
+            }
+            const subject = (document.getElementById("rqaSubject") || {}).value || "";
+            const count = Number((document.getElementById("rqaCount") || {}).value || 10);
+            const difficulty = (document.getElementById("rqaDifficulty") || {}).value || "mixed";
+            const text = ((document.getElementById("rqaSourceText") || {}).value || "").trim();
+            if (text.length < 40) {
+                setRqaStatus("Paste more module text (too short).");
+                return;
+            }
+            const btn = document.getElementById("rqaGenerateBtn");
+            if (btn) btn.disabled = true;
+            setRqaStatus("RQA AI is generating questions...");
+            rqaPreview = [];
+            renderRqaResults();
+            try {
+                console.log("[RQA] Sending request to:", RQA_ENDPOINT);
+                const res = await fetch(RQA_ENDPOINT, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Accept: "application/json" },
+                    body: JSON.stringify({ text, subject, count, difficulty })
+                });
+                const raw = await res.text();
+                console.log("[RQA] Backend response:", res.status);
+                let data;
+                try { data = JSON.parse(raw); } catch (e) {
+                    throw new Error("Non-JSON response: " + raw.slice(0, 160));
+                }
+                if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+                if (!data.items || !Array.isArray(data.items)) throw new Error("No items in response");
+                const existing = await fetchExistingQuestionKeys(subject);
+                rqaPreview = data.items.map((it) => {
+                    const row = {
+                        s: it.s || subject,
+                        q: it.q,
+                        choices: Array.isArray(it.choices) ? it.choices.slice(0, 4) : [],
+                        answer: it.answer,
+                        explanation: it.explanation || "",
+                        difficulty: it.difficulty || "medium",
+                        source: it.source || null,
+                        _remove: false,
+                        _dup: existing.has(normQKey(it.s || subject, it.q))
+                    };
+                    if (typeof row.answer === "number" && row.choices[row.answer] != null) {
+                        row.answer = row.choices[row.answer];
+                    }
+                    return row;
+                });
+                const dups = rqaPreview.filter((x) => x._dup).length;
+                setRqaStatus(`Generated ${rqaPreview.length} question(s)${dups ? " · " + dups + " already exist" : ""}. Review before import.`);
+                renderRqaResults();
+            } catch (err) {
+                console.error("[RQA] Request error:", err);
+                setRqaStatus(err && err.message ? err.message : "RQA generate failed");
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function handleRqaImport() {
+            if (!canEditDashboard()) return;
+            if (!db) {
+                document.getElementById("rqaImportStatus").textContent = "Firebase not ready.";
+                return;
+            }
+            const session = loadAuthSession() || {};
+            const toSave = rqaPreview.filter((x) => !x._remove && !x._dup && x.q && x.choices && x.choices.length);
+            if (!toSave.length) {
+                document.getElementById("rqaImportStatus").textContent = "Nothing to import.";
+                return;
+            }
+            const btn = document.getElementById("rqaImportBtn");
+            if (btn) btn.disabled = true;
+            document.getElementById("rqaImportStatus").textContent = "Saving…";
+            try {
+                let n = 0;
+                for (const item of toSave) {
+                    const key = subjectToFbKey(item.s);
+                    const pathRef = ref(db, "reviewer_questions/" + key);
+                    const newRef = push(pathRef);
+                    await set(newRef, {
+                        s: item.s,
+                        q: item.q,
+                        choices: item.choices,
+                        answer: item.answer,
+                        explanation: item.explanation || "",
+                        difficulty: item.difficulty || "medium",
+                        source: item.source || null,
+                        createdAt: Date.now(),
+                        createdBy: session.username || "admin"
+                    });
+                    n += 1;
+                    item._dup = true;
+                }
+                document.getElementById("rqaImportStatus").textContent = "Imported " + n + " question(s). Open Arena to load them.";
+                setRqaStatus("Import complete. Cloud bank updated.");
+                renderRqaResults();
+            } catch (err) {
+                console.error("[RQA] import failed", err);
+                document.getElementById("rqaImportStatus").textContent =
+                    "Import failed (check Firebase rules for reviewer_questions write): " + (err.message || err);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function initRqaControls() {
+            const gen = document.getElementById("rqaGenerateBtn");
+            if (gen) gen.addEventListener("click", (e) => { e.preventDefault(); handleRqaGenerate(); });
+            const clr = document.getElementById("rqaClearBtn");
+            if (clr) clr.addEventListener("click", () => {
+                const ta = document.getElementById("rqaSourceText");
+                if (ta) ta.value = "";
+                rqaPreview = [];
+                renderRqaResults();
+                setRqaStatus("");
+            });
+            const imp = document.getElementById("rqaImportBtn");
+            if (imp) imp.addEventListener("click", (e) => { e.preventDefault(); handleRqaImport(); });
+            const open = document.getElementById("openRqaBtn");
+            if (open) open.addEventListener("click", () => {
+                const p = document.getElementById("rqaPanel");
+                if (p) p.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+        }
+
         function initAiImportControls() {
             const gen = document.getElementById("aiGenerateBtn");
             if (gen) {
@@ -2392,6 +2712,7 @@
                 editQuoteBtn.addEventListener("click", openQuoteModal);
             }
             initAiImportControls();
+            initRqaControls();
         }
 
         loadTheme();
